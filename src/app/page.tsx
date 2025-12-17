@@ -13,15 +13,16 @@ export default function Home() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const r1 = await fetch('http://localhost:3000/api/search/songs?query=english+top+hits&limit=15');
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+        const r1 = await fetch(`${apiUrl}/api/search/songs?query=english+top+hits&limit=15`);
         const d1 = await r1.json();
         if (d1.success) setTrending(d1.data.results);
 
-        const r2 = await fetch('http://localhost:3000/api/search/songs?query=new+english+songs&limit=45');
+        const r2 = await fetch(`${apiUrl}/api/search/songs?query=new+english+songs&limit=45`);
         const d2 = await r2.json();
         if (d2.success) setNewReleases(d2.data.results);
 
-        const r3 = await fetch('http://localhost:3000/api/history');
+        const r3 = await fetch(`${apiUrl}/api/history`);
         const d3 = await r3.json();
         if (d3.success) setLastPlayed(d3.data);
       } catch (e) {

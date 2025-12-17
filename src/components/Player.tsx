@@ -13,7 +13,8 @@ export default function Player() {
 
     useEffect(() => {
         if (currentSong) {
-            fetch(`http://localhost:3000/api/favorites/${currentSong.id}/check`)
+            const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+            fetch(`${apiUrl}/api/favorites/${currentSong.id}/check`)
                 .then(r => r.json())
                 .then(d => setIsFav(d.isFavorite))
                 .catch(console.error);
@@ -69,11 +70,12 @@ export default function Player() {
 
     const toggleFav = async (e: React.MouseEvent) => {
         e.stopPropagation();
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
         if (isFav) {
-            await fetch(`http://localhost:3000/api/favorites/${currentSong.id}`, { method: 'DELETE' });
+            await fetch(`${apiUrl}/api/favorites/${currentSong.id}`, { method: 'DELETE' });
             setIsFav(false);
         } else {
-            await fetch('http://localhost:3000/api/favorites', {
+            await fetch(`${apiUrl}/api/favorites`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

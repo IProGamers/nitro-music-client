@@ -11,7 +11,8 @@ export default function SearchPage() {
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
-        fetch('http://localhost:3000/api/history')
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+        fetch(`${apiUrl}/api/history`)
             .then(r => r.json())
             .then(d => {
                 if (d.success) setRecents(d.data.slice(0, 8));
@@ -28,7 +29,8 @@ export default function SearchPage() {
 
         setLoading(true);
         try {
-            const res = await fetch(`http://localhost:3000/api/search/songs?query=${encodeURIComponent(q)}&limit=20`);
+            const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+            const res = await fetch(`${apiUrl}/api/search/songs?query=${encodeURIComponent(q)}&limit=20`);
             const data = await res.json();
             if (data.success) setResults(data.data.results);
         } catch (e) {

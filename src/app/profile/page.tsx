@@ -12,11 +12,12 @@ export default function ProfilePage() {
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const fRes = await fetch('http://localhost:3000/api/favorites');
+                const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+                const fRes = await fetch(`${apiUrl}/api/favorites`);
                 const fData = await fRes.json();
                 if (fData.success) setFavorites(fData.data);
 
-                const hRes = await fetch('http://localhost:3000/api/history');
+                const hRes = await fetch(`${apiUrl}/api/history`);
                 const hData = await hRes.json();
                 if (hData.success) setHistory(hData.data);
             } catch (e) {

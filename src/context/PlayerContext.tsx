@@ -137,14 +137,15 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
         setCurrentSong(song);
 
         try {
-            const res = await fetch(`http://localhost:3000/api/songs/${trackId}`);
+            const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+            const res = await fetch(`${apiUrl}/api/songs/${trackId}`);
             const data = await res.json();
             if (data.success && data.data && data.data[0]) {
                 const fullSong = data.data[0];
                 setCurrentSong(fullSong);
                 setIsPlaying(true);
 
-                fetch('http://localhost:3000/api/history', {
+                fetch(`${apiUrl}/api/history`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
