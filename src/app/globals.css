@@ -15,20 +15,54 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: 'Inter', sans-serif;
+  font-family: 'Outfit', sans-serif;
 }
 
 /* Custom Scrollbar Hide Utility */
-.scrollbar-hide {
+.scrollbar-hide,
+.no-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
 
-.scrollbar-hide::-webkit-scrollbar {
+.scrollbar-hide::-webkit-scrollbar,
+.no-scrollbar::-webkit-scrollbar {
   display: none;
 }
 
 /* Safe Area for Mobile */
 .pb-safe {
   padding-bottom: env(safe-area-inset-bottom);
+}
+
+@keyframes slow-pulse {
+
+  0%,
+  100% {
+    opacity: 0.4;
+    transform: scale(1.5);
+  }
+
+  50% {
+    opacity: 0.6;
+    transform: scale(1.6);
+  }
+}
+
+@keyframes hero-progress {
+  from {
+    width: 0%;
+  }
+
+  to {
+    width: 100%;
+  }
+}
+
+.animate-hero-progress {
+  animation: hero-progress 6s linear forwards;
+}
+
+.animate-slow-pulse {
+  animation: slow-pulse 10s infinite ease-in-out;
 }
