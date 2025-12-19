@@ -43,7 +43,7 @@ export default function UpgradePage() {
     }, []);
 
     return (
-        <div className="min-h-screen bg-black text-white relative overflow-hidden flex items-center justify-center">
+        <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] relative overflow-hidden flex items-center justify-center">
             {/* Background Glow */}
             <div className="fixed inset-0 pointer-events-none">
                 <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-gradient-to-b from-amber-500/20 via-purple-500/15 to-transparent rounded-full blur-[120px]" />
@@ -53,7 +53,7 @@ export default function UpgradePage() {
             <div className="fixed top-4 left-4 z-50">
                 <Link
                     href="/"
-                    className="flex items-center gap-2 px-4 py-2 bg-white/5 backdrop-blur-xl border border-white/10 rounded-full text-zinc-400 hover:text-white hover:bg-white/10 transition-all text-sm font-medium"
+                    className="flex items-center gap-2 px-4 py-2 bg-[var(--card)]/50 backdrop-blur-xl border border-[var(--border)] rounded-full text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:bg-[var(--card-hover)] transition-all text-sm font-medium"
                 >
                     <ArrowLeft size={16} />
                     Back
@@ -90,7 +90,7 @@ export default function UpgradePage() {
 
                     {mounted && (
                         <TextShimmer
-                            className="text-sm md:text-base [--base-color:theme(colors.zinc.500)] [--base-gradient-color:theme(colors.amber.400)]"
+                            className="text-sm md:text-base [--base-color:var(--foreground-muted)] [--base-gradient-color:theme(colors.amber.400)]"
                             duration={3}
                         >
                             Unlock the ultimate experience
@@ -108,7 +108,7 @@ export default function UpgradePage() {
                     {features.map((feature) => (
                         <div
                             key={feature.title}
-                            className={`p-3 rounded-2xl ${feature.bg} border border-white/5`}
+                            className={`p-3 rounded-2xl ${feature.bg} border border-[var(--border)]`}
                             title={feature.title}
                         >
                             <feature.icon size={20} className={feature.color} />
@@ -124,7 +124,7 @@ export default function UpgradePage() {
                 >
                     <div className="flex items-center justify-center gap-2 mb-4">
                         <MessageCircle size={16} className="text-purple-400" />
-                        <p className="text-zinc-400 text-sm font-medium">DM to upgrade</p>
+                        <p className="text-[var(--foreground-muted)] text-sm font-medium">DM to upgrade</p>
                     </div>
 
                     {/* Instagram Button */}
@@ -161,7 +161,7 @@ export default function UpgradePage() {
                         </div>
                     </motion.a>
 
-                    <p className="text-zinc-600 text-xs mt-4 flex items-center justify-center gap-1.5">
+                    <p className="text-[var(--foreground-muted)] text-xs mt-4 flex items-center justify-center gap-1.5">
                         <Gift size={12} className="text-amber-500" />
                         Mention "NITRO" for exclusive offers
                     </p>
@@ -175,7 +175,7 @@ export default function UpgradePage() {
                     transition={{ duration: 0.5, delay: 0.4 }}
                 >
                     {['3D Audio', 'Offline Mode', 'HD Quality', 'Visualizer', 'Priority Support'].map((f) => (
-                        <span key={f} className="px-3 py-1.5 bg-white/5 border border-white/10 rounded-full text-[10px] md:text-xs text-zinc-400 font-medium">
+                        <span key={f} className="px-3 py-1.5 bg-[var(--card)] border border-[var(--border)] rounded-full text-[10px] md:text-xs text-[var(--foreground-muted)] font-medium">
                             {f}
                         </span>
                     ))}
@@ -187,7 +187,7 @@ export default function UpgradePage() {
             <AnimatePresence>
                 {!mounted && (
                     <motion.div
-                        className="fixed inset-0 bg-black z-50 flex items-center justify-center"
+                        className="fixed inset-0 bg-[var(--background)] z-50 flex items-center justify-center"
                         exit={{ opacity: 0 }}
                         transition={{ duration: 0.3 }}
                     >

@@ -47,8 +47,8 @@ export default function Sidebar() {
     return (
         <>
             {/* Desktop Sidebar - Uses calc to account for player bar height */}
-            <div className="hidden md:flex w-64 bg-black border-r border-white/10 flex-col p-6 shrink-0 fixed top-0 left-0 z-30" style={{ height: 'calc(100vh - 96px)' }}>
-                <div className="text-2xl font-bold mb-6 text-cyan-400 tracking-tighter shrink-0">Nitro<span className="text-white">.</span></div>
+            <div className="hidden md:flex w-64 bg-[var(--background)] border-r border-[var(--border)] flex-col p-6 shrink-0 fixed top-0 left-0 z-30 transition-all duration-300" style={{ height: 'calc(100vh - 96px)' }}>
+                <div className="text-2xl font-bold mb-6 text-cyan-400 tracking-tighter shrink-0">Nitro<span className="text-[var(--foreground)]">.</span></div>
 
                 {/* Navigation */}
                 <nav className="flex flex-col gap-2 flex-1 overflow-y-auto pr-1">
@@ -67,8 +67,8 @@ export default function Sidebar() {
                                         : 'bg-cyan-900/20 text-cyan-400 border border-cyan-500/20'
                                     : isAdminLink
                                         ? 'text-amber-400/70 hover:text-amber-400 hover:bg-amber-500/10'
-                                        : 'text-zinc-400 hover:text-white hover:bg-white/5'
-                                    }`}
+                                        : 'text-[var(--foreground-secondary)] hover:text-[var(--foreground)] hover:bg-[var(--card-hover)]'
+                                    } transition-colors duration-300`}
                             >
                                 <Icon size={20} />
                                 <span className="font-medium">{l.name}</span>
@@ -83,7 +83,7 @@ export default function Sidebar() {
                 </nav>
 
                 {/* User Section at Bottom */}
-                <div className="border-t border-white/10 pt-3 mt-3 shrink-0">
+                <div className="border-t border-[var(--border)] pt-3 mt-3 shrink-0">
                     {user ? (
                         <div className="space-y-2">
                             <div className="flex items-center gap-3 p-2">
@@ -95,10 +95,10 @@ export default function Sidebar() {
                                     </div>
                                 )}
                                 <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-medium text-white truncate">
+                                    <p className="text-sm font-medium text-[var(--foreground)] truncate">
                                         {userProfile?.displayName || 'User'}
                                     </p>
-                                    <p className="text-[10px] text-zinc-500 truncate">
+                                    <p className="text-[10px] text-[var(--foreground-muted)] truncate">
                                         {user.email}
                                     </p>
                                 </div>
@@ -127,8 +127,8 @@ export default function Sidebar() {
             <div className="hidden md:block w-64 shrink-0" />
 
             {/* Mobile Header - Removed Hamburger Menu */}
-            <div className="md:hidden fixed top-0 left-0 w-full h-16 bg-black/90 backdrop-blur-xl border-b border-white/10 flex items-center justify-between px-6 z-40">
-                <div className="text-xl font-bold text-cyan-400 tracking-tighter">Nitro<span className="text-white">.</span></div>
+            <div className="md:hidden fixed top-0 left-0 w-full h-16 bg-[var(--background)]/90 backdrop-blur-xl border-b border-[var(--border)] flex items-center justify-between px-6 z-40 transition-all duration-300">
+                <div className="text-xl font-bold text-cyan-400 tracking-tighter">Nitro<span className="text-[var(--foreground)]">.</span></div>
                 <div className="flex items-center gap-4">
                     {user && (
                         <Link href="/profile" className="active:scale-95 transition-all">
@@ -149,12 +149,12 @@ export default function Sidebar() {
             {/* Mobile Drawer Removed */}
 
             {/* Mobile Bottom Nav */}
-            <div className="md:hidden fixed bottom-0 left-0 w-full h-16 bg-black/95 backdrop-blur-lg border-t border-white/10 flex justify-around items-center z-40 pb-safe">
+            <div className="md:hidden fixed bottom-0 left-0 w-full h-16 bg-[var(--background)]/95 backdrop-blur-lg border-t border-[var(--border)] flex justify-around items-center z-40 pb-safe transition-all duration-300">
                 {links.filter(l => !l.desktopOnly).map(l => {
                     const Icon = l.icon;
                     const active = pathname === l.href;
                     return (
-                        <Link key={l.name} href={l.href} className={`flex flex-col items-center gap-1 py-2 px-4 rounded-lg transition-colors ${active ? 'text-cyan-400' : 'text-zinc-500'}`}>
+                        <Link key={l.name} href={l.href} className={`flex flex-col items-center gap-1 py-2 px-4 rounded-lg transition-colors ${active ? 'text-cyan-400' : 'text-[var(--foreground-muted)]'}`}>
                             <Icon size={22} strokeWidth={active ? 2.5 : 2} />
                             <span className="text-[10px] font-medium">{l.name}</span>
                         </Link>

@@ -10,18 +10,21 @@ const TIER_FEATURES = {
         download: false,
         supremeQuality: false,
         visualizer: false,
+        themes: false,
     },
     NITRO_ELITE: {
         audio3D: true,
         download: false,
         supremeQuality: false,
         visualizer: true,
+        themes: true,
     },
     NITRO_SUPREME: {
         audio3D: true,
         download: true,
         supremeQuality: true,
         visualizer: true,
+        themes: true,
     }
 };
 
@@ -37,12 +40,17 @@ const TIER_FEATURES_EXTENDED: Record<string, typeof TIER_FEATURES.NITRO_CORE> = 
     NITRO_ULTRA: TIER_FEATURES.NITRO_SUPREME, // Map legacy tier
 };
 
+import { useTheme } from '@/context/ThemeContext';
+import { Palette, Sun, Moon } from 'lucide-react';
+
 export default function SettingsPage() {
     const {
         enableDownload, setEnableDownload,
         enable3DAudio, setEnable3DAudio,
         tier
     } = useSettings();
+
+    const { theme, toggleTheme } = useTheme();
 
     // Handle legacy NITRO_ULTRA by mapping to NITRO_SUPREME
     const effectiveTier = (tier as string) === 'NITRO_ULTRA' ? 'NITRO_SUPREME' : tier;
@@ -64,10 +72,10 @@ export default function SettingsPage() {
     return (
         <div className="p-6 md:p-8 pb-32 pt-20 md:pt-8 max-w-3xl mx-auto">
             <div className="mb-8">
-                <h1 className="text-3xl font-bold mb-2 text-white flex items-center gap-3">
+                <h1 className="text-3xl font-bold mb-2 flex items-center gap-3">
                     <Settings size={32} className="text-cyan-400" /> Settings
                 </h1>
-                <p className="text-zinc-400">Manage your playback and app preferences</p>
+                <p className="text-[var(--foreground-secondary)]">Manage your playback and app preferences</p>
             </div>
 
             {/* Current Plan Badge */}
@@ -89,23 +97,57 @@ export default function SettingsPage() {
             </div>
 
             <div className="space-y-6">
+                {/* Appearance Settings */}
+                <div className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-6 relative overflow-hidden transition-all duration-300">
+                    {!features.themes && <LockedOverlay requiredTier="Nitro Elite" />}
+                    <h2 className="text-xl font-bold mb-6">Appearance</h2>
+
+                    {/* Theme Toggle */}
+                    <div className="flex items-center justify-between py-4">
+                        <div className="flex items-center gap-4">
+                            <div className="p-3 bg-amber-500/20 rounded-xl text-amber-500">
+                                {theme === 'dark' ? <Moon size={24} /> : <Sun size={24} />}
+                            </div>
+                            <div>
+                                <h3 className="font-semibold flex items-center gap-2">
+                                    Exclusive Themes
+                                    {!features.themes && <Lock size={14} className="text-amber-400" />}
+                                </h3>
+                                <p className="text-sm text-[var(--foreground-secondary)]">Switch between Light and Dark mode</p>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <span className="text-xs font-bold uppercase tracking-wider text-[var(--foreground-muted)]">
+                                {theme === 'dark' ? 'Dark' : 'Light'}
+                            </span>
+                            <button
+                                onClick={() => features.themes && toggleTheme()}
+                                className={`transition-all duration-300 ${features.themes ? (theme === 'light' ? 'text-amber-500' : 'text-zinc-600') : 'text-zinc-700 cursor-not-allowed'}`}
+                                disabled={!features.themes}
+                            >
+                                {theme === 'light' && features.themes ? <ToggleRight size={40} fill="currentColor" /> : <ToggleLeft size={40} />}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
                 {/* Playback Settings */}
-                <div className="bg-white/5 border border-white/10 rounded-2xl p-6 relative overflow-hidden">
+                <div className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-6 relative overflow-hidden transition-colors">
                     {!features.audio3D && <LockedOverlay requiredTier="Nitro" />}
-                    <h2 className="text-xl font-bold mb-6 text-white">Playback</h2>
+                    <h2 className="text-xl font-bold mb-6">Playback</h2>
 
                     {/* 3D Audio Toggle */}
-                    <div className="flex items-center justify-between py-4 border-b border-white/5 last:border-0">
+                    <div className="flex items-center justify-between py-4 border-b border-[var(--border)] last:border-0">
                         <div className="flex items-center gap-4">
                             <div className="p-3 bg-purple-500/20 rounded-xl text-purple-400">
                                 <Headphones size={24} />
                             </div>
                             <div>
-                                <h3 className="font-semibold text-white flex items-center gap-2">
+                                <h3 className="font-semibold flex items-center gap-2">
                                     3D Audio Effect
                                     {!features.audio3D && <Lock size={14} className="text-amber-400" />}
                                 </h3>
-                                <p className="text-sm text-zinc-400">Immersive spatial audio experience</p>
+                                <p className="text-sm text-[var(--foreground-secondary)]">Immersive spatial audio experience</p>
                             </div>
                         </div>
                         <button
@@ -119,9 +161,9 @@ export default function SettingsPage() {
                 </div>
 
                 {/* Download Settings */}
-                <div className="bg-white/5 border border-white/10 rounded-2xl p-6 relative overflow-hidden">
+                <div className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-6 relative overflow-hidden transition-colors">
                     {!features.download && <LockedOverlay requiredTier="Nitro Elite" />}
-                    <h2 className="text-xl font-bold mb-6 text-white">Downloads</h2>
+                    <h2 className="text-xl font-bold mb-6">Downloads</h2>
 
                     {/* Download Toggle */}
                     <div className="flex items-center justify-between py-4">
@@ -130,11 +172,11 @@ export default function SettingsPage() {
                                 <Download size={24} />
                             </div>
                             <div>
-                                <h3 className="font-semibold text-white flex items-center gap-2">
+                                <h3 className="font-semibold flex items-center gap-2">
                                     Enable Downloads
                                     {!features.download && <Lock size={14} className="text-amber-400" />}
                                 </h3>
-                                <p className="text-sm text-zinc-400">Show download button in player</p>
+                                <p className="text-sm text-[var(--foreground-secondary)]">Show download button in player</p>
                             </div>
                         </div>
                         <button
@@ -148,8 +190,8 @@ export default function SettingsPage() {
                 </div>
 
                 {/* Tier Comparison */}
-                <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
-                    <h2 className="text-xl font-bold mb-6 text-white">Compare Plans</h2>
+                <div className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-6">
+                    <h2 className="text-xl font-bold mb-6 text-[var(--foreground)]">Compare Plans</h2>
                     <div className="grid gap-4">
                         {(['NITRO_CORE', 'NITRO_ELITE', 'NITRO_SUPREME'] as SubscriptionTier[]).map((t) => {
                             const info = TIER_INFO[t];
@@ -159,19 +201,19 @@ export default function SettingsPage() {
                                     key={t}
                                     className={`p-4 rounded-xl border transition-all ${isActive
                                         ? `bg-gradient-to-r ${info.gradient} border-transparent`
-                                        : 'bg-white/5 border-white/10 hover:bg-white/10'
+                                        : 'bg-[var(--card-hover)] border-[var(--border)] hover:bg-[var(--border)]'
                                         }`}
                                 >
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-3">
-                                            <div className={`p-2 rounded-lg ${isActive ? 'bg-white/20' : 'bg-white/5'}`}>
+                                            <div className={`p-2 rounded-lg ${isActive ? 'bg-white/20' : 'bg-[var(--card)]'}`}>
                                                 {info.icon}
                                             </div>
                                             <div>
                                                 <h3 className={`font-bold ${isActive ? 'text-white' : info.color}`}>
                                                     {info.name}
                                                 </h3>
-                                                <p className="text-xs text-zinc-400">
+                                                <p className={`text-xs ${isActive ? 'text-white/80' : 'text-[var(--foreground-muted)]'}`}>
                                                     {t === 'NITRO_CORE' && 'Basic features'}
                                                     {t === 'NITRO_ELITE' && '3D Audio, Visualizer'}
                                                     {t === 'NITRO_SUPREME' && 'All features unlocked'}
@@ -190,7 +232,7 @@ export default function SettingsPage() {
                     </div>
                 </div>
 
-                <div className="text-center text-xs text-zinc-600 mt-12">
+                <div className="text-center text-xs text-[var(--foreground-muted)] mt-12">
                     Nitro Music App v1.0.0
                 </div>
             </div>

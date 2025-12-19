@@ -78,10 +78,10 @@ export default function AddToPlaylistModal({ isOpen, onClose, song }: AddToPlayl
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/80 backdrop-blur-md" onClick={onClose} />
 
-            <div className="relative bg-zinc-900 border border-white/10 rounded-2xl md:rounded-[2.5rem] w-full max-w-md overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300">
-                <div className="p-4 md:p-6 border-b border-white/5 flex justify-between items-center">
-                    <h2 className="text-lg md:text-xl font-black text-white italic tracking-tighter uppercase">Add to Playlist</h2>
-                    <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-full text-zinc-400">
+            <div className="relative bg-[var(--card)] border border-[var(--border)] rounded-2xl md:rounded-[2.5rem] w-full max-w-md overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300">
+                <div className="p-4 md:p-6 border-b border-[var(--border)] flex justify-between items-center">
+                    <h2 className="text-lg md:text-xl font-black text-[var(--foreground)] italic tracking-tighter uppercase">Add to Playlist</h2>
+                    <button onClick={onClose} className="p-2 hover:bg-[var(--card-hover)] rounded-full text-[var(--foreground-muted)]">
                         <X size={18} className="md:w-5 md:h-5" />
                     </button>
                 </div>
@@ -97,7 +97,7 @@ export default function AddToPlaylistModal({ isOpen, onClose, song }: AddToPlayl
                     )}
 
                     {/* Create New section */}
-                    <form onSubmit={handleCreatePlaylist} className="space-y-3 md:space-y-4 p-3 md:p-4 bg-white/5 rounded-2xl md:rounded-3xl border border-white/5">
+                    <form onSubmit={handleCreatePlaylist} className="space-y-3 md:space-y-4 p-3 md:p-4 bg-[var(--card-hover)] rounded-2xl md:rounded-3xl border border-[var(--border)]">
                         <div className="flex items-center gap-2 text-cyan-400 mb-1 md:mb-2">
                             <PlusCircle size={14} className="md:w-4 md:h-4" />
                             <span className="text-[9px] md:text-[10px] font-black uppercase tracking-widest">Create New</span>
@@ -107,13 +107,13 @@ export default function AddToPlaylistModal({ isOpen, onClose, song }: AddToPlayl
                             value={newPlaylistName}
                             onChange={(e) => setNewPlaylistName(e.target.value)}
                             placeholder="Playlist name..."
-                            className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 md:py-3 text-white text-xs md:text-sm focus:outline-none focus:border-cyan-400/50 transition-colors"
+                            className="w-full bg-[var(--background)]/40 border border-[var(--border)] rounded-xl px-4 py-2.5 md:py-3 text-[var(--foreground)] text-xs md:text-sm focus:outline-none focus:border-cyan-400/50 transition-colors"
                         />
                         <div className="flex items-center gap-3 md:gap-4">
                             <button
                                 type="button"
                                 onClick={() => setIsPublic(!isPublic)}
-                                className={`flex items-center gap-2 px-3 py-1.5 md:py-2 rounded-lg border transition-all ${isPublic ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-400' : 'bg-zinc-800 border-transparent text-zinc-500'
+                                className={`flex items-center gap-2 px-3 py-1.5 md:py-2 rounded-lg border transition-all ${isPublic ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-400' : 'bg-[var(--card)] border-transparent text-[var(--foreground-muted)]'
                                     }`}
                             >
                                 {isPublic ? <Globe size={12} className="md:w-3.5 md:h-3.5" /> : <Lock size={12} className="md:w-3.5 md:h-3.5" />}
@@ -122,7 +122,7 @@ export default function AddToPlaylistModal({ isOpen, onClose, song }: AddToPlayl
                             <button
                                 type="submit"
                                 disabled={creating || !newPlaylistName.trim()}
-                                className="flex-1 bg-white text-black py-2.5 rounded-xl font-black text-[10px] md:text-xs uppercase tracking-tighter hover:bg-cyan-400 transition-all disabled:opacity-50"
+                                className="flex-1 bg-[var(--foreground)] text-[var(--background)] py-2.5 rounded-xl font-black text-[10px] md:text-xs uppercase tracking-tighter hover:bg-cyan-400 hover:text-black transition-all disabled:opacity-50"
                             >
                                 {creating ? <Loader2 size={14} className="animate-spin mx-auto md:w-4 md:h-4" /> : 'Create & Add'}
                             </button>
@@ -130,7 +130,7 @@ export default function AddToPlaylistModal({ isOpen, onClose, song }: AddToPlayl
                     </form>
 
                     <div className="space-y-3">
-                        <div className="flex items-center gap-2 text-zinc-500 px-2">
+                        <div className="flex items-center gap-2 text-[var(--foreground-muted)] px-2">
                             <ListPlus size={16} />
                             <span className="text-[10px] font-black uppercase tracking-widest">Your Playlists</span>
                         </div>
@@ -145,26 +145,26 @@ export default function AddToPlaylistModal({ isOpen, onClose, song }: AddToPlayl
                                     <button
                                         key={p.id}
                                         onClick={() => handleAddToPlaylist(p.id)}
-                                        className="flex items-center gap-3 p-3 bg-white/5 hover:bg-white/10 rounded-2xl border border-transparent hover:border-white/10 transition-all group"
+                                        className="flex items-center gap-3 p-3 bg-[var(--card-hover)] hover:bg-[var(--border)] rounded-2xl border border-transparent hover:border-[var(--border)] transition-all group"
                                     >
-                                        <div className="w-12 h-12 rounded-xl bg-zinc-800 flex items-center justify-center text-zinc-600 group-hover:text-cyan-400 transition-colors">
+                                        <div className="w-12 h-12 rounded-xl bg-[var(--card)] flex items-center justify-center text-[var(--foreground-muted)] group-hover:text-cyan-400 transition-colors">
                                             <Music size={20} />
                                         </div>
                                         <div className="flex-1 text-left">
-                                            <p className="font-bold text-white text-sm truncate">{p.name}</p>
+                                            <p className="font-bold text-[var(--foreground)] text-sm truncate">{p.name}</p>
                                             <div className="flex items-center gap-2">
-                                                <span className="text-[10px] text-zinc-500 font-medium">{p.songs.length} tracks</span>
-                                                <span className="text-zinc-700 font-black text-[8px]">•</span>
-                                                {p.isPublic ? <Globe size={10} className="text-zinc-500" /> : <Lock size={10} className="text-zinc-500" />}
+                                                <span className="text-[10px] text-[var(--foreground-muted)] font-medium">{p.songs.length} tracks</span>
+                                                <span className="text-[var(--foreground-muted)] font-black text-[8px]">•</span>
+                                                {p.isPublic ? <Globe size={10} className="text-[var(--foreground-muted)]" /> : <Lock size={10} className="text-[var(--foreground-muted)]" />}
                                             </div>
                                         </div>
-                                        <Plus size={18} className="text-zinc-600 group-hover:text-white transition-colors" />
+                                        <Plus size={18} className="text-[var(--foreground-muted)] group-hover:text-[var(--foreground)] transition-colors" />
                                     </button>
                                 ))}
                             </div>
                         ) : (
-                            <div className="text-center py-8 bg-white/5 rounded-3xl border border-dashed border-white/10">
-                                <p className="text-zinc-600 text-xs font-bold uppercase tracking-widest">No playlists yet</p>
+                            <div className="text-center py-8 bg-[var(--card-hover)] rounded-3xl border border-dashed border-[var(--border)]">
+                                <p className="text-[var(--foreground-muted)] text-xs font-bold uppercase tracking-widest">No playlists yet</p>
                             </div>
                         )}
                     </div>

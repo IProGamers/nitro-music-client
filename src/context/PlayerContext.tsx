@@ -13,6 +13,7 @@ interface PlayerContextType {
     isPlaying: boolean;
     queue: any[];
     playTrack: (song: any, queue?: any[]) => void;
+    playNext: (song: any) => void;
     togglePlay: () => void;
     next: () => void;
     prev: () => void;
@@ -27,6 +28,10 @@ interface PlayerContextType {
     freePlayCount: number;
     showLoginPrompt: boolean;
     dismissLoginPrompt: () => void;
+    isShuffleOn: boolean;
+    toggleShuffle: () => void;
+    repeatMode: 'off' | 'all' | 'one';
+    toggleRepeat: () => void;
 }
 
 const PlayerContext = createContext<PlayerContextType | undefined>(undefined);
@@ -49,6 +54,10 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
     // Free user play limit tracking
     const [freePlayCount, setFreePlayCount] = useState(0);
     const [showLoginPrompt, setShowLoginPrompt] = useState(false);
+
+    // Shuffle and Repeat state
+    const [isShuffleOn, setIsShuffleOn] = useState(false);
+    const [repeatMode, setRepeatMode] = useState<'off' | 'all' | 'one'>('off');
 
     // Persistence keys
     const CURRENT_SONG_KEY = 'nitro_current_song';
@@ -316,9 +325,62 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
         setIsPlaying(!isPlaying);
     };
 
+    // Play Next: Insert song right after the current song in queue
+    const playNext = (song: any) => {
+        if (!song) return;
+        const newQueue = [...queue];
+        // Insert after current index
+        newQueue.splice(currentIndex + 1, 0, song);
+        setQueue(newQueue);
+    };
+
+    // Toggle Shuffle Mode
+    const toggleShuffle = () => {
+        setIsShuffleOn(!isShuffleOn);
+    };
+
+    // Toggle Repeat Mode (off -> all -> one -> off)
+    const toggleRepeat = () => {
+        if (repeatMode === 'off') setRepeatMode('all');
+        else if (repeatMode === 'all') setRepeatMode('one');
+        else setRepeatMode('off');
+    };
+
     const next = () => {
         if (queue.length === 0) return;
-        const nextIdx = (currentIndex + 1) % queue.length;
+
+        // If repeat one, replay current song
+        if (repeatMode === 'one') {
+            if (audioRef.current) {
+                audioRef.current.currentTime = 0;
+                audioRef.current.play();
+            }
+            return;
+        }
+
+        let nextIdx: number;
+        if (isShuffleOn) {
+            // Random index excluding current
+            const availableIndices = queue.map((_, i) => i).filter(i => i !== currentIndex);
+            if (availableIndices.length === 0) {
+                nextIdx = 0;
+            } else {
+                nextIdx = availableIndices[Math.floor(Math.random() * availableIndices.length)];
+            }
+        } else {
+            nextIdx = currentIndex + 1;
+            // If at end and repeat all, loop back
+            if (nextIdx >= queue.length) {
+                if (repeatMode === 'all') {
+                    nextIdx = 0;
+                } else {
+                    // Stop at end
+                    setIsPlaying(false);
+                    return;
+                }
+            }
+        }
+
         setCurrentIndex(nextIdx);
         playTrack(queue[nextIdx]);
     };
@@ -418,6 +480,7 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
             isPlaying,
             queue,
             playTrack,
+            playNext,
             togglePlay,
             next,
             prev,
@@ -431,7 +494,11 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
             toggle3D,
             freePlayCount,
             showLoginPrompt,
-            dismissLoginPrompt
+            dismissLoginPrompt,
+            isShuffleOn,
+            toggleShuffle,
+            repeatMode,
+            toggleRepeat
         }}>
             {children}
             <audio

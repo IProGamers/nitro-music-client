@@ -261,8 +261,8 @@ export default function AdminPage() {
     }
 
     return (
-        <div className="min-h-screen bg-black text-white pb-32">
-            <div className="bg-gradient-to-b from-amber-950/30 to-black border-b border-white/5">
+        <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] pb-32">
+            <div className="bg-gradient-to-b from-amber-500/10 to-[var(--background)] border-b border-[var(--border)]">
                 <div className="max-w-7xl mx-auto p-4 md:p-8 pt-20 md:pt-8">
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                         <div className="flex items-center gap-3 md:gap-4">
@@ -270,14 +270,14 @@ export default function AdminPage() {
                                 <Shield size={22} className="text-white md:w-7 md:h-7" />
                             </div>
                             <div>
-                                <h1 className="text-xl md:text-3xl font-bold text-white">Admin Panel</h1>
-                                <p className="text-zinc-500 text-[10px] md:text-sm">Manage users and subscriptions</p>
+                                <h1 className="text-xl md:text-3xl font-bold text-[var(--foreground)]">Admin Panel</h1>
+                                <p className="text-[var(--foreground-muted)] text-[10px] md:text-sm">Manage users and subscriptions</p>
                             </div>
                         </div>
                         <button
                             onClick={fetchUsers}
                             disabled={loadingUsers}
-                            className="flex items-center justify-center gap-2 px-4 py-2.5 bg-white/5 hover:bg-white/10 rounded-xl text-zinc-400 hover:text-white transition-colors text-xs"
+                            className="flex items-center justify-center gap-2 px-4 py-2.5 bg-[var(--card)] hover:bg-[var(--card-hover)] rounded-xl text-[var(--foreground-muted)] hover:text-[var(--foreground)] transition-colors text-xs"
                         >
                             <RefreshCw size={14} className={loadingUsers ? 'animate-spin' : ''} />
                             Refresh
@@ -295,8 +295,8 @@ export default function AdminPage() {
                                 key={tab.id}
                                 onClick={() => setActiveTab(tab.id as any)}
                                 className={`flex items-center gap-2 px-4 md:px-5 py-2.5 md:py-3 rounded-xl font-medium text-[11px] md:text-sm transition-all shrink-0 ${activeTab === tab.id
-                                    ? 'bg-white text-black'
-                                    : 'bg-white/5 text-zinc-400 hover:text-white hover:bg-white/10'
+                                    ? 'bg-[var(--foreground)] text-[var(--background)]'
+                                    : 'bg-[var(--card)] text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:bg-[var(--card-hover)]'
                                     }`}
                             >
                                 <tab.icon size={14} className="md:w-4 md:h-4" />
@@ -337,46 +337,46 @@ export default function AdminPage() {
                     <div className="space-y-8">
                         {/* Stats Grid */}
                         <div className="grid grid-cols-2 md:grid-cols-5 gap-3 md:gap-4">
-                            <div className="p-4 md:p-6 bg-white/5 border border-white/10 rounded-2xl">
+                            <div className="p-4 md:p-6 bg-[var(--card)] border border-[var(--border)] rounded-2xl">
                                 <div className="flex items-center gap-2 mb-2 md:mb-3">
                                     <Users size={16} className="text-cyan-400 md:w-5 md:h-5" />
-                                    <span className="text-zinc-500 text-[10px] md:text-sm">Total Users</span>
+                                    <span className="text-[var(--foreground-muted)] text-[10px] md:text-sm">Total Users</span>
                                 </div>
-                                <p className="text-xl md:text-3xl font-bold text-white">{stats.totalUsers}</p>
+                                <p className="text-xl md:text-3xl font-bold text-[var(--foreground)]">{stats.totalUsers}</p>
                             </div>
-                            <div className="p-4 md:p-6 bg-zinc-500/10 border border-zinc-500/20 rounded-2xl">
+                            <div className="p-4 md:p-6 bg-[var(--card)] border border-[var(--border)] rounded-2xl">
                                 <div className="flex items-center gap-2 mb-2 md:mb-3">
-                                    <Star size={16} className="text-zinc-400 md:w-5 md:h-5" />
-                                    <span className="text-zinc-500 text-[10px] md:text-sm">Core Plan</span>
+                                    <Star size={16} className="text-[var(--foreground-muted)] md:w-5 md:h-5" />
+                                    <span className="text-[var(--foreground-muted)] text-[10px] md:text-sm">Core Plan</span>
                                 </div>
                                 <p className="text-xl md:text-3xl font-bold text-zinc-400">{stats.coreUsers}</p>
                             </div>
                             <div className="p-4 md:p-6 bg-purple-500/10 border border-purple-500/20 rounded-2xl">
                                 <div className="flex items-center gap-2 mb-2 md:mb-3">
                                     <Zap size={16} className="text-purple-400 md:w-5 md:h-5" />
-                                    <span className="text-zinc-500 text-[10px] md:text-sm">Elite Plan</span>
+                                    <span className="text-[var(--foreground-muted)] text-[10px] md:text-sm">Elite Plan</span>
                                 </div>
                                 <p className="text-xl md:text-3xl font-bold text-purple-400">{stats.eliteUsers}</p>
                             </div>
                             <div className="p-4 md:p-6 bg-amber-500/10 border border-amber-500/20 rounded-2xl">
                                 <div className="flex items-center gap-2 mb-2 md:mb-3">
                                     <Crown size={16} className="text-amber-400 md:w-5 md:h-5" />
-                                    <span className="text-zinc-500 text-[10px] md:text-sm">Supreme Plan</span>
+                                    <span className="text-[var(--foreground-muted)] text-[10px] md:text-sm">Supreme Plan</span>
                                 </div>
                                 <p className="text-xl md:text-3xl font-bold text-amber-400">{stats.supremeUsers}</p>
                             </div>
                             <div className="p-4 md:p-6 bg-cyan-500/10 border border-cyan-500/20 rounded-2xl col-span-2 md:col-span-1">
                                 <div className="flex items-center gap-2 mb-2 md:mb-3">
                                     <Shield size={16} className="text-cyan-400 md:w-5 md:h-5" />
-                                    <span className="text-zinc-500 text-[10px] md:text-sm">System Admins</span>
+                                    <span className="text-[var(--foreground-muted)] text-[10px] md:text-sm">System Admins</span>
                                 </div>
                                 <p className="text-xl md:text-3xl font-bold text-cyan-400">{stats.adminUsers}</p>
                             </div>
                         </div>
 
                         {/* Tier Distribution */}
-                        <div className="p-6 bg-white/5 border border-white/10 rounded-2xl">
-                            <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                        <div className="p-6 bg-[var(--card)] border border-[var(--border)] rounded-2xl">
+                            <h3 className="text-lg font-bold text-[var(--foreground)] mb-4 flex items-center gap-2">
                                 <TrendingUp size={20} className="text-cyan-400" />
                                 Subscription Distribution
                             </h3>
@@ -393,9 +393,9 @@ export default function AdminPage() {
                                                     {info.icon}
                                                     <span className={`font-medium ${info.color}`}>{info.name}</span>
                                                 </div>
-                                                <span className="text-zinc-400 text-sm">{count} users ({percentage.toFixed(1)}%)</span>
+                                                <span className="text-[var(--foreground-muted)] text-sm">{count} users ({percentage.toFixed(1)}%)</span>
                                             </div>
-                                            <div className="h-2 bg-white/5 rounded-full overflow-hidden">
+                                            <div className="h-2 bg-[var(--border)] rounded-full overflow-hidden">
                                                 <div
                                                     className={`h-full bg-gradient-to-r ${info.gradient} transition-all duration-500`}
                                                     style={{ width: `${percentage}%` }}
@@ -408,14 +408,14 @@ export default function AdminPage() {
                         </div>
 
                         {/* Recent Users */}
-                        <div className="p-6 bg-white/5 border border-white/10 rounded-2xl">
-                            <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                        <div className="p-6 bg-[var(--card)] border border-[var(--border)] rounded-2xl">
+                            <h3 className="text-lg font-bold text-[var(--foreground)] mb-4 flex items-center gap-2">
                                 <Users size={20} className="text-cyan-400" />
                                 Recent Users
                             </h3>
                             <div className="space-y-3">
                                 {users.slice(0, 5).map(u => (
-                                    <div key={u.uid} className="flex items-center gap-4 p-3 bg-white/5 rounded-xl">
+                                    <div key={u.uid} className="flex items-center gap-4 p-3 bg-[var(--card)] border border-[var(--border)] rounded-xl">
                                         {u.photoURL ? (
                                             <img src={u.photoURL} className="w-10 h-10 rounded-full object-cover" alt="" />
                                         ) : (
@@ -424,8 +424,8 @@ export default function AdminPage() {
                                             </div>
                                         )}
                                         <div className="flex-1 min-w-0">
-                                            <p className="font-medium text-white truncate">{u.displayName || 'User'}</p>
-                                            <p className="text-xs text-zinc-500 truncate">{u.email}</p>
+                                            <p className="font-medium text-[var(--foreground)] truncate">{u.displayName || 'User'}</p>
+                                            <p className="text-xs text-[var(--foreground-muted)] truncate">{u.email}</p>
                                         </div>
                                         <div className={`px-3 py-1 rounded-full text-xs font-bold ${TIER_INFO[u.tier].bgColor} ${TIER_INFO[u.tier].color}`}>
                                             {TIER_INFO[u.tier].name}
@@ -439,7 +439,7 @@ export default function AdminPage() {
                             {users.length > 5 && (
                                 <button
                                     onClick={() => setActiveTab('users')}
-                                    className="w-full mt-4 py-3 text-center text-cyan-400 hover:text-white transition-colors"
+                                    className="w-full mt-4 py-3 text-center text-cyan-400 hover:text-[var(--foreground)] transition-colors"
                                 >
                                     View all {users.length} users →
                                 </button>
@@ -453,13 +453,13 @@ export default function AdminPage() {
                     <div className="space-y-6">
                         {/* Search */}
                         <div className="relative">
-                            <Search size={20} className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" />
+                            <Search size={20} className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--foreground-muted)]" />
                             <input
                                 type="text"
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
                                 placeholder="Search users by name or email..."
-                                className="w-full bg-white/5 border border-white/10 rounded-xl pl-12 pr-4 py-4 text-white placeholder-zinc-600 focus:outline-none focus:border-cyan-400/50 transition-colors"
+                                className="w-full bg-[var(--card)] border border-[var(--border)] rounded-xl pl-12 pr-4 py-4 text-[var(--foreground)] placeholder-[var(--foreground-muted)] focus:outline-none focus:border-cyan-400/50 transition-colors"
                             />
                         </div>
 
@@ -470,15 +470,15 @@ export default function AdminPage() {
                             </div>
                         ) : filteredUsers.length === 0 ? (
                             <div className="text-center py-20">
-                                <Users size={48} className="text-zinc-700 mx-auto mb-4" />
-                                <p className="text-zinc-500">No users found</p>
+                                <Users size={48} className="text-[var(--foreground-muted)] opacity-50 mx-auto mb-4" />
+                                <p className="text-[var(--foreground-muted)]">No users found</p>
                             </div>
                         ) : (
                             <div className="space-y-3">
                                 {filteredUsers.map(u => (
                                     <div
                                         key={u.uid}
-                                        className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden transition-colors hover:bg-white/[0.07]"
+                                        className="bg-[var(--card)] border border-[var(--border)] rounded-2xl overflow-hidden transition-colors hover:bg-[var(--card-hover)]"
                                     >
                                         {/* Main User Row */}
                                         <div className="p-4 flex flex-col gap-4">
@@ -494,14 +494,14 @@ export default function AdminPage() {
                                                     )}
                                                     <div className="flex-1 min-w-0">
                                                         <div className="flex items-center flex-wrap gap-1.5">
-                                                            <p className="font-bold text-sm text-white truncate">{u.displayName || 'User'}</p>
+                                                            <p className="font-bold text-sm text-[var(--foreground)] truncate">{u.displayName || 'User'}</p>
                                                             {u.isAdmin && (
                                                                 <span className="px-1.5 py-0.5 bg-amber-500/20 text-amber-400 text-[8px] font-bold rounded-md">
                                                                     ADMIN
                                                                 </span>
                                                             )}
                                                         </div>
-                                                        <p className="text-[10px] text-zinc-500 truncate mt-0.5">
+                                                        <p className="text-[10px] text-[var(--foreground-muted)] truncate mt-0.5">
                                                             {u.email}
                                                         </p>
                                                     </div>
@@ -514,7 +514,7 @@ export default function AdminPage() {
                                                         disabled={updating === u.uid || u.uid === user?.uid}
                                                         className={`p-2 rounded-lg transition-colors ${u.isAdmin
                                                             ? 'bg-amber-500/20 text-amber-400'
-                                                            : 'bg-white/5 text-zinc-600'
+                                                            : 'bg-[var(--card-hover)] text-[var(--foreground-muted)]'
                                                             } disabled:opacity-30`}
                                                     >
                                                         {u.isAdmin ? <UserCheck size={14} /> : <UserX size={14} />}
@@ -523,7 +523,7 @@ export default function AdminPage() {
                                             </div>
 
                                             {/* Tier Selector Row */}
-                                            <div className="flex items-center justify-between gap-3 pt-3 border-t border-white/5">
+                                            <div className="flex items-center justify-between gap-3 pt-3 border-t border-[var(--border)]">
                                                 <div className={`px-3 py-1.5 rounded-lg ${TIER_INFO[u.tier].bgColor} ${TIER_INFO[u.tier].color} flex items-center gap-2 shrink-0`}>
                                                     {TIER_INFO[u.tier].icon}
                                                     <span className="font-bold text-[10px] uppercase tracking-wider">{TIER_INFO[u.tier].name.split(' ')[1]}</span>
@@ -533,7 +533,7 @@ export default function AdminPage() {
                                                     value={u.tier}
                                                     onChange={(e) => updateUserTier(u.uid, e.target.value as SubscriptionTier)}
                                                     disabled={updating === u.uid}
-                                                    className="bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-white text-[10px] font-bold uppercase tracking-tight focus:outline-none focus:border-cyan-400/50 cursor-pointer flex-1 text-center"
+                                                    className="bg-[var(--card)] border border-[var(--border)] rounded-lg px-2 py-1.5 text-[var(--foreground)] text-[10px] font-bold uppercase tracking-tight focus:outline-none focus:border-cyan-400/50 cursor-pointer flex-1 text-center"
                                                 >
                                                     <option value="NITRO_CORE">Core</option>
                                                     <option value="NITRO_ELITE">Elite</option>
@@ -555,8 +555,8 @@ export default function AdminPage() {
                 {/* Settings Tab (My Tier) */}
                 {activeTab === 'settings' && (
                     <div className="space-y-8 max-w-2xl">
-                        <div className="p-6 bg-white/5 border border-white/10 rounded-2xl">
-                            <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
+                        <div className="p-6 bg-[var(--card)] border border-[var(--border)] rounded-2xl">
+                            <h3 className="text-lg font-bold text-[var(--foreground)] mb-6 flex items-center gap-2">
                                 <Settings size={20} className="text-cyan-400" />
                                 Change Your Tier
                             </h3>
@@ -573,19 +573,19 @@ export default function AdminPage() {
                                             disabled={isActive || updating === user?.uid}
                                             className={`p-5 rounded-2xl border transition-all text-left ${isActive
                                                 ? `bg-gradient-to-r ${info.gradient} border-transparent`
-                                                : 'bg-white/5 border-white/10 hover:bg-white/10'
+                                                : 'bg-[var(--card)] border-[var(--border)] hover:bg-[var(--card-hover)]'
                                                 }`}
                                         >
                                             <div className="flex items-center justify-between">
                                                 <div className="flex items-center gap-3">
-                                                    <div className={`p-2 rounded-lg ${isActive ? 'bg-white/20' : info.bgColor}`}>
+                                                    <div className={`p-2 rounded-lg ${isActive ? 'bg-[var(--foreground)]/10' : info.bgColor}`}>
                                                         {info.icon}
                                                     </div>
                                                     <div>
-                                                        <h4 className={`font-bold ${isActive ? 'text-white' : info.color}`}>
+                                                        <h4 className={`font-bold ${isActive ? 'text-[var(--foreground)]' : info.color}`}>
                                                             {info.name}
                                                         </h4>
-                                                        <p className={`text-xs ${isActive ? 'text-white/70' : 'text-zinc-500'}`}>
+                                                        <p className={`text-xs ${isActive ? 'text-[var(--foreground)]/80' : 'text-[var(--foreground-muted)]'}`}>
                                                             {tierOption === 'NITRO_CORE' && 'Basic features'}
                                                             {tierOption === 'NITRO_ELITE' && '3D Audio, Visualizer'}
                                                             {tierOption === 'NITRO_SUPREME' && 'All premium features'}
@@ -593,9 +593,9 @@ export default function AdminPage() {
                                                     </div>
                                                 </div>
                                                 {isActive ? (
-                                                    <Check size={20} className="text-white" />
+                                                    <Check size={20} className="text-[var(--foreground)]" />
                                                 ) : (
-                                                    <ChevronRight size={20} className="text-zinc-500" />
+                                                    <ChevronRight size={20} className="text-[var(--foreground-muted)]" />
                                                 )}
                                             </div>
                                         </button>
@@ -605,26 +605,26 @@ export default function AdminPage() {
                         </div>
 
                         {/* Quick Stats */}
-                        <div className="p-6 bg-white/5 border border-white/10 rounded-2xl">
-                            <h3 className="text-lg font-bold text-white mb-4">Your Profile</h3>
+                        <div className="p-6 bg-[var(--card)] border border-[var(--border)] rounded-2xl">
+                            <h3 className="text-lg font-bold text-[var(--foreground)] mb-4">Your Profile</h3>
                             <div className="space-y-3 text-sm">
                                 <div className="flex justify-between">
-                                    <span className="text-zinc-500">Email</span>
-                                    <span className="text-white">{user?.email}</span>
+                                    <span className="text-[var(--foreground-muted)]">Email</span>
+                                    <span className="text-[var(--foreground)]">{user?.email}</span>
                                 </div>
                                 <div className="flex justify-between">
-                                    <span className="text-zinc-500">Display Name</span>
-                                    <span className="text-white">{userProfile?.displayName}</span>
+                                    <span className="text-[var(--foreground-muted)]">Display Name</span>
+                                    <span className="text-[var(--foreground)]">{userProfile?.displayName}</span>
                                 </div>
                                 <div className="flex justify-between">
-                                    <span className="text-zinc-500">Current Tier</span>
+                                    <span className="text-[var(--foreground-muted)]">Current Tier</span>
                                     <span className={TIER_INFO[userProfile?.tier || 'NITRO_CORE'].color}>
                                         {TIER_INFO[userProfile?.tier || 'NITRO_CORE'].name}
                                     </span>
                                 </div>
                                 <div className="flex justify-between">
-                                    <span className="text-zinc-500">Admin Status</span>
-                                    <span className={userProfile?.isAdmin ? 'text-amber-400' : 'text-zinc-400'}>
+                                    <span className="text-[var(--foreground-muted)]">Admin Status</span>
+                                    <span className={userProfile?.isAdmin ? 'text-amber-400' : 'text-[var(--foreground-muted)]'}>
                                         {userProfile?.isAdmin ? 'Yes' : 'No'}
                                     </span>
                                 </div>
@@ -635,7 +635,7 @@ export default function AdminPage() {
             </div>
 
             {/* Footer */}
-            <div className="text-center text-xs text-zinc-600 mt-16">
+            <div className="text-center text-xs text-[var(--foreground-muted)] mt-16">
                 Admin Panel • Nitro Music App v8.0
             </div>
 
@@ -643,19 +643,19 @@ export default function AdminPage() {
             {showSecurityModal && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 animate-in fade-in duration-300">
                     <div className="absolute inset-0 bg-black/80 backdrop-blur-md" onClick={cancelSecurityModal} />
-                    <div className="relative bg-zinc-900 border border-white/10 rounded-3xl p-8 max-w-md w-full shadow-2xl animate-in zoom-in-95 duration-300">
+                    <div className="relative bg-[var(--card)] border border-[var(--border)] rounded-3xl p-8 max-w-md w-full shadow-2xl animate-in zoom-in-95 duration-300">
                         <div className="flex items-center gap-3 mb-6 text-amber-400">
                             <ShieldAlert size={28} />
-                            <h3 className="text-xl font-bold text-white">Security Verification</h3>
+                            <h3 className="text-xl font-bold text-[var(--foreground)]">Security Verification</h3>
                         </div>
 
-                        <p className="text-zinc-400 mb-6">
+                        <p className="text-[var(--foreground-muted)] mb-6">
                             You are attempting to modify admin privileges. Please verify your identity to proceed.
                         </p>
 
                         <div className="space-y-4">
                             <div>
-                                <label className="block text-sm font-medium text-zinc-500 mb-2">
+                                <label className="block text-sm font-medium text-[var(--foreground-muted)] mb-2">
                                     {securityQuestion}
                                 </label>
                                 <input
@@ -664,7 +664,7 @@ export default function AdminPage() {
                                     onChange={(e) => setSecurityAnswer(e.target.value)}
                                     onKeyDown={(e) => e.key === 'Enter' && verifyAndToggleAdmin()}
                                     placeholder="Type your answer..."
-                                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-zinc-700 focus:outline-none focus:border-cyan-400/50 transition-colors"
+                                    className="w-full bg-[var(--background)] border border-[var(--border)] rounded-xl px-4 py-3 text-[var(--foreground)] placeholder-[var(--foreground-muted)] focus:outline-none focus:border-cyan-400/50 transition-colors"
                                     autoFocus
                                 />
                             </div>
@@ -679,7 +679,7 @@ export default function AdminPage() {
                             <div className="flex gap-3 pt-4">
                                 <button
                                     onClick={cancelSecurityModal}
-                                    className="flex-1 px-6 py-3 rounded-xl bg-white/5 text-white font-medium hover:bg-white/10 transition-colors"
+                                    className="flex-1 px-6 py-3 rounded-xl bg-[var(--card-hover)] text-[var(--foreground)] font-medium hover:bg-[var(--border)] transition-colors"
                                 >
                                     Cancel
                                 </button>

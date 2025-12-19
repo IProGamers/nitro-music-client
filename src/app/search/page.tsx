@@ -1,9 +1,11 @@
 "use client"
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { usePlayer } from '@/context/PlayerContext';
 import { Search, Clock, X, Music, User, Disc, ListMusic, ChevronRight, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import SongContextMenu from '@/components/SongContextMenu';
+import { useMusicData } from '@/context/MusicDataContext';
 
 type SearchResults = {
     songs: { results: any[] };
@@ -31,9 +33,99 @@ export default function SearchPage() {
     const [results, setResults] = useState<SearchResults | null>(null);
     const [searchPlayedSongs, setSearchPlayedSongs] = useState<SearchedSong[]>([]);
     const [loading, setLoading] = useState(false);
+    const [isFocused, setIsFocused] = useState(false);
     const [activeTab, setActiveTab] = useState<'all' | 'songs' | 'artists' | 'albums' | 'playlists'>('all');
+    const [debouncedQuery, setDebouncedQuery] = useState('');
+    const searchAbortControllerRef = useRef<AbortController | null>(null);
+    const { searchCache } = useMusicData();
 
-    // Load songs played from search from localStorage
+    // Debounce query
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setDebouncedQuery(query);
+        }, 400); // 400ms delay for debouncing
+
+        return () => clearTimeout(timer);
+    }, [query]);
+
+    // Handle actual search when debounced query changes
+    useEffect(() => {
+        const q = debouncedQuery.trim();
+        if (q === '') {
+            setResults(null);
+            setLoading(false);
+            return;
+        }
+
+        // Check cache first
+        if (searchCache.has(q)) {
+            setResults(searchCache.get(q)!);
+            setLoading(false);
+            return;
+        }
+
+        const performSearch = async () => {
+            // Abort previous search if any
+            if (searchAbortControllerRef.current) {
+                searchAbortControllerRef.current.abort();
+            }
+
+            const controller = new AbortController();
+            searchAbortControllerRef.current = controller;
+            setLoading(true);
+
+            try {
+                const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+                const res = await fetch(`${apiUrl}/api/search?query=${encodeURIComponent(q)}`, {
+                    signal: controller.signal
+                });
+                const data = await res.json();
+
+                if (data.success) {
+                    setResults(data.data);
+                    // Save to cache
+                    searchCache.set(q, data.data);
+
+                    // Auto-switching tab logic
+                    if (q.length <= 4) {
+                        setActiveTab('songs');
+                    } else {
+                        const hasStrongArtistMatch = data.data.artists?.results?.some(
+                            (a: any) => a.title.toLowerCase().includes(q.toLowerCase()) ||
+                                q.toLowerCase().includes(a.title.toLowerCase())
+                        );
+
+                        if (hasStrongArtistMatch && q.length > 5) {
+                            setActiveTab('all');
+                        } else {
+                            setActiveTab('songs');
+                        }
+                    }
+                }
+            } catch (e: any) {
+                if (e.name !== 'AbortError') {
+                    console.error('Search error:', e);
+                }
+            } finally {
+                // Only set loading false if this is still the active controller
+                if (searchAbortControllerRef.current === controller) {
+                    setLoading(false);
+                }
+            }
+        };
+
+        performSearch();
+
+        return () => {
+            if (searchAbortControllerRef.current) {
+                searchAbortControllerRef.current.abort();
+            }
+        };
+    }, [debouncedQuery]);
+
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setQuery(e.target.value);
+    };
     useEffect(() => {
         try {
             const saved = localStorage.getItem(SEARCH_PLAYED_KEY);
@@ -106,46 +198,13 @@ export default function SearchPage() {
             audioUrl: s.audioUrl
         })));
     };
-
-    const doSearch = async (q: string) => {
-        setQuery(q);
-        if (q.trim() === '') {
-            setResults(null);
-            return;
-        }
-
-        setLoading(true);
-        try {
-            const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
-            const res = await fetch(`${apiUrl}/api/search?query=${encodeURIComponent(q)}`);
-            const data = await res.json();
-            if (data.success) {
-                setResults(data.data);
-
-                if (q.length <= 4) {
-                    setActiveTab('songs');
-                } else {
-                    const hasStrongArtistMatch = data.data.artists?.results?.some(
-                        (a: any) => a.title.toLowerCase().includes(q.toLowerCase()) || q.toLowerCase().includes(a.title.toLowerCase())
-                    );
-
-                    if (hasStrongArtistMatch && q.length > 5) {
-                        setActiveTab('all');
-                    } else {
-                        setActiveTab('songs');
-                    }
-                }
-            }
-        } catch (e) {
-            console.error(e);
-        } finally {
-            setLoading(false);
-        }
-    }
-
+    // Removed direct doSearch to use debounced useEffect above
     const clearSearch = () => {
         setQuery('');
         setResults(null);
+        if (searchAbortControllerRef.current) {
+            searchAbortControllerRef.current.abort();
+        }
     }
 
     const getImg = (t: any) => {
@@ -183,20 +242,37 @@ export default function SearchPage() {
         { id: 'playlists', label: 'Playlists', icon: <ListMusic size={14} /> },
     ];
 
+    const categories = [
+        { id: 'pop', title: 'Pop', color: 'bg-pink-600', query: 'pop hits' },
+        { id: 'hip-hop', title: 'Hip Hop', color: 'bg-orange-600', query: 'hip hop' },
+        { id: 'rock', title: 'Rock', color: 'bg-red-700', query: 'rock' },
+        { id: 'bollywood', title: 'Bollywood', color: 'bg-yellow-600', query: 'bollywood' },
+        { id: 'punjabi', title: 'Punjabi', color: 'bg-blue-600', query: 'punjabi hits' },
+        { id: 'edm', title: 'EDM', color: 'bg-purple-600', query: 'edm' },
+        { id: 'romance', title: 'Romance', color: 'bg-rose-500', query: 'romance' },
+        { id: 'focus', title: 'Focus', color: 'bg-indigo-600', query: 'lofi study' },
+        { id: 'party', title: 'Party', color: 'bg-cyan-600', query: 'party hits' },
+        { id: 'sleep', title: 'Sleep', color: 'bg-slate-700', query: 'sleep music' },
+        { id: 'jazz', title: 'Jazz', color: 'bg-amber-800', query: 'jazz' },
+        { id: 'classical', title: 'Classical', color: 'bg-emerald-800', query: 'classical' },
+    ];
+
     return (
         <div className="p-4 md:p-8 pb-32 pt-20 md:pt-8 min-h-screen max-w-7xl mx-auto overflow-x-hidden">
-            <div className="sticky top-0 z-30 bg-black/90 backdrop-blur-2xl pb-4 md:static md:bg-transparent md:pb-0">
+            <div className="sticky top-0 z-30 bg-[var(--background)]/90 backdrop-blur-2xl pb-4 md:static md:bg-transparent md:pb-0">
                 <div className="relative group">
-                    <Search className={`absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${query ? 'text-cyan-400' : 'text-zinc-500 group-hover:text-zinc-400'}`} size={18} />
+                    <Search className={`absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${query ? 'text-cyan-400' : 'text-[var(--foreground-muted)] group-hover:text-[var(--foreground)]'}`} size={18} />
                     <input
                         type="text"
                         placeholder="Search for songs, artists, or albums..."
                         value={query}
-                        onChange={(e) => doSearch(e.target.value)}
-                        className="w-full bg-zinc-900/50 border border-white/5 rounded-xl md:rounded-2xl py-3 md:py-4 pl-11 md:pl-12 pr-10 text-white focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:bg-zinc-900 transition-all placeholder:text-zinc-600 text-base md:text-lg shadow-2xl shadow-cyan-900/10"
+                        onChange={handleInputChange}
+                        onFocus={() => setIsFocused(true)}
+                        onBlur={() => setTimeout(() => setIsFocused(false), 200)}
+                        className={`w-full bg-[var(--card)] border border-[var(--border)] rounded-xl md:rounded-2xl py-3 md:py-4 pl-11 md:pl-12 pr-10 text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:bg-[var(--card-hover)] transition-all placeholder:text-[var(--foreground-muted)] text-base md:text-lg shadow-2xl ${isFocused ? 'ring-2 ring-cyan-500/30 bg-[var(--card-hover)]' : ''}`}
                     />
                     {query && (
-                        <button onClick={clearSearch} className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 md:p-2 text-zinc-500 hover:text-white hover:bg-white/10 rounded-full transition-all">
+                        <button onClick={clearSearch} className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 md:p-2 text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:bg-[var(--card-hover)] rounded-full transition-all">
                             <X size={16} className="md:w-[18px] md:h-[18px]" />
                         </button>
                     )}
@@ -210,7 +286,7 @@ export default function SearchPage() {
                                 onClick={() => setActiveTab(tab.id as any)}
                                 className={`flex items-center gap-2 px-4 md:px-6 py-2 md:py-2.5 rounded-full text-xs md:text-sm font-semibold transition-all whitespace-nowrap border ${activeTab === tab.id
                                     ? 'bg-cyan-500 text-black border-cyan-500 shadow-lg shadow-cyan-500/20'
-                                    : 'bg-zinc-900/50 text-zinc-400 border-white/5 hover:border-white/10 hover:bg-zinc-800'
+                                    : 'bg-[var(--card)] text-[var(--foreground-muted)] border-[var(--border)] hover:border-[var(--foreground-muted)]/30 hover:bg-[var(--card-hover)]'
                                     }`}
                             >
                                 <span className="md:w-3.5 md:h-3.5">{tab.icon}</span>
@@ -221,58 +297,93 @@ export default function SearchPage() {
                 )}
             </div>
 
-            {/* Recently Searched - Horizontal scrolling like Trending Now */}
-            {query === '' && searchPlayedSongs.length > 0 && (
+            {/* Conditional Display: History vs Categories */}
+            {query === '' && (
                 <div className="mt-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                    <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-xl font-bold flex items-center gap-3 text-white">
-                            <Clock className="text-cyan-400" size={20} /> Recently Searched
-                        </h2>
-                        <button
-                            onClick={clearSearchHistory}
-                            className="text-xs font-bold text-zinc-500 hover:text-red-400 uppercase tracking-widest transition-colors flex items-center gap-2"
-                        >
-                            <Trash2 size={14} />
-                            Clear
-                        </button>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {searchPlayedSongs.map((song) => (
-                            <div
-                                key={song.id}
-                                onClick={() => playFromHistory(song)}
-                                className="flex items-center gap-3 p-2 rounded-xl bg-zinc-900/40 hover:bg-zinc-800/80 border border-white/5 hover:border-cyan-500/30 cursor-pointer group transition-all"
-                            >
-                                <div className="relative w-10 h-10 flex-shrink-0">
-                                    <img src={song.image} className="w-full h-full rounded-lg object-cover" />
-                                </div>
-                                <div className="flex-1 overflow-hidden">
-                                    <h3 className="font-bold text-xs text-zinc-100 group-hover:text-cyan-400 transition-colors truncate">{song.name}</h3>
-                                    <p className="text-[9px] text-zinc-500 truncate mt-0.5">{song.artist}</p>
-                                </div>
-                                <ChevronRight size={14} className="text-zinc-600 group-hover:text-zinc-400 transition-colors" />
+                    {isFocused ? (
+                        /* Search History - Shown ONLY when focused */
+                        <div>
+                            <div className="flex items-center justify-between mb-4">
+                                <h2 className="text-xl font-bold flex items-center gap-3 text-[var(--foreground)]">
+                                    <Clock className="text-cyan-400" size={20} /> Recently Searched
+                                </h2>
+                                {searchPlayedSongs.length > 0 && (
+                                    <button
+                                        onClick={clearSearchHistory}
+                                        className="text-xs font-bold text-[var(--foreground-muted)] hover:text-red-400 uppercase tracking-widest transition-colors flex items-center gap-2"
+                                    >
+                                        <Trash2 size={14} />
+                                        Clear
+                                    </button>
+                                )}
                             </div>
-                        ))}
-                    </div>
+
+                            {searchPlayedSongs.length > 0 ? (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    {searchPlayedSongs.map((song) => (
+                                        <div
+                                            key={song.id}
+                                            onClick={() => playFromHistory(song)}
+                                            className="flex items-center gap-3 p-2 rounded-xl bg-[var(--card)] hover:bg-[var(--card-hover)] border border-[var(--border)] hover:border-cyan-500/30 cursor-pointer group transition-all"
+                                        >
+                                            <div className="relative w-10 h-10 flex-shrink-0">
+                                                <img src={song.image} className="w-full h-full rounded-lg object-cover" />
+                                            </div>
+                                            <div className="flex-1 overflow-hidden">
+                                                <h3 className="font-bold text-xs text-[var(--foreground)] group-hover:text-cyan-400 transition-colors truncate">{song.name}</h3>
+                                                <p className="text-[9px] text-[var(--foreground-muted)] truncate mt-0.5">{song.artist}</p>
+                                            </div>
+                                            <ChevronRight size={14} className="text-[var(--foreground-muted)] group-hover:text-[var(--foreground)] transition-colors" />
+                                            <div className="ml-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
+                                                <SongContextMenu song={song} queue={searchPlayedSongs} />
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="flex flex-col items-center justify-center py-20 text-center opacity-40">
+                                    <Clock size={48} className="mb-4" />
+                                    <p className="text-sm font-medium">Your recent searches will appear here</p>
+                                </div>
+                            )}
+                        </div>
+                    ) : (
+                        /* Browse Categories - Shown by default when NOT focused */
+                        <div>
+                            <h2 className="text-xl md:text-2xl font-bold text-[var(--foreground)] mb-6">Browse All</h2>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 gap-4 md:gap-6">
+                                {categories.map((cat) => (
+                                    <button
+                                        key={cat.id}
+                                        onClick={() => setQuery(cat.query)}
+                                        className={`${cat.color} relative aspect-[16/9] md:aspect-square rounded-xl md:rounded-2xl overflow-hidden group hover:scale-[1.02] transition-all duration-300 shadow-xl`}
+                                    >
+                                        <div className="p-4 md:p-6 text-left h-full">
+                                            <h3 className="text-lg md:text-2xl font-bold text-white tracking-tighter leading-tight drop-shadow-md">
+                                                {cat.title}
+                                            </h3>
+                                        </div>
+                                        {/* Abstract background shape for premium look */}
+                                        <div className="absolute -bottom-4 -right-4 w-24 h-24 md:w-32 md:h-32 bg-white/20 rotate-12 group-hover:rotate-45 transition-transform duration-700 blur-2xl rounded-full" />
+                                        <div className="absolute -top-12 -right-8 w-24 h-24 md:w-32 md:h-32 bg-black/10 -rotate-12 group-hover:-rotate-45 transition-transform duration-700 blur-xl rounded-full" />
+
+                                        {/* Play icon mask on hover */}
+                                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-300 flex items-center justify-center">
+                                            <Search className="text-white opacity-0 group-hover:opacity-100 scale-50 group-hover:scale-100 transition-all duration-300" size={32} />
+                                        </div>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
 
-            {/* Empty state when no search history and no search */}
-            {query === '' && searchPlayedSongs.length === 0 && (
-                <div className="mt-16 flex flex-col items-center justify-center text-center animate-in fade-in duration-500">
-                    <div className="w-20 h-20 bg-zinc-900 rounded-full flex items-center justify-center mb-6 border border-white/5">
-                        <Search size={32} className="text-zinc-700" />
-                    </div>
-                    <h3 className="text-xl font-bold text-white mb-2">Start Searching</h3>
-                    <p className="text-zinc-500 max-w-xs">Find your favorite songs, artists, albums, and playlists</p>
-                    <p className="text-zinc-600 text-xs mt-4">Songs you play from search will appear here</p>
-                </div>
-            )}
 
             {loading && (
                 <div className="flex flex-col items-center justify-center py-20 text-cyan-400 gap-4">
                     <div className="animate-spin w-10 h-10 border-4 border-current border-t-transparent rounded-full shadow-lg shadow-cyan-500/20"></div>
-                    <p className="text-zinc-500 font-medium animate-pulse">Scanning the airwaves...</p>
+                    <p className="text-[var(--foreground-muted)] font-medium animate-pulse">Scanning the airwaves...</p>
                 </div>
             )}
 
@@ -283,7 +394,7 @@ export default function SearchPage() {
                     {(activeTab === 'all' || activeTab === 'artists') && results.artists?.results?.length > 0 && (
                         <section>
                             <div className="flex items-center justify-between mb-6">
-                                <h2 className="text-2xl font-bold text-white flex items-center gap-3">
+                                <h2 className="text-2xl font-bold text-[var(--foreground)] flex items-center gap-3">
                                     <User className="text-cyan-400" /> Artists
                                 </h2>
                                 {activeTab === 'all' && (
@@ -299,11 +410,11 @@ export default function SearchPage() {
                                         onClick={() => handleArtistClick(artist.id)}
                                         className="flex flex-col items-center text-center group cursor-pointer"
                                     >
-                                        <div className="relative aspect-square w-full mb-4 rounded-full overflow-hidden bg-zinc-900 border-2 border-transparent group-hover:border-cyan-400/50 transition-all shadow-xl group-hover:shadow-cyan-500/10">
+                                        <div className="relative aspect-square w-full mb-4 rounded-full overflow-hidden bg-[var(--card)] border-2 border-transparent group-hover:border-cyan-400/50 transition-all shadow-xl group-hover:shadow-cyan-500/10">
                                             <img src={getImg(artist)} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
                                         </div>
-                                        <h3 className="font-bold text-zinc-200 group-hover:text-cyan-400 transition-colors truncate w-full">{artist.title}</h3>
-                                        <p className="text-xs text-zinc-500 mt-1 uppercase tracking-wider">{artist.type}</p>
+                                        <h3 className="font-bold text-[var(--foreground)] group-hover:text-cyan-400 transition-colors truncate w-full">{artist.title}</h3>
+                                        <p className="text-xs text-[var(--foreground-muted)] mt-1 uppercase tracking-wider">{artist.type}</p>
                                     </div>
                                 ))}
                             </div>
@@ -314,7 +425,7 @@ export default function SearchPage() {
                     {(activeTab === 'all' || activeTab === 'songs') && results.songs?.results?.length > 0 && (
                         <section>
                             <div className="flex items-center justify-between mb-6">
-                                <h2 className="text-2xl font-bold text-white flex items-center gap-3">
+                                <h2 className="text-2xl font-bold text-[var(--foreground)] flex items-center gap-3">
                                     <Music className="text-cyan-400" /> Songs
                                 </h2>
                                 {activeTab === 'all' && (
@@ -328,14 +439,17 @@ export default function SearchPage() {
                                     <div
                                         key={song.id}
                                         onClick={() => playFromSearch(song, results.songs.results)}
-                                        className="flex items-center gap-3 p-2 rounded-xl bg-zinc-900/40 hover:bg-zinc-800/80 border border-white/5 hover:border-cyan-500/30 cursor-pointer group transition-all"
+                                        className="flex items-center gap-3 p-2 rounded-xl bg-[var(--card)] hover:bg-[var(--card-hover)] border border-[var(--border)] hover:border-cyan-500/30 cursor-pointer group transition-all"
                                     >
                                         <div className="relative w-11 h-11 flex-shrink-0">
                                             <img src={getImg(song)} className="w-full h-full rounded-lg object-cover" />
                                         </div>
                                         <div className="flex-1 overflow-hidden">
-                                            <h3 className="font-bold text-xs md:text-sm text-zinc-100 group-hover:text-cyan-400 transition-colors truncate">{song.title}</h3>
-                                            <p className="text-[9px] md:text-xs text-zinc-500 truncate mt-0.5">{song.primaryArtists || song.album}</p>
+                                            <h3 className="font-bold text-xs md:text-sm text-[var(--foreground)] group-hover:text-cyan-400 transition-colors truncate">{song.title}</h3>
+                                            <p className="text-[9px] md:text-xs text-[var(--foreground-muted)] truncate mt-0.5">{song.primaryArtists || song.album}</p>
+                                        </div>
+                                        <div className="opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
+                                            <SongContextMenu song={song} queue={results.songs.results} />
                                         </div>
                                     </div>
                                 ))}
@@ -347,7 +461,7 @@ export default function SearchPage() {
                     {(activeTab === 'all' || activeTab === 'albums') && results.albums?.results?.length > 0 && (
                         <section>
                             <div className="flex items-center justify-between mb-6">
-                                <h2 className="text-2xl font-bold text-white flex items-center gap-3">
+                                <h2 className="text-2xl font-bold text-[var(--foreground)] flex items-center gap-3">
                                     <Disc className="text-cyan-400" /> Albums
                                 </h2>
                                 {activeTab === 'all' && (
@@ -359,7 +473,7 @@ export default function SearchPage() {
                             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-6">
                                 {results.albums.results.slice(0, activeTab === 'all' ? 6 : 30).map((album: any) => (
                                     <div key={album.id} onClick={() => handleAlbumClick(album.id)} className="group cursor-pointer">
-                                        <div className="relative aspect-square mb-4 overflow-hidden rounded-2xl bg-zinc-900 shadow-xl group-hover:shadow-cyan-500/10 border border-white/5">
+                                        <div className="relative aspect-square mb-4 overflow-hidden rounded-2xl bg-[var(--card)] shadow-xl group-hover:shadow-cyan-500/10 border border-[var(--border)]">
                                             <img src={getImg(album)} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
                                             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-4">
                                                 <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-2xl">
@@ -367,8 +481,8 @@ export default function SearchPage() {
                                                 </div>
                                             </div>
                                         </div>
-                                        <h3 className="font-bold text-zinc-200 group-hover:text-cyan-400 transition-colors truncate">{album.title}</h3>
-                                        <p className="text-xs text-zinc-500 truncate mt-1">{album.artist || album.year}</p>
+                                        <h3 className="font-bold text-[var(--foreground)] group-hover:text-cyan-400 transition-colors truncate">{album.title}</h3>
+                                        <p className="text-xs text-[var(--foreground-muted)] truncate mt-1">{album.artist || album.year}</p>
                                     </div>
                                 ))}
                             </div>
@@ -379,7 +493,7 @@ export default function SearchPage() {
                     {(activeTab === 'all' || activeTab === 'playlists') && results.playlists?.results?.length > 0 && (
                         <section>
                             <div className="flex items-center justify-between mb-6">
-                                <h2 className="text-2xl font-bold text-white flex items-center gap-3">
+                                <h2 className="text-2xl font-bold text-[var(--foreground)] flex items-center gap-3">
                                     <ListMusic className="text-cyan-400" /> Playlists
                                 </h2>
                                 {activeTab === 'all' && (
@@ -391,14 +505,14 @@ export default function SearchPage() {
                             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-6">
                                 {results.playlists.results.slice(0, activeTab === 'all' ? 6 : 30).map((playlist: any) => (
                                     <div key={playlist.id} onClick={() => handlePlaylistClick(playlist.id)} className="group cursor-pointer">
-                                        <div className="relative aspect-square mb-4 overflow-hidden rounded-2xl bg-zinc-900 border border-white/5 shadow-xl">
+                                        <div className="relative aspect-square mb-4 overflow-hidden rounded-2xl bg-[var(--card)] border border-[var(--border)] shadow-xl">
                                             <img src={getImg(playlist)} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
                                             <div className="absolute top-3 right-3 bg-black/60 backdrop-blur-md px-2 py-1 rounded-md text-[10px] font-bold text-white uppercase tracking-tighter">
                                                 Playlist
                                             </div>
                                         </div>
-                                        <h3 className="font-bold text-zinc-200 group-hover:text-cyan-400 transition-colors truncate">{playlist.title}</h3>
-                                        <p className="text-xs text-zinc-500 truncate mt-1" dangerouslySetInnerHTML={{ __html: playlist.description }}></p>
+                                        <h3 className="font-bold text-[var(--foreground)] group-hover:text-cyan-400 transition-colors truncate">{playlist.title}</h3>
+                                        <p className="text-xs text-[var(--foreground-muted)] truncate mt-1" dangerouslySetInnerHTML={{ __html: playlist.description }}></p>
                                     </div>
                                 ))}
                             </div>
@@ -414,11 +528,11 @@ export default function SearchPage() {
                 !results.playlists?.results?.length
             )) && (
                     <div className="flex flex-col items-center justify-center py-20 text-center animate-in fade-in zoom-in duration-300">
-                        <div className="w-20 h-20 bg-zinc-900 rounded-full flex items-center justify-center mb-6 border border-white/5">
-                            <Search size={32} className="text-zinc-700" />
+                        <div className="w-20 h-20 bg-[var(--card)] rounded-full flex items-center justify-center mb-6 border border-[var(--border)]">
+                            <Search size={32} className="text-[var(--foreground-muted)]" />
                         </div>
-                        <h3 className="text-xl font-bold text-white mb-2">No results found for "{query}"</h3>
-                        <p className="text-zinc-500 max-w-xs">Try searching for something else or check your spelling.</p>
+                        <h3 className="text-xl font-bold text-[var(--foreground)] mb-2">No results found for "{query}"</h3>
+                        <p className="text-[var(--foreground-muted)] max-w-xs">Try searching for something else or check your spelling.</p>
                     </div>
                 )}
         </div>

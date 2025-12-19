@@ -42,11 +42,11 @@ export default function RecentPlaysPage() {
     if (!user) {
         return (
             <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-6">
-                <div className="w-20 h-20 rounded-full bg-white/5 flex items-center justify-center mb-6">
-                    <Clock size={32} className="text-zinc-500" />
+                <div className="w-20 h-20 rounded-full bg-[var(--card)] flex items-center justify-center mb-6">
+                    <Clock size={32} className="text-[var(--foreground-muted)]" />
                 </div>
-                <h2 className="text-2xl font-bold text-white uppercase tracking-tighter mb-2">History is Empty</h2>
-                <p className="text-zinc-500 max-w-md">Please sign in to keep track of your recently played tracks across all devices.</p>
+                <h2 className="text-2xl font-bold text-[var(--foreground)] uppercase tracking-tighter mb-2">History is Empty</h2>
+                <p className="text-[var(--foreground-muted)] max-w-md">Please sign in to keep track of your recently played tracks across all devices.</p>
             </div>
         );
     }
@@ -59,17 +59,17 @@ export default function RecentPlaysPage() {
                 </div>
                 <div className="space-y-2 md:mb-4">
                     <span className="text-[10px] font-bold uppercase tracking-[0.3em] text-cyan-400">Personal History</span>
-                    <h1 className="text-4xl md:text-7xl font-bold text-white uppercase tracking-tighter leading-none">
+                    <h1 className="text-4xl md:text-7xl font-bold text-[var(--foreground)] uppercase tracking-tighter leading-none">
                         Recently Played
                     </h1>
-                    <p className="text-zinc-500 font-bold text-sm tracking-widest uppercase">
+                    <p className="text-[var(--foreground-muted)] font-bold text-sm tracking-widest uppercase">
                         {recentSongs.length} Tracks played recently
                     </p>
                 </div>
             </header>
 
             <div className="space-y-1">
-                <div className="grid grid-cols-[auto,1fr,auto] md:grid-cols-[40px,1fr,1fr,auto] gap-4 px-6 py-3 border-b border-white/5 text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
+                <div className="grid grid-cols-[auto,1fr,auto] md:grid-cols-[40px,1fr,1fr,auto] gap-4 px-6 py-3 border-b border-[var(--border)] text-[10px] font-bold text-[var(--foreground-muted)] uppercase tracking-widest">
                     <span className="hidden md:inline">#</span>
                     <span>Track</span>
                     <span className="hidden md:inline">Artist</span>
@@ -80,10 +80,10 @@ export default function RecentPlaysPage() {
                     recentSongs.map((item, idx) => (
                         <div
                             key={item.id}
-                            className="group grid grid-cols-[auto,1fr,auto] md:grid-cols-[40px,1fr,1fr,auto] gap-4 px-6 py-4 rounded-2xl hover:bg-white/5 transition-all cursor-pointer items-center"
+                            className="group grid grid-cols-[auto,1fr,auto] md:grid-cols-[40px,1fr,1fr,auto] gap-4 px-6 py-4 rounded-2xl hover:bg-[var(--card-hover)] transition-all cursor-pointer items-center"
                             onClick={() => playTrack(item, recentSongs)}
                         >
-                            <span className="hidden md:inline text-zinc-600 group-hover:text-cyan-400 font-bold text-xs">{idx + 1}</span>
+                            <span className="hidden md:inline text-[var(--foreground-muted)] group-hover:text-cyan-400 font-bold text-xs">{idx + 1}</span>
 
                             <div className="flex items-center gap-4 min-w-0">
                                 <div className="relative w-12 h-12 rounded-lg overflow-hidden shrink-0">
@@ -93,21 +93,21 @@ export default function RecentPlaysPage() {
                                     </div>
                                 </div>
                                 <div className="min-w-0">
-                                    <p className="font-bold text-white truncate text-sm md:text-base">{item.name}</p>
-                                    <p className="text-xs text-zinc-500 md:hidden truncate">{item.artist}</p>
+                                    <p className="font-bold text-[var(--foreground)] truncate text-sm md:text-base">{item.name}</p>
+                                    <p className="text-xs text-[var(--foreground-muted)] md:hidden truncate">{item.artist}</p>
                                 </div>
                             </div>
 
-                            <span className="hidden md:inline text-zinc-400 text-sm font-medium truncate">{item.artist}</span>
+                            <span className="hidden md:inline text-[var(--foreground-muted)] text-sm font-medium truncate">{item.artist}</span>
 
-                            <span className="text-right text-[10px] font-bold text-zinc-600 tabular-nums uppercase">
+                            <span className="text-right text-[10px] font-bold text-[var(--foreground-muted)] tabular-nums uppercase">
                                 {item.playedAt?.toDate ? new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: 'numeric' }).format(item.playedAt.toDate()) : 'Recently'}
                             </span>
                         </div>
                     ))
                 ) : (
                     <div className="py-20 text-center">
-                        <p className="text-zinc-600 font-bold uppercase tracking-widest">No play history found</p>
+                        <p className="text-[var(--foreground-muted)] font-bold uppercase tracking-widest">No play history found</p>
                     </div>
                 )}
             </div>

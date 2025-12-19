@@ -3,8 +3,10 @@ import { useEffect, useState, useMemo, useCallback } from 'react';
 import { usePlayer } from '@/context/PlayerContext';
 import { useAuth } from '@/context/AuthContext';
 import { useSettings } from '@/context/SettingsContext';
+import { useMusicData } from '@/context/MusicDataContext';
 import { Play, ChevronRight, Music, Heart, Mic2, Crown, Sparkles } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import SongContextMenu from '@/components/SongContextMenu';
 
 // Decode HTML entities outside component to avoid re-creation
 const decodeHtml = (html: string): string => {
@@ -19,14 +21,17 @@ export default function Home() {
   const { user, userProfile } = useAuth();
   const { tier } = useSettings();
   const router = useRouter();
-  const [trending, setTrending] = useState<any[]>([]);
-  const [newReleases, setNewReleases] = useState<any[]>([]);
-  const [featuredArtists, setFeaturedArtists] = useState<any[]>([]);
-  const [bollywoodHits, setBollywoodHits] = useState<any[]>([]);
-  const [topCharts, setTopCharts] = useState<any[]>([]);
-  const [partyMix, setPartyMix] = useState<any[]>([]);
-  const [lastPlayed, setLastPlayed] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { homeData, setHomeData, hasLoadedHome, setHasLoadedHome } = useMusicData();
+  const [trending, setTrending] = useState<any[]>(homeData?.trending || []);
+  const [newReleases, setNewReleases] = useState<any[]>(homeData?.newReleases || []);
+  const [featuredArtists, setFeaturedArtists] = useState<any[]>(homeData?.featuredArtists || []);
+  const [bollywoodHits, setBollywoodHits] = useState<any[]>(homeData?.bollywoodHits || []);
+  const [topCharts, setTopCharts] = useState<any[]>(homeData?.topCharts || []);
+  const [partyMix, setPartyMix] = useState<any[]>(homeData?.partyMix || []);
+  const [internationalHits, setInternationalHits] = useState<any[]>(homeData?.internationalHits || []);
+  const [globalPop, setGlobalPop] = useState<any[]>(homeData?.globalPop || []);
+  const [lastPlayed, setLastPlayed] = useState<any[]>(homeData?.lastPlayed || []);
+  const [loading, setLoading] = useState(!hasLoadedHome);
 
   // Check if user qualifies for personalized section (includes legacy NITRO_ULTRA)
   const isEligibleForPersonalized = user && (tier === 'NITRO_ELITE' || tier === 'NITRO_SUPREME' || (tier as string) === 'NITRO_ULTRA');
@@ -34,29 +39,72 @@ export default function Home() {
   const userName = userProfile?.displayName?.split(' ')[0] || 'You';
 
   useEffect(() => {
+    // If already loaded and we have data, don't re-fetch immediately
+    // We could implement a stale-while-revalidate strategy here if needed
+    if (hasLoadedHome && homeData) return;
+
     const fetchData = async () => {
       try {
         const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 
-        const responses = await Promise.all([
+        const responses = await Promise.allSettled([
           fetch(`${apiUrl}/api/search/songs?query=latest+hits&limit=12`),
           fetch(`${apiUrl}/api/search/songs?query=new+releases&limit=20`),
           fetch(`${apiUrl}/api/search/artists?query=popular+artists&limit=10`),
-          fetch(`${apiUrl}/api/search/songs?query=bollywood+hits&limit=12`),
+          fetch(`${apiUrl}/api/search/songs?query=hindi+songs+arijit&limit=20`),
           fetch(`${apiUrl}/api/search/songs?query=trending+songs&limit=24`),
           fetch(`${apiUrl}/api/search/songs?query=party+mix&limit=12`),
+          fetch(`${apiUrl}/api/search/songs?query=billboard+hot+100+hits&limit=30`),
+          fetch(`${apiUrl}/api/search/songs?query=top+global+hits+pop+2025&limit=30`),
           fetch(`${apiUrl}/api/history`)
         ]);
 
-        const data = await Promise.all(responses.map(r => r.json()));
+        const data = await Promise.all(responses.map(async (r, i) => {
+          if (r.status === 'fulfilled') {
+            try {
+              return await r.value.json();
+            } catch (err) {
+              console.error(`Failed to parse response ${i}:`, err);
+              return { success: false };
+            }
+          }
+          console.error(`Request ${i} failed:`, r.reason);
+          return { success: false };
+        }));
 
-        if (data[0].success) setTrending(data[0].data.results);
-        if (data[1].success) setNewReleases(data[1].data.results);
-        if (data[2].success) setFeaturedArtists(data[2].data.results);
-        if (data[3].success) setBollywoodHits(data[3].data.results);
-        if (data[4].success) setTopCharts(data[4].data.results);
-        if (data[5].success) setPartyMix(data[5].data.results);
-        if (data[6].success) setLastPlayed(data[6].data);
+        // Helper to filter unique songs by ID
+        const getUnique = (songs: any[]) => {
+          if (!songs || !Array.isArray(songs)) return [];
+          return songs.filter((song: any, index: number, self: any[]) =>
+            index === self.findIndex((s: any) => s.id === song.id)
+          );
+        };
+
+        const results = {
+          trending: data[0]?.success ? getUnique(data[0].data.results) : [],
+          newReleases: data[1]?.success ? getUnique(data[1].data.results) : [],
+          featuredArtists: data[2]?.success ? data[2].data.results : [],
+          bollywoodHits: data[3]?.success ? getUnique(data[3].data.results) : [],
+          topCharts: data[4]?.success ? getUnique(data[4].data.results) : [],
+          partyMix: data[5]?.success ? getUnique(data[5].data.results) : [],
+          internationalHits: data[6]?.success ? getUnique(data[6].data.results) : [],
+          globalPop: data[7]?.success ? getUnique(data[7].data.results) : [],
+          lastPlayed: data[8]?.success ? data[8].data : []
+        };
+
+        setTrending(results.trending);
+        setNewReleases(results.newReleases);
+        setFeaturedArtists(results.featuredArtists);
+        setBollywoodHits(results.bollywoodHits);
+        setTopCharts(results.topCharts);
+        setPartyMix(results.partyMix);
+        setInternationalHits(results.internationalHits);
+        setGlobalPop(results.globalPop);
+        setLastPlayed(results.lastPlayed);
+
+        // Update Global Context
+        setHomeData(results);
+        setHasLoadedHome(true);
       } catch (e) {
         console.error(e);
       } finally {
@@ -64,7 +112,7 @@ export default function Home() {
       }
     };
     fetchData();
-  }, []);
+  }, [hasLoadedHome, homeData, setHomeData, setHasLoadedHome]);
 
   // Memoize helper functions to prevent re-creation
   const getImg = useCallback((t: any): string => {
@@ -183,9 +231,9 @@ export default function Home() {
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen text-cyan-400 gap-4">
+      <div className="flex flex-col items-center justify-center min-h-screen text-cyan-400 gap-4 bg-[var(--background)]">
         <div className="animate-spin w-10 h-10 border-4 border-current border-t-transparent rounded-full"></div>
-        <p className="text-zinc-500 font-medium animate-pulse">Loading...</p>
+        <p className="text-[var(--foreground-muted)] font-medium animate-pulse">Loading...</p>
       </div>
     );
   }
@@ -195,7 +243,7 @@ export default function Home() {
 
       {/* Hero Banner Carousel */}
       <section
-        className="relative h-[280px] md:h-[450px] lg:h-[500px] rounded-[2rem] md:rounded-[2.5rem] overflow-hidden group shadow-2xl bg-zinc-950"
+        className="relative h-[280px] md:h-[320px] lg:h-[350px] rounded-[2rem] md:rounded-[2.5rem] overflow-hidden group shadow-2xl bg-[var(--card)]"
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}
         onTouchEnd={onTouchEnd}
@@ -214,10 +262,10 @@ export default function Home() {
                 alt=""
               />
               {/* Mobile Overlay: Stronger at bottom for text readability */}
-              <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-black/20 md:hidden" />
+              <div className="absolute inset-0 bg-gradient-to-t from-[var(--background)] via-[var(--background)]/40 to-[var(--background)]/20 md:hidden" />
               {/* Desktop Overlays */}
-              <div className="hidden md:block absolute inset-0 bg-gradient-to-r from-black via-black/40 to-transparent" />
-              <div className="hidden md:block absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent" />
+              <div className="hidden md:block absolute inset-0 bg-gradient-to-r from-[var(--background)] via-[var(--background)]/40 to-transparent" />
+              <div className="hidden md:block absolute inset-0 bg-gradient-to-t from-[var(--background)] via-transparent to-transparent" />
             </div>
 
             {/* Content Container */}
@@ -229,7 +277,7 @@ export default function Home() {
                   <div className="absolute inset-0 bg-cyan-500/20 blur-3xl rounded-full" />
                   <img
                     src={slide.img || 'https://images.unsplash.com/photo-1493225255756-d9584f8606e9?auto=format&fit=crop&q=80'}
-                    className="relative w-full h-full object-cover rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.6)] border border-white/10"
+                    className="relative w-full h-full object-cover rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.6)] border border-[var(--border)]"
                     alt={slide.title}
                   />
                 </div>
@@ -246,11 +294,11 @@ export default function Home() {
                 </div>
 
                 <div className="space-y-1 md:space-y-2 max-w-2xl px-0">
-                  <h1 className="text-3xl md:text-5xl lg:text-5xl font-bold text-white leading-tight tracking-tighter uppercase animate-in fade-in slide-in-from-left-6 duration-700 delay-500">
+                  <h1 className="text-3xl md:text-5xl lg:text-5xl font-bold text-[var(--foreground)] leading-tight tracking-tighter uppercase animate-in fade-in slide-in-from-left-6 duration-700 delay-500">
                     {slide.title}
                   </h1>
                   {slide.desc && (
-                    <p className="text-zinc-200 md:text-zinc-400 text-xs md:text-base font-medium max-w-md animate-in fade-in slide-in-from-left-8 duration-700 delay-700 opacity-90 leading-relaxed md:line-clamp-none">
+                    <p className="text-[var(--foreground-secondary)] text-xs md:text-base font-medium max-w-md animate-in fade-in slide-in-from-left-8 duration-700 delay-700 opacity-90 leading-relaxed md:line-clamp-none">
                       {slide.desc}
                     </p>
                   )}
@@ -260,9 +308,9 @@ export default function Home() {
                   {slide.type === 'track' ? (
                     <button
                       onClick={() => slide.data && playTrack(slide.data, trending)}
-                      className="flex items-center gap-2 bg-white text-black px-6 md:px-8 py-3 md:py-3.5 rounded-full font-bold text-[10px] md:text-sm hover:bg-cyan-400 transition-all hover:scale-105 active:scale-95 shadow-xl group/btn"
+                      className="flex items-center gap-2 bg-[var(--foreground)] text-[var(--background)] px-6 md:px-8 py-3 md:py-3.5 rounded-full font-bold text-[10px] md:text-sm hover:bg-cyan-400 hover:text-black transition-all hover:scale-105 active:scale-95 shadow-xl group/btn"
                     >
-                      <Play fill="black" size={14} className="group-hover/btn:scale-110 transition-transform md:w-4 md:h-4" /> START LISTENING
+                      <Play fill="currentColor" size={14} className="group-hover/btn:scale-110 transition-transform md:w-4 md:h-4" /> START LISTENING
                     </button>
                   ) : (
                     <button
@@ -312,22 +360,22 @@ export default function Home() {
                   <Sparkles size={16} className="text-purple-400" />
                 )}
               </div>
-              <h2 className="text-lg md:text-xl font-bold text-white">Made for {userName}</h2>
+              <h2 className="text-lg md:text-xl font-bold text-[var(--foreground)]">Made for {userName}</h2>
             </div>
             <span className={`text-[9px] font-bold px-2 py-1 rounded-full ${isSupremeTier ? 'bg-amber-500/20 text-amber-400' : 'bg-purple-500/20 text-purple-400'}`}>
               {isSupremeTier ? 'SUPREME' : 'ELITE'} EXCLUSIVE
             </span>
           </div>
-          <p className="text-zinc-500 text-xs md:text-sm mb-4">Personalized picks based on your listening history</p>
+          <p className="text-[var(--foreground-muted)] text-xs md:text-sm mb-4">Personalized picks based on your listening history</p>
           <div className="flex gap-3 md:gap-4 overflow-x-auto pb-4 no-scrollbar -mx-4 px-4 md:mx-0 md:px-0">
             {personalizedFeed.map((t: any, idx: number) => (
               <div key={`pf-${t.id || t.songId}-${idx}`} onClick={() => playTrack(t, personalizedFeed)} className="group cursor-pointer min-w-[100px] md:min-w-[160px]">
-                <div className="relative aspect-square mb-2 overflow-hidden rounded-xl bg-zinc-900 border border-white/5">
+                <div className="relative aspect-square mb-2 overflow-hidden rounded-xl bg-[var(--card)] border border-[var(--border)]">
                   {getImg(t) ? (
                     <img src={getImg(t)} className="w-full h-full object-cover" alt={getName(t)} />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center bg-zinc-800">
-                      <Music size={20} className="text-zinc-600" />
+                    <div className="w-full h-full flex items-center justify-center bg-[var(--card-hover)]">
+                      <Music size={20} className="text-[var(--foreground-muted)]" />
                     </div>
                   )}
                   <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
@@ -335,9 +383,13 @@ export default function Home() {
                       <Play size={14} fill="black" className="ml-0.5 text-black md:w-5 md:h-5" />
                     </div>
                   </div>
+                  {/* Context Menu */}
+                  <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10" onClick={e => e.stopPropagation()}>
+                    <SongContextMenu song={t} queue={personalizedFeed} />
+                  </div>
                 </div>
-                <h3 className="font-semibold text-[10px] md:text-sm text-zinc-200 group-hover:text-cyan-400 transition-colors truncate">{getName(t)}</h3>
-                <p className="text-[8px] md:text-[10px] text-zinc-500 truncate mt-0.5">{getArtist(t)}</p>
+                <h3 className="font-semibold text-[10px] md:text-sm text-[var(--foreground-secondary)] group-hover:text-cyan-400 transition-colors truncate">{getName(t)}</h3>
+                <p className="text-[8px] md:text-[10px] text-[var(--foreground-muted)] truncate mt-0.5">{getArtist(t)}</p>
               </div>
             ))}
           </div>
@@ -348,8 +400,8 @@ export default function Home() {
       <section>
         <div className="flex justify-between items-center mb-4 md:mb-6">
           <div>
-            <h2 className="text-lg md:text-xl font-bold text-white uppercase tracking-tight">Top Hits Today</h2>
-            <p className="text-zinc-500 text-[10px] md:text-sm mt-0.5">Most played tracks this week</p>
+            <h2 className="text-lg md:text-xl font-bold text-[var(--foreground)] uppercase tracking-tight">Top Hits Today</h2>
+            <p className="text-[var(--foreground-muted)] text-[10px] md:text-sm mt-0.5">Most played tracks this week</p>
           </div>
         </div>
 
@@ -359,15 +411,15 @@ export default function Home() {
             <div
               key={`th-v-${t.id}`}
               onClick={() => playTrack(t, trending)}
-              className="flex items-center gap-3 p-1.5 rounded-xl bg-zinc-900/40 border border-white/5 active:bg-zinc-800 transition-all"
+              className="flex items-center gap-3 p-1.5 rounded-xl bg-[var(--card)] border border-[var(--border)] active:bg-[var(--card-hover)] transition-all"
             >
-              <div className="text-[10px] font-black text-white/20 italic w-3">{idx + 1}</div>
+              <div className="text-[10px] font-black text-[var(--foreground-muted)]/20 italic w-3">{idx + 1}</div>
               <div className="relative w-10 h-10 shrink-0 rounded-lg overflow-hidden">
                 <img src={getImg(t)} className="w-full h-full object-cover" alt="" />
               </div>
               <div className="flex-1 min-w-0">
-                <h3 className="font-bold text-xs text-white truncate leading-tight">{getName(t)}</h3>
-                <p className="text-[9px] text-zinc-500 font-medium uppercase truncate mt-0.5">{getArtist(t)}</p>
+                <h3 className="font-bold text-xs text-[var(--foreground)] truncate leading-tight">{getName(t)}</h3>
+                <p className="text-[9px] text-[var(--foreground-muted)] font-medium uppercase truncate mt-0.5">{getArtist(t)}</p>
               </div>
             </div>
           ))}
@@ -382,12 +434,12 @@ export default function Home() {
               onClick={() => playTrack(t, trending)}
               className={`group cursor-pointer min-w-[100px] md:min-w-[180px] ${idx < 5 ? 'hidden md:block' : ''}`}
             >
-              <div className="relative aspect-square mb-1.5 md:mb-3 overflow-hidden rounded-lg md:rounded-xl bg-zinc-900 border border-white/5">
+              <div className="relative aspect-square mb-1.5 md:mb-3 overflow-hidden rounded-lg md:rounded-xl bg-[var(--card)] border border-[var(--border)]">
                 {getImg(t) ? (
                   <img src={getImg(t)} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" alt={getName(t)} />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center bg-zinc-800">
-                    <Music size={24} className="text-zinc-600 md:w-8 md:h-8" />
+                  <div className="w-full h-full flex items-center justify-center bg-[var(--card-hover)]">
+                    <Music size={24} className="text-[var(--foreground-muted)] md:w-8 md:h-8" />
                   </div>
                 )}
                 <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-[2px]">
@@ -395,9 +447,13 @@ export default function Home() {
                     <Play size={16} fill="black" className="ml-1 text-black md:w-6 md:h-6" />
                   </div>
                 </div>
+                {/* Context Menu */}
+                <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10" onClick={e => e.stopPropagation()}>
+                  <SongContextMenu song={t} queue={trending} />
+                </div>
               </div>
-              <h3 className="font-bold text-[11px] md:text-sm text-zinc-200 group-hover:text-cyan-400 transition-colors truncate">{getName(t)}</h3>
-              <p className="text-[9px] md:text-xs text-zinc-500 truncate mt-0.5">{getArtist(t)}</p>
+              <h3 className="font-bold text-[11px] md:text-sm text-[var(--foreground-secondary)] group-hover:text-cyan-400 transition-colors truncate">{getName(t)}</h3>
+              <p className="text-[9px] md:text-xs text-[var(--foreground-muted)] truncate mt-0.5">{getArtist(t)}</p>
             </div>
           ))}
         </div>
@@ -407,10 +463,10 @@ export default function Home() {
       <section>
         <div className="flex justify-between items-center mb-4 md:mb-6">
           <div>
-            <h2 className="text-lg md:text-xl font-bold text-white">Popular Artists</h2>
-            <p className="text-zinc-500 text-xs md:text-sm mt-0.5">Artists you might like</p>
+            <h2 className="text-lg md:text-xl font-bold text-[var(--foreground)]">Popular Artists</h2>
+            <p className="text-[var(--foreground-muted)] text-xs md:text-sm mt-0.5">Artists you might like</p>
           </div>
-          <button onClick={() => router.push('/search')} className="text-xs text-zinc-400 hover:text-cyan-400 transition-colors flex items-center gap-1">
+          <button onClick={() => router.push('/search')} className="text-xs text-[var(--foreground-muted)] hover:text-cyan-400 transition-colors flex items-center gap-1">
             See all <ChevronRight size={14} />
           </button>
         </div>
@@ -421,17 +477,17 @@ export default function Home() {
               onClick={() => router.push(`/artist/${artist.id}`)}
               className="flex flex-col items-center group cursor-pointer min-w-[70px] md:min-w-[120px]"
             >
-              <div className="w-14 h-14 md:w-24 md:h-24 rounded-full overflow-hidden mb-2 bg-zinc-900 ring-2 ring-transparent group-hover:ring-cyan-400 transition-shadow">
+              <div className="w-14 h-14 md:w-24 md:h-24 rounded-full overflow-hidden mb-2 bg-[var(--card)] ring-2 ring-transparent group-hover:ring-cyan-400 transition-shadow">
                 {getImg(artist) ? (
                   <img src={getImg(artist)} className="w-full h-full object-cover" alt={getName(artist)} />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center bg-zinc-800">
-                    <Mic2 size={20} className="text-zinc-600" />
+                  <div className="w-full h-full flex items-center justify-center bg-[var(--card-hover)]">
+                    <Mic2 size={20} className="text-[var(--foreground-muted)]" />
                   </div>
                 )}
               </div>
-              <h3 className="font-medium text-[11px] md:text-sm text-zinc-300 group-hover:text-white transition-colors text-center truncate w-full">{getName(artist)}</h3>
-              <p className="text-[9px] md:text-[10px] text-zinc-600">Artist</p>
+              <h3 className="font-medium text-[11px] md:text-sm text-[var(--foreground-secondary)] group-hover:text-white transition-colors text-center truncate w-full">{getName(artist)}</h3>
+              <p className="text-[9px] md:text-[10px] text-[var(--foreground-muted)]">Artist</p>
             </div>
           ))}
         </div>
@@ -441,8 +497,8 @@ export default function Home() {
       <section>
         <div className="flex justify-between items-center mb-4 md:mb-6">
           <div>
-            <h2 className="text-lg md:text-xl font-bold text-white">Trending Now</h2>
-            <p className="text-zinc-500 text-xs md:text-sm mt-0.5">What's hot right now</p>
+            <h2 className="text-lg md:text-xl font-bold text-[var(--foreground)]">Trending Now</h2>
+            <p className="text-[var(--foreground-muted)] text-xs md:text-sm mt-0.5">What's hot right now</p>
           </div>
         </div>
         <div className="flex overflow-x-auto no-scrollbar gap-3 -mx-4 px-4 md:mx-0 md:px-0">
@@ -451,21 +507,21 @@ export default function Home() {
               <div
                 key={t.id}
                 onClick={() => playTrack(t, topCharts)}
-                className="flex items-center gap-2 p-1.5 md:p-3 rounded-xl bg-zinc-900/40 hover:bg-zinc-800 cursor-pointer group transition-colors min-w-[240px] md:min-w-[350px]"
+                className="flex items-center gap-2 p-1.5 md:p-3 rounded-xl bg-[var(--card)] hover:bg-[var(--card-hover)] cursor-pointer group transition-colors min-w-[240px] md:min-w-[350px]"
               >
-                <span className="text-xs md:text-base font-bold text-zinc-700 w-4 text-center">{i + 1}</span>
-                <div className="relative w-9 h-9 md:w-12 md:h-12 shrink-0 rounded-lg overflow-hidden bg-zinc-800">
+                <span className="text-xs md:text-base font-bold text-[var(--foreground-muted)]/40 w-4 text-center">{i + 1}</span>
+                <div className="relative w-9 h-9 md:w-12 md:h-12 shrink-0 rounded-lg overflow-hidden bg-[var(--background)]">
                   {getImg(t) ? (
                     <img src={getImg(t)} className="w-full h-full object-cover" alt={getName(t)} />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center">
-                      <Music size={14} className="text-zinc-600" />
+                      <Music size={14} className="text-[var(--foreground-muted)]" />
                     </div>
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h3 className="font-bold text-xs text-zinc-100 group-hover:text-cyan-400 transition-colors truncate">{getName(t)}</h3>
-                  <p className="text-[9px] text-zinc-500 truncate">{getArtist(t)}</p>
+                  <h3 className="font-bold text-xs text-[var(--foreground-secondary)] group-hover:text-cyan-400 transition-colors truncate">{getName(t)}</h3>
+                  <p className="text-[9px] text-[var(--foreground-muted)] truncate">{getArtist(t)}</p>
                 </div>
               </div>
             ))}
@@ -477,19 +533,19 @@ export default function Home() {
       <section>
         <div className="flex justify-between items-center mb-4 md:mb-6">
           <div>
-            <h2 className="text-lg md:text-xl font-bold text-white">New Releases</h2>
-            <p className="text-zinc-500 text-xs md:text-sm mt-0.5">Fresh tracks just for you</p>
+            <h2 className="text-lg md:text-xl font-bold text-[var(--foreground)]">New Releases</h2>
+            <p className="text-[var(--foreground-muted)] text-xs md:text-sm mt-0.5">Fresh tracks just for you</p>
           </div>
         </div>
         <div className="flex gap-2.5 md:gap-4 overflow-x-auto pb-4 no-scrollbar -mx-4 px-4 md:mx-0 md:px-0">
           {newReleases.slice(0, 15).map((t: any) => (
             <div key={t.id} onClick={() => playTrack(t, newReleases)} className="group cursor-pointer min-w-[110px] md:min-w-[180px]">
-              <div className="relative aspect-square mb-2 md:mb-3 overflow-hidden rounded-xl bg-zinc-900 border border-white/5">
+              <div className="relative aspect-square mb-2 md:mb-3 overflow-hidden rounded-xl bg-[var(--card)] border border-[var(--border)]">
                 {getImg(t) ? (
                   <img src={getImg(t)} className="w-full h-full object-cover" alt={getName(t)} />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center bg-zinc-800">
-                    <Music size={24} className="text-zinc-600 md:w-8 md:h-8" />
+                  <div className="w-full h-full flex items-center justify-center bg-[var(--card-hover)]">
+                    <Music size={24} className="text-[var(--foreground-muted)] md:w-8 md:h-8" />
                   </div>
                 )}
                 <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
@@ -497,9 +553,13 @@ export default function Home() {
                     <Play size={18} fill="black" className="ml-0.5 text-black md:w-6 md:h-6" />
                   </div>
                 </div>
+                {/* Context Menu */}
+                <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10" onClick={e => e.stopPropagation()}>
+                  <SongContextMenu song={t} queue={newReleases} />
+                </div>
               </div>
-              <h3 className="font-semibold text-xs md:text-sm text-zinc-200 group-hover:text-cyan-400 transition-colors truncate">{getName(t)}</h3>
-              <p className="text-[10px] md:text-xs text-zinc-500 truncate mt-0.5">{getArtist(t)}</p>
+              <h3 className="font-semibold text-xs md:text-sm text-[var(--foreground-secondary)] group-hover:text-cyan-400 transition-colors truncate">{getName(t)}</h3>
+              <p className="text-[10px] md:text-xs text-[var(--foreground-muted)] truncate mt-0.5">{getArtist(t)}</p>
             </div>
           ))}
         </div>
@@ -509,19 +569,19 @@ export default function Home() {
       <section>
         <div className="flex justify-between items-center mb-4 md:mb-6">
           <div>
-            <h2 className="text-lg md:text-xl font-bold text-white">Bollywood Hits</h2>
-            <p className="text-zinc-500 text-xs md:text-sm mt-0.5">Popular Hindi songs</p>
+            <h2 className="text-lg md:text-xl font-bold text-[var(--foreground)]">Bollywood Hits</h2>
+            <p className="text-[var(--foreground-muted)] text-xs md:text-sm mt-0.5">Popular Hindi songs</p>
           </div>
         </div>
         <div className="flex gap-2.5 md:gap-4 overflow-x-auto pb-4 no-scrollbar -mx-4 px-4 md:mx-0 md:px-0">
-          {bollywoodHits.slice(0, 10).map((t: any) => (
-            <div key={t.id} onClick={() => playTrack(t, bollywoodHits)} className="group cursor-pointer min-w-[90px] md:min-w-[160px]">
-              <div className="relative aspect-square mb-2 overflow-hidden rounded-xl bg-zinc-900 border border-white/5">
+          {bollywoodHits.slice(0, 10).map((t: any, idx: number) => (
+            <div key={`bollywood-${t.id}-${idx}`} onClick={() => playTrack(t, bollywoodHits)} className="group cursor-pointer min-w-[90px] md:min-w-[160px]">
+              <div className="relative aspect-square mb-2 overflow-hidden rounded-xl bg-[var(--card)] border border-[var(--border)]">
                 {getImg(t) ? (
                   <img src={getImg(t)} className="w-full h-full object-cover" alt={getName(t)} />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center bg-zinc-800">
-                    <Music size={20} className="text-zinc-600 md:w-6 md:h-6" />
+                  <div className="w-full h-full flex items-center justify-center bg-[var(--card-hover)]">
+                    <Music size={20} className="text-[var(--foreground-muted)] md:w-6 md:h-6" />
                   </div>
                 )}
                 <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
@@ -529,9 +589,77 @@ export default function Home() {
                     <Play size={14} fill="black" className="ml-0.5 text-black md:w-6 md:h-6" />
                   </div>
                 </div>
+                {/* Context Menu */}
+                <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10" onClick={e => e.stopPropagation()}>
+                  <SongContextMenu song={t} queue={bollywoodHits} />
+                </div>
               </div>
-              <h3 className="font-semibold text-[10px] md:text-sm text-zinc-200 group-hover:text-cyan-400 transition-colors truncate">{getName(t)}</h3>
-              <p className="text-[8px] md:text-[10px] text-zinc-500 truncate mt-0.5">{getArtist(t)}</p>
+              <h3 className="font-semibold text-[10px] md:text-sm text-[var(--foreground-secondary)] group-hover:text-cyan-400 transition-colors truncate">{getName(t)}</h3>
+              <p className="text-[8px] md:text-[10px] text-[var(--foreground-muted)] truncate mt-0.5">{getArtist(t)}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* International Hits - English/Western Songs */}
+      <section>
+        <div className="flex justify-between items-center mb-4 md:mb-6">
+          <div>
+            <h2 className="text-lg md:text-xl font-bold text-[var(--foreground)]">International Hits</h2>
+            <p className="text-[var(--foreground-muted)] text-xs md:text-sm mt-0.5">English & Western pop songs</p>
+          </div>
+        </div>
+        <div className="flex gap-2.5 md:gap-4 overflow-x-auto pb-4 no-scrollbar -mx-4 px-4 md:mx-0 md:px-0">
+          {internationalHits.slice(0, 12).map((t: any) => (
+            <div key={t.id} onClick={() => playTrack(t, internationalHits)} className="group cursor-pointer min-w-[90px] md:min-w-[160px]">
+              <div className="relative aspect-square mb-2 overflow-hidden rounded-xl bg-[var(--card)] border border-[var(--border)]">
+                {getImg(t) ? (
+                  <img src={getImg(t)} className="w-full h-full object-cover" alt={getName(t)} />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center bg-[var(--card-hover)]">
+                    <Music size={20} className="text-[var(--foreground-muted)] md:w-6 md:h-6" />
+                  </div>
+                )}
+                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                  <div className="w-8 h-8 md:w-12 md:h-12 bg-purple-400 rounded-full flex items-center justify-center shadow-lg shadow-purple-500/40">
+                    <Play size={14} fill="black" className="ml-0.5 text-black md:w-6 md:h-6" />
+                  </div>
+                </div>
+              </div>
+              <h3 className="font-semibold text-[10px] md:text-sm text-[var(--foreground-secondary)] group-hover:text-purple-400 transition-colors truncate">{getName(t)}</h3>
+              <p className="text-[8px] md:text-[10px] text-[var(--foreground-muted)] truncate mt-0.5">{getArtist(t)}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Global Pop Stars */}
+      <section>
+        <div className="flex justify-between items-center mb-4 md:mb-6">
+          <div>
+            <h2 className="text-lg md:text-xl font-bold text-[var(--foreground)]">Global Pop Stars</h2>
+            <p className="text-[var(--foreground-muted)] text-xs md:text-sm mt-0.5">Top international artists</p>
+          </div>
+        </div>
+        <div className="flex gap-2.5 md:gap-4 overflow-x-auto pb-4 no-scrollbar -mx-4 px-4 md:mx-0 md:px-0">
+          {globalPop.slice(0, 12).map((t: any) => (
+            <div key={t.id} onClick={() => playTrack(t, globalPop)} className="group cursor-pointer min-w-[90px] md:min-w-[160px]">
+              <div className="relative aspect-square mb-2 overflow-hidden rounded-xl bg-[var(--card)] border border-[var(--border)]">
+                {getImg(t) ? (
+                  <img src={getImg(t)} className="w-full h-full object-cover" alt={getName(t)} />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center bg-[var(--card-hover)]">
+                    <Music size={20} className="text-[var(--foreground-muted)] md:w-6 md:h-6" />
+                  </div>
+                )}
+                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                  <div className="w-8 h-8 md:w-12 md:h-12 bg-emerald-400 rounded-full flex items-center justify-center shadow-lg shadow-emerald-500/40">
+                    <Play size={14} fill="black" className="ml-0.5 text-black md:w-6 md:h-6" />
+                  </div>
+                </div>
+              </div>
+              <h3 className="font-semibold text-[10px] md:text-sm text-[var(--foreground-secondary)] group-hover:text-emerald-400 transition-colors truncate">{getName(t)}</h3>
+              <p className="text-[8px] md:text-[10px] text-[var(--foreground-muted)] truncate mt-0.5">{getArtist(t)}</p>
             </div>
           ))}
         </div>
@@ -541,19 +669,19 @@ export default function Home() {
       <section>
         <div className="flex justify-between items-center mb-4 md:mb-6">
           <div>
-            <h2 className="text-lg md:text-xl font-bold text-white">Party Mix</h2>
-            <p className="text-zinc-500 text-xs md:text-sm mt-0.5">Get the party started</p>
+            <h2 className="text-lg md:text-xl font-bold text-[var(--foreground)]">Party Mix</h2>
+            <p className="text-[var(--foreground-muted)] text-xs md:text-sm mt-0.5">Get the party started</p>
           </div>
         </div>
         <div className="flex gap-2.5 md:gap-4 overflow-x-auto pb-4 no-scrollbar -mx-4 px-4 md:mx-0 md:px-0">
           {partyMix.slice(0, 8).map((t: any) => (
             <div key={t.id} onClick={() => playTrack(t, partyMix)} className="min-w-[110px] md:min-w-[180px] group cursor-pointer">
-              <div className="relative aspect-square mb-2 md:mb-3 overflow-hidden rounded-xl bg-zinc-900 border border-white/5">
+              <div className="relative aspect-square mb-2 md:mb-3 overflow-hidden rounded-xl bg-[var(--card)] border border-[var(--border)]">
                 {getImg(t) ? (
                   <img src={getImg(t)} className="w-full h-full object-cover" alt={getName(t)} />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center bg-zinc-800">
-                    <Music size={24} className="text-zinc-600 md:w-8 md:h-8" />
+                  <div className="w-full h-full flex items-center justify-center bg-[var(--card-hover)]">
+                    <Music size={24} className="text-[var(--foreground-muted)] md:w-8 md:h-8" />
                   </div>
                 )}
                 <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
@@ -562,8 +690,8 @@ export default function Home() {
                   </div>
                 </div>
               </div>
-              <h3 className="font-semibold text-xs md:text-sm text-zinc-200 group-hover:text-cyan-400 transition-colors truncate">{getName(t)}</h3>
-              <p className="text-[10px] md:text-xs text-zinc-500 truncate mt-0.5">{getArtist(t)}</p>
+              <h3 className="font-semibold text-xs md:text-sm text-[var(--foreground-secondary)] group-hover:text-cyan-400 transition-colors truncate">{getName(t)}</h3>
+              <p className="text-[10px] md:text-xs text-[var(--foreground-muted)] truncate mt-0.5">{getArtist(t)}</p>
             </div>
           ))}
         </div>
@@ -587,7 +715,7 @@ export default function Home() {
       {/* Recently Searched - Home style */}
       <section className="md:hidden">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-bold text-white uppercase tracking-tighter">Recent Discovery</h2>
+          <h2 className="text-lg font-bold text-[var(--foreground)] uppercase tracking-tighter">Recent Discovery</h2>
           <button onClick={() => router.push('/search')} className="text-[10px] font-bold text-cyan-400 uppercase tracking-widest">See History</button>
         </div>
         <div className="space-y-1.5">
@@ -595,14 +723,14 @@ export default function Home() {
             <div
               key={`rs-${t.id}`}
               onClick={() => playTrack(t, trending)}
-              className="flex items-center gap-3 p-1.5 rounded-xl bg-zinc-900/30 border border-white/5 cursor-pointer group"
+              className="flex items-center gap-3 p-1.5 rounded-xl bg-[var(--card)] border border-[var(--border)] cursor-pointer group"
             >
-              <div className="relative w-9 h-9 shrink-0 rounded-lg overflow-hidden bg-zinc-800">
+              <div className="relative w-9 h-9 shrink-0 rounded-lg overflow-hidden bg-[var(--background)]">
                 <img src={getImg(t)} className="w-full h-full object-cover" alt="" />
               </div>
               <div className="flex-1 min-w-0">
-                <h3 className="font-bold text-[11px] text-zinc-200 truncate group-hover:text-cyan-400 leading-tight">{getName(t)}</h3>
-                <p className="text-[9px] text-zinc-600 truncate">{getArtist(t)}</p>
+                <h3 className="font-bold text-[11px] text-[var(--foreground-secondary)] truncate group-hover:text-cyan-400 leading-tight">{getName(t)}</h3>
+                <p className="text-[9px] text-[var(--foreground-muted)] truncate">{getArtist(t)}</p>
               </div>
             </div>
           ))}
@@ -610,9 +738,9 @@ export default function Home() {
       </section>
 
       {/* Footer */}
-      <footer className="pt-8 pb-4 border-t border-zinc-800 text-center">
-        <p className="text-lg font-bold text-white mb-2">Nitro<span className="text-cyan-400">.</span></p>
-        <p className="text-xs text-zinc-600">Made with ♥ for music lovers</p>
+      <footer className="pt-8 pb-4 border-t border-[var(--border)] text-center">
+        <p className="text-lg font-bold text-[var(--foreground)] mb-2">Nitro<span className="text-cyan-400">.</span></p>
+        <p className="text-xs text-[var(--foreground-muted)]">Made with ♥ for music lovers</p>
       </footer>
     </div>
   );

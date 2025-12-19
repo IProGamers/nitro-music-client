@@ -47,23 +47,23 @@ export default function LyricsPanel({ isOpen, onClose, songId, songName, artistN
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 bg-black/90 backdrop-blur-xl z-[150] flex flex-col">
+        <div className="fixed inset-0 bg-[var(--background)]/90 backdrop-blur-xl z-[150] flex flex-col">
             {/* Header */}
-            <header className="p-6 flex items-center justify-between border-b border-white/10">
+            <header className="p-6 flex items-center justify-between border-b border-[var(--border)]">
                 <div className="flex items-center gap-3">
                     <div className="p-2 bg-gradient-to-br from-pink-500 to-rose-600 rounded-xl">
                         <Mic2 size={20} className="text-white" />
                     </div>
                     <div>
-                        <h2 className="text-lg font-bold text-white">Lyrics</h2>
-                        <p className="text-xs text-zinc-500">{songName} • {artistName}</p>
+                        <h2 className="text-lg font-bold text-[var(--foreground)]">Lyrics</h2>
+                        <p className="text-xs text-[var(--foreground-muted)]">{songName} • {artistName}</p>
                     </div>
                 </div>
                 <button
                     onClick={onClose}
-                    className="p-2 hover:bg-white/10 rounded-xl transition-colors"
+                    className="p-2 hover:bg-[var(--card-hover)] rounded-xl transition-colors"
                 >
-                    <X size={20} className="text-zinc-400" />
+                    <X size={20} className="text-[var(--foreground-muted)]" />
                 </button>
             </header>
 
@@ -72,18 +72,18 @@ export default function LyricsPanel({ isOpen, onClose, songId, songName, artistN
                 {loading && (
                     <div className="flex flex-col items-center justify-center h-full gap-4">
                         <div className="animate-spin w-10 h-10 border-4 border-pink-500 border-t-transparent rounded-full" />
-                        <p className="text-zinc-400 text-sm">Loading lyrics...</p>
+                        <p className="text-[var(--foreground-muted)] text-sm">Loading lyrics...</p>
                     </div>
                 )}
 
                 {error && (
                     <div className="flex flex-col items-center justify-center h-full gap-4 text-center">
-                        <div className="p-4 bg-zinc-900 rounded-full">
+                        <div className="p-4 bg-[var(--card)] rounded-full">
                             <AlertCircle size={40} className="text-amber-400" />
                         </div>
-                        <h3 className="text-lg font-bold text-white">Lyrics Not Available</h3>
-                        <p className="text-zinc-500 text-sm max-w-xs">{error}</p>
-                        <div className="flex items-center gap-2 mt-4 text-zinc-600">
+                        <h3 className="text-lg font-bold text-[var(--foreground)]">Lyrics Not Available</h3>
+                        <p className="text-[var(--foreground-muted)] text-sm max-w-xs">{error}</p>
+                        <div className="flex items-center gap-2 mt-4 text-[var(--foreground-muted)]">
                             <Music2 size={16} />
                             <span className="text-xs">Enjoy the music without lyrics!</span>
                         </div>
@@ -93,7 +93,7 @@ export default function LyricsPanel({ isOpen, onClose, songId, songName, artistN
                 {lyrics && (
                     <div className="max-w-2xl mx-auto">
                         <div
-                            className="text-center text-lg md:text-xl leading-relaxed text-zinc-300 whitespace-pre-wrap font-medium"
+                            className="text-center text-lg md:text-xl leading-relaxed text-[var(--foreground)] whitespace-pre-wrap font-medium"
                             dangerouslySetInnerHTML={{ __html: formatLyrics(lyrics) }}
                         />
                     </div>
@@ -101,8 +101,8 @@ export default function LyricsPanel({ isOpen, onClose, songId, songName, artistN
             </div>
 
             {/* Footer */}
-            <footer className="p-4 border-t border-white/10 text-center">
-                <p className="text-[10px] text-zinc-600">
+            <footer className="p-4 border-t border-[var(--border)] text-center">
+                <p className="text-[10px] text-[var(--foreground-muted)]">
                     Lyrics may not be 100% accurate. Sourced from JioSaavn.
                 </p>
             </footer>

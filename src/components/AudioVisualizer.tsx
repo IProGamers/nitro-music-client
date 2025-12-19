@@ -24,6 +24,17 @@ export default function AudioVisualizer({
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
 
+        // Get theme colors
+        const style = getComputedStyle(document.documentElement);
+        const foreground = style.getPropertyValue('--foreground').trim() || '#fff';
+        const primary = '#22d3ee'; // Keep brand colors static or fetch if needed
+        const secondary = '#a855f7';
+
+        // Helper to convert named color or var to hex/rgba if needed (simplified here)
+        // For canvas we often need explicit values. 
+        // We will assume brand colors are constant for now as they are "Nitro" brand.
+        // But the "white" accents should be foreground.
+
         const draw = () => {
             const width = canvas.width;
             const height = canvas.height;
@@ -40,7 +51,7 @@ export default function AudioVisualizer({
 
             switch (visualizerStyle) {
                 case 'bars':
-                    drawBars(ctx, frequencyData, width, height, intensity);
+                    drawBars(ctx, frequencyData, width, height, intensity, foreground);
                     break;
                 case 'wave':
                     drawWave(ctx, frequencyData, width, height, intensity);
@@ -100,7 +111,8 @@ function drawBars(
     data: Uint8Array,
     width: number,
     height: number,
-    intensity: number
+    intensity: number,
+    color: string
 ) {
     const barCount = 64;
     const barWidth = (width / barCount) * 0.8;
@@ -136,7 +148,10 @@ function drawBars(
 
         ctx.shadowBlur = 15;
         ctx.shadowColor = '#22d3ee';
-        ctx.fillStyle = '#fff';
+        // Use theme foreground color
+        // If color is a var(--...), we cannot use it directly in fillStyle easily without resolving it
+        // processed color passed in is already resolved style.getPropertyValue
+        ctx.fillStyle = color;
         ctx.fillRect(x, y + barHeight - 2, barWidth, 2);
         ctx.shadowBlur = 0;
     }

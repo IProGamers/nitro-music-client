@@ -94,7 +94,7 @@ export default function PlaylistDetailPage() {
     if (!playlist) {
         return (
             <div className="text-center py-20">
-                <h2 className="text-2xl text-white font-bold uppercase">Playlist Not Found</h2>
+                <h2 className="text-2xl text-[var(--foreground)] font-bold uppercase">Playlist Not Found</h2>
                 <button onClick={() => router.back()} className="mt-4 text-cyan-400 font-bold uppercase tracking-widest text-xs flex items-center gap-2 mx-auto">
                     <ArrowLeft size={14} /> Go Back
                 </button>
@@ -107,12 +107,12 @@ export default function PlaylistDetailPage() {
     return (
         <div className="px-4 md:px-12 py-8 pb-32 max-w-7xl mx-auto space-y-10">
             {/* Header section */}
-            <header className="flex flex-col md:flex-row gap-6 md:gap-8 md:items-end p-5 md:p-10 rounded-2xl md:rounded-[3rem] bg-gradient-to-b from-white/10 to-transparent border border-white/5 relative overflow-hidden group">
-                <div className="w-40 h-40 md:w-64 md:h-64 rounded-2xl md:rounded-[2.5rem] bg-zinc-900 shadow-2xl overflow-hidden shrink-0 border border-white/10 mx-auto md:mx-0">
+            <header className="flex flex-col md:flex-row gap-6 md:gap-8 md:items-end p-5 md:p-10 rounded-2xl md:rounded-[3rem] bg-gradient-to-b from-[var(--background)] to-transparent border border-[var(--border)] relative overflow-hidden group">
+                <div className="w-40 h-40 md:w-64 md:h-64 rounded-2xl md:rounded-[2.5rem] bg-[var(--card)] shadow-2xl overflow-hidden shrink-0 border border-[var(--border)] mx-auto md:mx-0">
                     {playlist.songs.length > 0 ? (
                         <img src={playlist.songs[0].image} alt="" className="w-full h-full object-cover" />
                     ) : (
-                        <div className="w-full h-full flex items-center justify-center text-zinc-800">
+                        <div className="w-full h-full flex items-center justify-center text-[var(--foreground-muted)]">
                             <Music size={60} className="md:w-20 md:h-20" />
                         </div>
                     )}
@@ -121,7 +121,7 @@ export default function PlaylistDetailPage() {
                 <div className="flex-1 space-y-3 text-center md:text-left">
                     <div className="flex items-center justify-center md:justify-start gap-2">
                         <span className="text-[10px] font-bold uppercase tracking-[0.4em] text-cyan-400">Playlist</span>
-                        {playlist.isPublic ? <Globe size={10} className="text-zinc-600" /> : <Lock size={10} className="text-zinc-600" />}
+                        {playlist.isPublic ? <Globe size={10} className="text-[var(--foreground-muted)]" /> : <Lock size={10} className="text-[var(--foreground-muted)]" />}
                     </div>
 
                     {isEditing ? (
@@ -129,36 +129,36 @@ export default function PlaylistDetailPage() {
                             <input
                                 value={editName}
                                 onChange={e => setEditName(e.target.value)}
-                                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-2xl md:text-3xl font-bold text-white uppercase"
+                                className="w-full bg-[var(--card-hover)] border border-[var(--border)] rounded-xl px-4 py-2 text-2xl md:text-3xl font-bold text-[var(--foreground)] uppercase"
                                 placeholder="Edit name..."
                             />
                             <textarea
                                 value={editDesc}
                                 onChange={e => setEditDesc(e.target.value)}
-                                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-zinc-400 text-sm"
+                                className="w-full bg-[var(--card-hover)] border border-[var(--border)] rounded-xl px-4 py-2 text-[var(--foreground-muted)] text-sm"
                                 placeholder="Edit description..."
                                 rows={2}
                             />
                             <div className="flex items-center justify-center md:justify-start gap-3">
-                                <button onClick={() => setEditPublic(!editPublic)} className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase transition-all ${editPublic ? 'bg-cyan-500/20 text-cyan-400' : 'bg-zinc-800 text-zinc-500'}`}>
+                                <button onClick={() => setEditPublic(!editPublic)} className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase transition-all ${editPublic ? 'bg-cyan-500/20 text-cyan-400' : 'bg-[var(--card)] text-[var(--foreground-muted)]'}`}>
                                     {editPublic ? 'Public' : 'Private'}
                                 </button>
-                                <button onClick={handleSave} className="px-5 py-2 bg-white text-black rounded-lg font-bold text-[10px] uppercase">Save</button>
-                                <button onClick={() => setIsEditing(false)} className="px-5 py-2 bg-white/5 text-white rounded-lg font-bold text-[10px] uppercase">Cancel</button>
+                                <button onClick={handleSave} className="px-5 py-2 bg-[var(--foreground)] text-[var(--background)] rounded-lg font-bold text-[10px] uppercase">Save</button>
+                                <button onClick={() => setIsEditing(false)} className="px-5 py-2 bg-[var(--card-hover)] text-[var(--foreground)] rounded-lg font-bold text-[10px] uppercase">Cancel</button>
                             </div>
                         </div>
                     ) : (
                         <div className="space-y-1">
-                            <h1 className="text-3xl md:text-7xl font-bold text-white uppercase tracking-tighter leading-none shrink-0 truncate max-w-2xl px-2 md:px-0">
+                            <h1 className="text-3xl md:text-7xl font-bold text-[var(--foreground)] uppercase tracking-tighter leading-none shrink-0 truncate max-w-2xl px-2 md:px-0">
                                 {playlist.name}
                             </h1>
-                            <p className="text-zinc-400 font-medium max-w-xl line-clamp-2 text-xs md:text-base opacity-80">
+                            <p className="text-[var(--foreground-muted)] font-medium max-w-xl line-clamp-2 text-xs md:text-base opacity-80">
                                 {playlist.description || "No description provided."}
                             </p>
                             <div className="flex items-center justify-center md:justify-start gap-4 pt-2">
-                                <span className="text-xs md:text-sm font-bold text-white uppercase">{playlist.ownerName}</span>
-                                <span className="text-zinc-700 font-bold">•</span>
-                                <span className="text-xs md:text-sm font-bold text-zinc-500 uppercase">{playlist.songs.length} Tracks</span>
+                                <span className="text-xs md:text-sm font-bold text-[var(--foreground)] uppercase">{playlist.ownerName}</span>
+                                <span className="text-[var(--foreground-muted)] font-bold">•</span>
+                                <span className="text-xs md:text-sm font-bold text-[var(--foreground-muted)] uppercase">{playlist.songs.length} Tracks</span>
                             </div>
                         </div>
                     )}
@@ -174,7 +174,7 @@ export default function PlaylistDetailPage() {
                     <div className="flex items-center gap-2 md:gap-4 shrink-0">
                         <button
                             onClick={shufflePlay}
-                            className="p-3.5 md:p-5 bg-white/5 hover:bg-white/10 rounded-xl md:rounded-[2rem] text-white transition-all hover:scale-110 active:scale-90 border border-white/5"
+                            className="p-3.5 md:p-5 bg-[var(--card-hover)] hover:bg-[var(--border)] rounded-xl md:rounded-[2rem] text-[var(--foreground)] transition-all hover:scale-110 active:scale-90 border border-[var(--border)]"
                             title="Shuffle Play"
                         >
                             <Shuffle size={18} className="md:w-6 md:h-6" />
@@ -182,14 +182,14 @@ export default function PlaylistDetailPage() {
                         {isOwner && (
                             <button
                                 onClick={() => setIsEditing(true)}
-                                className="p-3.5 md:p-5 bg-white/5 hover:bg-white/10 rounded-xl md:rounded-[2rem] text-white transition-all hover:scale-110 active:scale-90 border border-white/5"
+                                className="p-3.5 md:p-5 bg-[var(--card-hover)] hover:bg-[var(--border)] rounded-xl md:rounded-[2rem] text-[var(--foreground)] transition-all hover:scale-110 active:scale-90 border border-[var(--border)]"
                             >
                                 <Edit2 size={18} className="md:w-6 md:h-6" />
                             </button>
                         )}
                         <button
                             onClick={handleShare}
-                            className="p-3.5 md:p-5 bg-white/5 hover:bg-white/10 rounded-xl md:rounded-[2rem] text-white transition-all hover:scale-110 active:scale-90 border border-white/5"
+                            className="p-3.5 md:p-5 bg-[var(--card-hover)] hover:bg-[var(--border)] rounded-xl md:rounded-[2rem] text-[var(--foreground)] transition-all hover:scale-110 active:scale-90 border border-[var(--border)]"
                         >
                             <Share2 size={18} className="md:w-6 md:h-6" />
                         </button>
@@ -199,7 +199,7 @@ export default function PlaylistDetailPage() {
 
             {/* Song list */}
             <div className="space-y-1">
-                <div className="grid grid-cols-[40px,1fr,1fr,auto] gap-4 px-6 py-4 border-b border-white/5 text-[10px] font-bold text-zinc-500 uppercase tracking-widest hidden md:grid">
+                <div className="grid grid-cols-[40px,1fr,1fr,auto] gap-4 px-6 py-4 border-b border-[var(--border)] text-[10px] font-bold text-[var(--foreground-muted)] uppercase tracking-widest hidden md:grid">
                     <span>#</span>
                     <span>Track</span>
                     <span>Artist</span>
@@ -210,10 +210,10 @@ export default function PlaylistDetailPage() {
                     playlist.songs.map((song, idx) => (
                         <div
                             key={song.id}
-                            className={`group grid grid-cols-[auto,1fr,auto] md:grid-cols-[40px,1fr,1fr,auto] gap-4 px-6 py-4 rounded-3xl hover:bg-white/5 transition-all cursor-pointer items-center border border-transparent hover:border-white/5 ${currentSong?.id === song.id ? 'bg-cyan-400/5 border-cyan-400/10' : ''}`}
+                            className={`group grid grid-cols-[auto,1fr,auto] md:grid-cols-[40px,1fr,1fr,auto] gap-4 px-6 py-4 rounded-3xl hover:bg-[var(--card-hover)] transition-all cursor-pointer items-center border border-transparent hover:border-[var(--border)] ${currentSong?.id === song.id ? 'bg-cyan-400/5 border-cyan-400/10' : ''}`}
                             onClick={() => playTrack(song, playlist.songs)}
                         >
-                            <span className={`hidden md:inline font-bold text-sm ${currentSong?.id === song.id ? 'text-cyan-400' : 'text-zinc-600 group-hover:text-white'}`}>
+                            <span className={`hidden md:inline font-bold text-sm ${currentSong?.id === song.id ? 'text-cyan-400' : 'text-[var(--foreground-muted)] group-hover:text-[var(--foreground)]'}`}>
                                 {currentSong?.id === song.id && isPlaying ? (
                                     <div className="flex gap-0.5 items-end h-3">
                                         <div className="w-0.5 h-full bg-cyan-400 animate-music-bar-1" />
@@ -226,25 +226,25 @@ export default function PlaylistDetailPage() {
                             <div className="flex items-center gap-4 min-w-0">
                                 <img src={song.image} alt="" className="w-12 h-12 rounded-xl object-cover shrink-0" />
                                 <div className="min-w-0">
-                                    <p className={`font-bold uppercase tracking-tighter truncate ${currentSong?.id === song.id ? 'text-cyan-400' : 'text-white'}`}>
+                                    <p className={`font-bold uppercase tracking-tighter truncate ${currentSong?.id === song.id ? 'text-cyan-400' : 'text-[var(--foreground)]'}`}>
                                         {song.name}
                                     </p>
-                                    <p className="text-xs text-zinc-500 md:hidden">{song.artist}</p>
+                                    <p className="text-xs text-[var(--foreground-muted)] md:hidden">{song.artist}</p>
                                 </div>
                             </div>
 
-                            <span className="hidden md:inline text-zinc-400 font-medium truncate">{song.artist}</span>
+                            <span className="hidden md:inline text-[var(--foreground-muted)] font-medium truncate">{song.artist}</span>
 
                             <div className="flex items-center gap-4">
                                 {isOwner && (
                                     <button
                                         onClick={(e) => handleRemoveSong(song.id, e)}
-                                        className="p-2 text-zinc-600 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-all"
+                                        className="p-2 text-[var(--foreground-muted)] hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-all"
                                     >
                                         <Trash2 size={16} />
                                     </button>
                                 )}
-                                <span className="text-zinc-600 font-bold tabular-nums text-xs">
+                                <span className="text-[var(--foreground-muted)] font-bold tabular-nums text-xs">
                                     {song.duration || '3:30'}
                                 </span>
                             </div>
@@ -252,7 +252,7 @@ export default function PlaylistDetailPage() {
                     ))
                 ) : (
                     <div className="py-20 flex flex-col items-center justify-center text-center opacity-40">
-                        <Plus size={48} className="text-zinc-500 mb-6" />
+                        <Plus size={48} className="text-[var(--foreground-muted)] mb-6" />
                         <p className="font-bold uppercase tracking-widest text-sm">Add some fire to this playlist</p>
                     </div>
                 )}

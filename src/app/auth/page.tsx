@@ -71,17 +71,17 @@ export default function AuthPage() {
 
     if (loading) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-black">
+            <div className="min-h-screen flex items-center justify-center bg-[var(--background)]">
                 <div className="flex flex-col items-center gap-4">
                     <Loader2 size={40} className="animate-spin text-cyan-400" />
-                    <p className="text-zinc-500">Loading...</p>
+                    <p className="text-[var(--foreground-muted)]">Loading...</p>
                 </div>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-black flex items-center justify-center p-6 relative overflow-hidden">
+        <div className="min-h-screen bg-[var(--background)] flex items-center justify-center p-6 relative overflow-hidden">
             {/* Background Effects */}
             <div className="absolute top-0 left-0 w-full h-full">
                 <div className="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] bg-cyan-500/10 rounded-full blur-[120px]"></div>
@@ -95,17 +95,17 @@ export default function AuthPage() {
                         <div className="p-3 bg-gradient-to-br from-cyan-500 to-purple-600 rounded-2xl group-hover:scale-110 transition-transform">
                             <Music size={28} className="text-white" />
                         </div>
-                        <span className="text-3xl font-bold text-white tracking-tighter">
+                        <span className="text-3xl font-bold text-[var(--foreground)] tracking-tighter">
                             Nitro<span className="text-cyan-400">.</span>
                         </span>
                     </Link>
-                    <p className="text-zinc-500 mt-3 text-sm">
+                    <p className="text-[var(--foreground-muted)] mt-3 text-sm">
                         {isSignUp ? 'Create your account to start streaming' : 'Welcome back, music lover'}
                     </p>
                 </div>
 
                 {/* Auth Card */}
-                <div className="bg-white/5 backdrop-blur-2xl border border-white/10 rounded-3xl p-8 shadow-2xl">
+                <div className="bg-[var(--card)]/80 backdrop-blur-2xl border border-[var(--border)] rounded-3xl p-8 shadow-2xl">
                     {/* Error Display */}
                     {(localError || error) && (
                         <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-xl flex items-start gap-3">
@@ -118,17 +118,17 @@ export default function AuthPage() {
                         {/* Name Field (Sign Up only) */}
                         {isSignUp && (
                             <div className="space-y-2">
-                                <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">
+                                <label className="text-xs font-bold text-[var(--foreground-muted)] uppercase tracking-wider">
                                     Display Name
                                 </label>
                                 <div className="relative">
-                                    <User size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" />
+                                    <User size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--foreground-muted)]" />
                                     <input
                                         type="text"
                                         value={displayName}
                                         onChange={(e) => setDisplayName(e.target.value)}
                                         placeholder="Your name"
-                                        className="w-full bg-black/50 border border-white/10 rounded-xl pl-12 pr-4 py-3.5 text-white placeholder-zinc-600 focus:outline-none focus:border-cyan-400/50 focus:ring-2 focus:ring-cyan-400/20 transition-all"
+                                        className="w-full bg-[var(--background)]/50 border border-[var(--border)] rounded-xl pl-12 pr-4 py-3.5 text-[var(--foreground)] placeholder-[var(--foreground-muted)] focus:outline-none focus:border-cyan-400/50 focus:ring-2 focus:ring-cyan-400/20 transition-all"
                                     />
                                 </div>
                             </div>
@@ -136,29 +136,29 @@ export default function AuthPage() {
 
                         {/* Email Field */}
                         <div className="space-y-2">
-                            <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">
+                            <label className="text-xs font-bold text-[var(--foreground-muted)] uppercase tracking-wider">
                                 Email Address
                             </label>
                             <div className="relative">
-                                <Mail size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" />
+                                <Mail size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--foreground-muted)]" />
                                 <input
                                     type="email"
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
                                     placeholder="you@example.com"
                                     required
-                                    className="w-full bg-black/50 border border-white/10 rounded-xl pl-12 pr-4 py-3.5 text-white placeholder-zinc-600 focus:outline-none focus:border-cyan-400/50 focus:ring-2 focus:ring-cyan-400/20 transition-all"
+                                    className="w-full bg-[var(--background)]/50 border border-[var(--border)] rounded-xl pl-12 pr-4 py-3.5 text-[var(--foreground)] placeholder-[var(--foreground-muted)] focus:outline-none focus:border-cyan-400/50 focus:ring-2 focus:ring-cyan-400/20 transition-all"
                                 />
                             </div>
                         </div>
 
                         {/* Password Field */}
                         <div className="space-y-2">
-                            <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">
+                            <label className="text-xs font-bold text-[var(--foreground-muted)] uppercase tracking-wider">
                                 Password
                             </label>
                             <div className="relative">
-                                <Lock size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" />
+                                <Lock size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--foreground-muted)]" />
                                 <input
                                     type={showPassword ? 'text' : 'password'}
                                     value={password}
@@ -166,12 +166,12 @@ export default function AuthPage() {
                                     placeholder="••••••••"
                                     required
                                     minLength={6}
-                                    className="w-full bg-black/50 border border-white/10 rounded-xl pl-12 pr-12 py-3.5 text-white placeholder-zinc-600 focus:outline-none focus:border-cyan-400/50 focus:ring-2 focus:ring-cyan-400/20 transition-all"
+                                    className="w-full bg-[var(--background)]/50 border border-[var(--border)] rounded-xl pl-12 pr-12 py-3.5 text-[var(--foreground)] placeholder-[var(--foreground-muted)] focus:outline-none focus:border-cyan-400/50 focus:ring-2 focus:ring-cyan-400/20 transition-all"
                                 />
                                 <button
                                     type="button"
                                     onClick={() => setShowPassword(!showPassword)}
-                                    className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white transition-colors"
+                                    className="absolute right-4 top-1/2 -translate-y-1/2 text-[var(--foreground-muted)] hover:text-[var(--foreground)] transition-colors"
                                 >
                                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                                 </button>
@@ -197,9 +197,9 @@ export default function AuthPage() {
 
                     {/* Divider */}
                     <div className="flex items-center gap-4 my-6">
-                        <div className="flex-1 h-px bg-white/10"></div>
-                        <span className="text-xs text-zinc-500 uppercase tracking-wider">or continue with</span>
-                        <div className="flex-1 h-px bg-white/10"></div>
+                        <div className="flex-1 h-px bg-[var(--border)]"></div>
+                        <span className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider">or continue with</span>
+                        <div className="flex-1 h-px bg-[var(--border)]"></div>
                     </div>
 
                     {/* Social Login */}
@@ -207,7 +207,7 @@ export default function AuthPage() {
                         <button
                             onClick={handleGoogleSignIn}
                             disabled={submitting}
-                            className="w-full flex items-center justify-center gap-3 py-3.5 bg-white/5 border border-white/10 rounded-xl text-white font-medium hover:bg-white/10 transition-colors disabled:opacity-50"
+                            className="w-full flex items-center justify-center gap-3 py-3.5 bg-[var(--card-hover)] border border-[var(--border)] rounded-xl text-[var(--foreground)] font-medium hover:bg-[var(--border)] transition-colors disabled:opacity-50"
                         >
                             <svg className="w-5 h-5" viewBox="0 0 24 24">
                                 <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
@@ -221,7 +221,7 @@ export default function AuthPage() {
 
                     {/* Toggle Sign In/Up */}
                     <div className="mt-8 text-center">
-                        <p className="text-zinc-500 text-sm">
+                        <p className="text-[var(--foreground-muted)] text-sm">
                             {isSignUp ? 'Already have an account?' : "Don't have an account?"}{' '}
                             <button
                                 onClick={() => { setIsSignUp(!isSignUp); setLocalError(null); }}
@@ -234,7 +234,7 @@ export default function AuthPage() {
                 </div>
 
                 {/* Features Preview */}
-                <div className="mt-8 flex items-center justify-center gap-6 text-zinc-500 text-xs">
+                <div className="mt-8 flex items-center justify-center gap-6 text-[var(--foreground-muted)] text-xs">
                     <div className="flex items-center gap-2">
                         <Sparkles size={14} className="text-cyan-400" />
                         3D Audio
