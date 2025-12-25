@@ -45,7 +45,7 @@ export default function Home() {
 
     const fetchData = async () => {
       try {
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
         const responses = await Promise.allSettled([
           fetch(`${apiUrl}/api/search/songs?query=latest+hits&limit=12`),

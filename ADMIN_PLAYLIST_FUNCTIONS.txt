@@ -1,0 +1,86 @@
+// Fetch all playlists
+const fetchPlaylists = async () => {
+    setLoadingPlaylists(true);
+    setError(null);
+    try {
+        const playlistsRef = collection(db, 'playlists');
+        const snapshot = await getDocs(playlistsRef);
+        const playlistData = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        })) as PlaylistData[];
+        // Sort by creation date
+        playlistData.sort((a, b) => {
+            const dateA = a.createdAt?.toDate?.() || new Date(0);
+            const dateB = b.createdAt?.toDate?.() || new Date(0);
+            return dateB.getTime() - dateA.getTime();
+        });
+        setPlaylists(playlistData);
+    } catch (err: any) {
+        console.error('Error fetching playlists:', err);
+        if (err.code === 'permission-denied') {
+            setError('Permission denied. Please update Firestore security rules.');
+        } else {
+            setError(`Failed to fetch playlists: ${err.message || 'Unknown error'}`);
+        }
+    } finally {
+        setLoadingPlaylists(false);
+    }
+};
+
+// Request playlist deletion
+const requestPlaylistDeletion = (playlistId: string, playlistName: string) => {
+    const randomQuestion = SECURITY_QUESTIONS[Math.floor(Math.random() * SECURITY_QUESTIONS.length)];
+    setSecurityQuestion(randomQuestion);
+    setSecurityAnswer('');
+    setSecurityError(null);
+    setPendingPlaylistDelete({ playlistId, playlistName });
+    setShowPlaylistDeleteModal(true);
+};
+
+// Verify and delete playlist
+const verifyAndDeletePlaylist = async () => {
+    if (securityAnswer.trim().toLowerCase() !== 'veer') {
+        setSecurityError('Incorrect answer. Access denied.');
+        return;
+    }
+
+    if (!pendingPlaylistDelete) return;
+
+    setShowPlaylistDeleteModal(false);
+    setSecurityAnswer('');
+    setSecurityError(null);
+
+    const { playlistId } = pendingPlaylistDelete;
+    setPendingPlaylistDelete(null);
+
+    setUpdating(playlistId);
+    setSuccess(null);
+    setError(null);
+
+    try {
+        await deleteDoc(doc(db, 'playlists', playlistId));
+        setPlaylists(prev => prev.filter(p => p.id !== playlistId));
+        setSuccess('Playlist deleted successfully');
+    } catch (err: any) {
+        console.error('Delete playlist error:', err);
+        setError(`Failed to delete playlist: ${err.message || 'Unknown error'}`);
+    } finally {
+        setUpdating(null);
+    }
+};
+
+// Cancel playlist delete modal
+const cancelPlaylistDeleteModal = () => {
+    setShowPlaylistDeleteModal(false);
+    setSecurityAnswer('');
+    setSecurityError(null);
+    setPendingPlaylistDelete(null);
+};
+
+// Filtered playlists
+const filteredPlaylists = playlists.filter(p =>
+    p.name?.toLowerCase().includes(playlistSearchQuery.toLowerCase()) ||
+    p.ownerName?.toLowerCase().includes(playlistSearchQuery.toLowerCase()) ||
+    p.description?.toLowerCase().includes(playlistSearchQuery.toLowerCase())
+);

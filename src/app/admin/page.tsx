@@ -10,7 +10,8 @@ import {
     Check, X, Loader2, ChevronRight, Lock,
     Sparkles, ArrowLeft, Search, UserCheck, UserX,
     BarChart3, TrendingUp, Music, RefreshCw, Trash2,
-    AlertTriangle, Eye, Mail, Heart, Clock, ChevronDown, ChevronUp, ShieldAlert
+    AlertTriangle, Eye, Mail, Heart, Clock, ChevronDown, ChevronUp, ShieldAlert,
+    ListMusic, Globe, LockIcon
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -29,6 +30,19 @@ interface UserData {
     photoURL: string | null;
     tier: SubscriptionTier;
     isAdmin: boolean;
+    createdAt: any;
+    updatedAt: any;
+}
+
+interface PlaylistData {
+    id: string;
+    name: string;
+    description: string;
+    ownerId: string;
+    ownerName: string;
+    ownerPhoto: string | null;
+    isPublic: boolean;
+    songs: any[];
     createdAt: any;
     updatedAt: any;
 }
@@ -53,7 +67,7 @@ export default function AdminPage() {
     const { user, userProfile, loading: authLoading, refreshProfile: authRefresh } = useAuth();
 
     // State
-    const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'settings'>('overview');
+    const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'playlists' | 'settings'>('overview');
     const [users, setUsers] = useState<UserData[]>([]);
     const [loadingUsers, setLoadingUsers] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
@@ -66,7 +80,16 @@ export default function AdminPage() {
     const [securityQuestion, setSecurityQuestion] = useState('');
     const [securityAnswer, setSecurityAnswer] = useState('');
     const [pendingAdminAction, setPendingAdminAction] = useState<{ userId: string; currentStatus: boolean } | null>(null);
+    const [pendingDeleteAction, setPendingDeleteAction] = useState<{ userId: string; userName: string } | null>(null);
     const [securityError, setSecurityError] = useState<string | null>(null);
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
+
+    // Playlists state
+    const [playlists, setPlaylists] = useState<PlaylistData[]>([]);
+    const [loadingPlaylists, setLoadingPlaylists] = useState(true);
+    const [playlistSearchQuery, setPlaylistSearchQuery] = useState('');
+    const [pendingPlaylistDelete, setPendingPlaylistDelete] = useState<{ playlistId: string; playlistName: string } | null>(null);
+    const [showPlaylistDeleteModal, setShowPlaylistDeleteModal] = useState(false);
 
     // Fetch all users
     const fetchUsers = async () => {
@@ -106,6 +129,7 @@ export default function AdminPage() {
     useEffect(() => {
         if (user && isAdmin) {
             fetchUsers();
+            fetchPlaylists();
         }
     }, [user, isAdmin]);
 
@@ -212,6 +236,93 @@ export default function AdminPage() {
         setPendingAdminAction(null);
     };
 
+    // Request user deletion (shows security question first)
+    const requestUserDeletion = (userId: string, userName: string) => {
+        if (userId === user?.uid) {
+            setError("You can't delete your own account from the admin panel");
+            return;
+        }
+
+        // Pick a random security question
+        const randomQuestion = SECURITY_QUESTIONS[Math.floor(Math.random() * SECURITY_QUESTIONS.length)];
+        setSecurityQuestion(randomQuestion);
+        setSecurityAnswer('');
+        setSecurityError(null);
+        setPendingDeleteAction({ userId, userName });
+        setShowDeleteModal(true);
+    };
+
+    // Verify security answer and execute user deletion
+    const verifyAndDeleteUser = async () => {
+        // Check if answer is "Veer" (case insensitive)
+        if (securityAnswer.trim().toLowerCase() !== 'veer') {
+            setSecurityError('Incorrect answer. Access denied.');
+            return;
+        }
+
+        if (!pendingDeleteAction) return;
+
+        setShowDeleteModal(false);
+        setSecurityAnswer('');
+        setSecurityError(null);
+
+        // Proceed with deletion
+        const { userId } = pendingDeleteAction;
+        setPendingDeleteAction(null);
+
+        setUpdating(userId);
+        setSuccess(null);
+        setError(null);
+
+        try {
+            // Delete user's Firestore profile and all subcollections
+            const userRef = doc(db, 'users', userId);
+
+            // Delete subcollections (playHistory, likedSongs)
+            const playHistoryRef = collection(db, 'users', userId, 'playHistory');
+            const likedSongsRef = collection(db, 'users', userId, 'likedSongs');
+
+            const [historySnap, likedSnap] = await Promise.all([
+                getDocs(playHistoryRef),
+                getDocs(likedSongsRef)
+            ]);
+
+            // Delete all documents in subcollections
+            const deletions = [
+                ...historySnap.docs.map(doc => deleteDoc(doc.ref)),
+                ...likedSnap.docs.map(doc => deleteDoc(doc.ref))
+            ];
+
+            await Promise.all(deletions);
+
+            // Delete user's playlists
+            const playlistsQuery = query(collection(db, 'playlists'), where('ownerId', '==', userId));
+            const playlistsSnap = await getDocs(playlistsQuery);
+            await Promise.all(playlistsSnap.docs.map(doc => deleteDoc(doc.ref)));
+
+            // Finally, delete the user document
+            await deleteDoc(userRef);
+
+            // Update local state
+            setUsers(prev => prev.filter(u => u.uid !== userId));
+
+            setSuccess('User and all associated data deleted successfully');
+        } catch (err: any) {
+            console.error('Delete error:', err);
+            setError(`Failed to delete user: ${err.message || 'Unknown error'}`);
+        } finally {
+            setUpdating(null);
+        }
+    };
+
+    // Cancel delete modal
+    const cancelDeleteModal = () => {
+        setShowDeleteModal(false);
+        setSecurityAnswer('');
+        setSecurityError(null);
+        setPendingDeleteAction(null);
+    };
+
     // Stats calculation
     const stats = {
         totalUsers: users.length,
@@ -219,6 +330,9 @@ export default function AdminPage() {
         eliteUsers: users.filter(u => u.tier === 'NITRO_ELITE').length,
         supremeUsers: users.filter(u => u.tier === 'NITRO_SUPREME').length,
         adminUsers: users.filter(u => u.isAdmin).length,
+        totalPlaylists: playlists.length,
+        publicPlaylists: playlists.filter(p => p.isPublic).length,
+        privatePlaylists: playlists.filter(p => !p.isPublic).length,
     };
 
     // Filtered users
@@ -519,6 +633,14 @@ export default function AdminPage() {
                                                     >
                                                         {u.isAdmin ? <UserCheck size={14} /> : <UserX size={14} />}
                                                     </button>
+                                                    <button
+                                                        onClick={() => requestUserDeletion(u.uid, u.displayName || 'User')}
+                                                        disabled={updating === u.uid || u.uid === user?.uid}
+                                                        className="p-2 rounded-lg transition-colors bg-red-500/20 text-red-400 hover:bg-red-500/30 disabled:opacity-30"
+                                                        title="Delete user"
+                                                    >
+                                                        <Trash2 size={14} />
+                                                    </button>
                                                 </div>
                                             </div>
 
@@ -638,6 +760,73 @@ export default function AdminPage() {
             <div className="text-center text-xs text-[var(--foreground-muted)] mt-16">
                 Admin Panel • Nitro Music App v8.0
             </div>
+
+            {/* Delete Confirmation Modal */}
+            {showDeleteModal && pendingDeleteAction && (
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-[var(--card)] border border-red-500/30 rounded-3xl p-8 max-w-md w-full shadow-2xl animate-in zoom-in-95 duration-300">
+                        <div className="flex items-center justify-center w-16 h-16 rounded-full bg-red-500/20 mx-auto mb-6">
+                            <AlertTriangle size={32} className="text-red-400" />
+                        </div>
+
+                        <h2 className="text-2xl font-bold text-center mb-3 text-[var(--foreground)]">Delete User</h2>
+                        <p className="text-center text-[var(--foreground-muted)] mb-6">
+                            You are about to permanently delete <span className="text-red-400 font-bold">{pendingDeleteAction.userName}</span> and all their data.
+                        </p>
+
+                        <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 mb-6">
+                            <p className="text-xs text-red-400 font-medium">
+                                ⚠️ This will delete:
+                            </p>
+                            <ul className="text-xs text-[var(--foreground-muted)] mt-2 space-y-1 ml-4">
+                                <li>• User profile and settings</li>
+                                <li>• Play history and liked songs</li>
+                                <li>• All created playlists</li>
+                            </ul>
+                            <p className="text-xs text-red-400 font-medium mt-3">
+                                This action cannot be undone!
+                            </p>
+                        </div>
+
+                        <div className="mb-6">
+                            <label className="block text-sm font-medium text-[var(--foreground)] mb-3">
+                                Security Question:
+                            </label>
+                            <p className="text-sm text-cyan-400 mb-4 font-medium">{securityQuestion}</p>
+                            <input
+                                type="text"
+                                value={securityAnswer}
+                                onChange={(e) => setSecurityAnswer(e.target.value)}
+                                onKeyDown={(e) => e.key === 'Enter' && verifyAndDeleteUser()}
+                                placeholder="Type your answer..."
+                                className="w-full bg-[var(--background)] border border-[var(--border)] rounded-xl px-4 py-3 text-[var(--foreground)] placeholder-[var(--foreground-muted)] focus:outline-none focus:border-red-400/50 transition-colors"
+                                autoFocus
+                            />
+                            {securityError && (
+                                <p className="text-red-400 text-xs mt-2 flex items-center gap-2">
+                                    <X size={12} /> {securityError}
+                                </p>
+                            )}
+                        </div>
+
+                        <div className="flex gap-3">
+                            <button
+                                onClick={cancelDeleteModal}
+                                className="flex-1 px-6 py-3 bg-[var(--card-hover)] text-[var(--foreground)] rounded-xl font-medium hover:bg-[var(--border)] transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={verifyAndDeleteUser}
+                                className="flex-1 px-6 py-3 bg-red-500 text-white rounded-xl font-medium hover:bg-red-600 transition-colors flex items-center justify-center gap-2"
+                            >
+                                <Trash2 size={16} />
+                                Delete User
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Security Question Modal */}
             {showSecurityModal && (

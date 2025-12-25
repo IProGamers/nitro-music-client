@@ -75,7 +75,7 @@ export default function SearchPage() {
             setLoading(true);
 
             try {
-                const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+                const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
                 const res = await fetch(`${apiUrl}/api/search?query=${encodeURIComponent(q)}`, {
                     signal: controller.signal
                 });
@@ -404,7 +404,7 @@ export default function SearchPage() {
                                 )}
                             </div>
                             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-4 lg:grid-cols-6 gap-3 md:gap-6">
-                                {results.artists.results.slice(0, activeTab === 'all' ? 6 : 24).map((artist: any) => (
+                                {results.artists.results.slice(0, activeTab === 'all' ? 12 : results.artists.results.length).map((artist: any) => (
                                     <div
                                         key={artist.id}
                                         onClick={() => handleArtistClick(artist.id)}
@@ -435,7 +435,7 @@ export default function SearchPage() {
                                 )}
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                {results.songs.results.slice(0, activeTab === 'all' ? 6 : 50).map((song: any) => (
+                                {results.songs.results.slice(0, activeTab === 'all' ? 12 : results.songs.results.length).map((song: any) => (
                                     <div
                                         key={song.id}
                                         onClick={() => playFromSearch(song, results.songs.results)}
@@ -471,7 +471,7 @@ export default function SearchPage() {
                                 )}
                             </div>
                             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-6">
-                                {results.albums.results.slice(0, activeTab === 'all' ? 6 : 30).map((album: any) => (
+                                {results.albums.results.slice(0, activeTab === 'all' ? 12 : results.albums.results.length).map((album: any) => (
                                     <div key={album.id} onClick={() => handleAlbumClick(album.id)} className="group cursor-pointer">
                                         <div className="relative aspect-square mb-4 overflow-hidden rounded-2xl bg-[var(--card)] shadow-xl group-hover:shadow-cyan-500/10 border border-[var(--border)]">
                                             <img src={getImg(album)} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
@@ -503,7 +503,7 @@ export default function SearchPage() {
                                 )}
                             </div>
                             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-6">
-                                {results.playlists.results.slice(0, activeTab === 'all' ? 6 : 30).map((playlist: any) => (
+                                {results.playlists.results.slice(0, activeTab === 'all' ? 12 : results.playlists.results.length).map((playlist: any) => (
                                     <div key={playlist.id} onClick={() => handlePlaylistClick(playlist.id)} className="group cursor-pointer">
                                         <div className="relative aspect-square mb-4 overflow-hidden rounded-2xl bg-[var(--card)] border border-[var(--border)] shadow-xl">
                                             <img src={getImg(playlist)} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />

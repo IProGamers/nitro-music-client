@@ -16,7 +16,7 @@ export default function ArtistPage() {
 
         const fetchArtist = async () => {
             try {
-                const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+                const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
                 const res = await fetch(`${apiUrl}/api/artists/${id}?songCount=20&albumCount=20`);
                 const data = await res.json();
                 if (data.success) {

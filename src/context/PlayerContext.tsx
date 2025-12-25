@@ -45,7 +45,7 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
     const [duration, setDuration] = useState(0);
     const [volume, setVolumeState] = useState(1);
     const audioRef = useRef<HTMLAudioElement>(null);
-    const { enable3DAudio } = useSettings();
+    const { enable3DAudio, audioQuality } = useSettings();
     const [is3DActive, setIs3DActive] = useState(false);
     const { user, saveToPlayHistory } = useAuth();
     const { connectAudioSource } = useAudioFX();
@@ -189,7 +189,20 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
     const getAudio = (t: any) => {
         if (t.audioUrl) return t.audioUrl;
         if (t.downloadUrl && t.downloadUrl.length) {
-            return t.downloadUrl[t.downloadUrl.length - 1].url || t.downloadUrl[t.downloadUrl.length - 1].link || '';
+            // Map quality setting to downloadUrl index
+            // downloadUrl array typically: [0: 12kbps, 1: 48kbps, 2: 96kbps, 3: 160kbps, 4: 320kbps]
+            const qualityMap = {
+                'low': 2,      // 96 kbps
+                'medium': 3,   // 160 kbps
+                'high': 4,     // 320 kbps (highest available)
+                'supreme': 4   // Lossless (use highest available as fallback)
+            };
+
+            const targetIndex = qualityMap[audioQuality] || 4; // Default to high quality
+
+            // Use the target quality or the highest available if target doesn't exist
+            const index = Math.min(targetIndex, t.downloadUrl.length - 1);
+            return t.downloadUrl[index].url || t.downloadUrl[index].link || '';
         }
         return null;
     };
@@ -238,7 +251,7 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
             setIsPlaying(true);
 
             // Save to server history
-            const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+            const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
             fetch(`${apiUrl}/api/history`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -267,7 +280,7 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
             // Need to fetch full song data
             setCurrentSong(song);
             try {
-                const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+                const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
                 const res = await fetch(`${apiUrl}/api/songs/${trackId}`);
                 const data = await res.json();
                 if (data.success && data.data && data.data[0]) {
