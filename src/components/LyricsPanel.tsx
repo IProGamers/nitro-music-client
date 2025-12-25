@@ -24,7 +24,7 @@ export default function LyricsPanel({ isOpen, onClose, songId, songName, artistN
             setLyrics(null);
 
             try {
-                const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+                const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
                 const res = await fetch(`${apiUrl}/api/songs/${songId}/lyrics`);
                 const data = await res.json();
 

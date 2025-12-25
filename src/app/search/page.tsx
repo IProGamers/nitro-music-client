@@ -75,7 +75,7 @@ export default function SearchPage() {
             setLoading(true);
 
             try {
-                const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+                const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
                 const res = await fetch(`${apiUrl}/api/search?query=${encodeURIComponent(q)}`, {
                     signal: controller.signal
                 });

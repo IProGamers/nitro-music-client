@@ -16,7 +16,7 @@ export default function AlbumPage() {
 
         const fetchAlbum = async () => {
             try {
-                const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+                const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
                 const res = await fetch(`${apiUrl}/api/albums?id=${id}`);
                 const data = await res.json();
                 if (data.success) {

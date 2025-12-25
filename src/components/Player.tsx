@@ -127,7 +127,7 @@ export default function Player() {
             }
 
             // Sync with Node server as well
-            const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+            const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
             if (!changingToFav) {
                 await fetch(`${apiUrl}/api/favorites/${currentSong.id}`, { method: 'DELETE' });
             } else {

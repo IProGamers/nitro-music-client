@@ -674,7 +674,94 @@ export default function AdminPage() {
                     </div>
                 )}
 
-                {/* Settings Tab (My Tier) */}
+                {/* Playlists Tab */}
+                {activeTab === 'playlists' && (
+                    <div className="space-y-6">
+                        {/* Search */}
+                        <div className="relative">
+                            <Search size={20} className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--foreground-muted)]" />
+                            <input
+                                type="text"
+                                value={playlistSearchQuery}
+                                onChange={(e) => setPlaylistSearchQuery(e.target.value)}
+                                placeholder="Search playlists by name, owner, or description..."
+                                className="w-full bg-[var(--card)] border border-[var(--border)] rounded-xl pl-12 pr-4 py-4 text-[var(--foreground)] placeholder-[var(--foreground-muted)] focus:outline-none focus:border-cyan-400/50 transition-colors"
+                            />
+                        </div>
+
+                        {/* Playlists List */}
+                        {loadingPlaylists ? (
+                            <div className="flex items-center justify-center py-20">
+                                <Loader2 size={32} className="animate-spin text-cyan-400" />
+                            </div>
+                        ) : filteredPlaylists.length === 0 ? (
+                            <div className="text-center py-20">
+                                <ListMusic size={48} className="text-[var(--foreground-muted)] opacity-50 mx-auto mb-4" />
+                                <p className="text-[var(--foreground-muted)]">No playlists found</p>
+                            </div>
+                        ) : (
+                            <div className="space-y-3">
+                                {filteredPlaylists.map(playlist => (
+                                    <div
+                                        key={playlist.id}
+                                        className="bg-[var(--card)] border border-[var(--border)] rounded-2xl overflow-hidden transition-colors hover:bg-[var(--card-hover)]"
+                                    >
+                                        <div className="p-4 flex flex-col gap-4">
+                                            <div className="flex items-start gap-3">
+                                                {/* Playlist Info */}
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                        <h3 className="font-bold text-sm text-[var(--foreground)] truncate">
+                                                            {playlist.name}
+                                                        </h3>
+                                                        {playlist.isPublic ? (
+                                                            <span className="px-2 py-0.5 bg-green-500/20 text-green-400 text-[8px] font-bold rounded-md flex items-center gap-1">
+                                                                <Globe size={10} /> PUBLIC
+                                                            </span>
+                                                        ) : (
+                                                            <span className="px-2 py-0.5 bg-zinc-500/20 text-zinc-400 text-[8px] font-bold rounded-md flex items-center gap-1">
+                                                                <LockIcon size={10} /> PRIVATE
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    {playlist.description && (
+                                                        <p className="text-[10px] text-[var(--foreground-muted)] mt-1 line-clamp-2">
+                                                            {playlist.description}
+                                                        </p>
+                                                    )}
+                                                    <div className="flex items-center gap-3 mt-2 text-[10px] text-[var(--foreground-muted)]">
+                                                        <span className="flex items-center gap-1">
+                                                            <Music size={10} />
+                                                            {playlist.songs?.length || 0} songs
+                                                        </span>
+                                                        <span>•</span>
+                                                        <span>by {playlist.ownerName}</span>
+                                                    </div>
+                                                </div>
+
+                                                {/* Delete Button */}
+                                                <button
+                                                    onClick={() => requestPlaylistDeletion(playlist.id, playlist.name)}
+                                                    disabled={updating === playlist.id}
+                                                    className="p-2 rounded-lg transition-colors bg-red-500/20 text-red-400 hover:bg-red-500/30 disabled:opacity-30 shrink-0"
+                                                    title="Delete playlist"
+                                                >
+                                                    {updating === playlist.id ? (
+                                                        <Loader2 size={14} className="animate-spin" />
+                                                    ) : (
+                                                        <Trash2 size={14} />
+                                                    )}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                                {/* Settings Tab (My Tier) */}
                 {activeTab === 'settings' && (
                     <div className="space-y-8 max-w-2xl">
                         <div className="p-6 bg-[var(--card)] border border-[var(--border)] rounded-2xl">

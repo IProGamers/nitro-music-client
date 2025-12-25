@@ -135,7 +135,7 @@ export default function ProfilePage() {
                 setHistory(recent);
 
                 // Legacy API for favorites
-                const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+                const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
                 const fRes = await fetch(`${apiUrl}/api/favorites`);
                 const fData = await fRes.json();
                 if (fData.success) setFavorites(fData.data);

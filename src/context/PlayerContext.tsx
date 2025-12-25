@@ -280,7 +280,7 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
             // Need to fetch full song data
             setCurrentSong(song);
             try {
-                const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+                const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
                 const res = await fetch(`${apiUrl}/api/songs/${trackId}`);
                 const data = await res.json();
                 if (data.success && data.data && data.data[0]) {
@@ -326,15 +326,6 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
     };
 
     const togglePlay = () => {
-        if (isPlaying) {
-            audioRef.current?.pause();
-        } else {
-            audioRef.current?.play();
-            // Ensure context is running
-            if (audioContextRef.current?.state === 'suspended') {
-                audioContextRef.current.resume();
-            }
-        }
         setIsPlaying(!isPlaying);
     };
 
@@ -421,17 +412,29 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
                 if (isInitialMount.current) {
                     audioRef.current.src = url;
                     audioRef.current.crossOrigin = "anonymous";
-                    // Restore progress if saved? For now just load it
                     isInitialMount.current = false;
                     return;
                 }
 
-                // If the song is already loaded, just play it (prevents AbortError on double-render)
-                if (audioRef.current.src === url) {
-                    if (audioRef.current.paused && isPlaying) {
+                // Check if source changed
+                const isSourceChanged = audioRef.current.src !== url;
+
+                if (isSourceChanged) {
+                    audioRef.current.src = url;
+                    audioRef.current.crossOrigin = "anonymous";
+                }
+
+                if (isPlaying) {
+                    // Only call play if it's paused or source changed
+                    if (audioRef.current.paused || isSourceChanged) {
                         const playPromise = audioRef.current.play();
+
                         if (playPromise !== undefined) {
-                            playPromise.catch(e => {
+                            playPromise.then(() => {
+                                if (audioContextRef.current?.state === 'suspended') {
+                                    audioContextRef.current.resume();
+                                }
+                            }).catch(e => {
                                 if (e.name === 'NotAllowedError') {
                                     console.warn("Autoplay blocked by browser. User interaction required.");
                                     setIsPlaying(false);
@@ -441,27 +444,10 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
                             });
                         }
                     }
-                    return;
-                }
-
-                audioRef.current.src = url;
-                audioRef.current.crossOrigin = "anonymous";
-
-                if (isPlaying) {
-                    const playPromise = audioRef.current.play();
-                    if (playPromise !== undefined) {
-                        playPromise.then(() => {
-                            if (audioContextRef.current?.state === 'suspended') {
-                                audioContextRef.current.resume();
-                            }
-                        }).catch(e => {
-                            if (e.name === 'NotAllowedError') {
-                                console.warn("Autoplay blocked by browser. User interaction required.");
-                                setIsPlaying(false);
-                            } else if (e.name !== 'AbortError') {
-                                console.error("Play failed", e);
-                            }
-                        });
+                } else {
+                    // Handle pause
+                    if (!audioRef.current.paused) {
+                        audioRef.current.pause();
                     }
                 }
             }
