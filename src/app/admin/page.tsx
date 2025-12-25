@@ -123,6 +123,73 @@ export default function AdminPage() {
         }
     };
 
+    // Fetch all playlists
+    const fetchPlaylists = async () => {
+        setLoadingPlaylists(true);
+        try {
+            const playlistsRef = collection(db, 'playlists');
+            // Try with sorting first
+            try {
+                const q = query(playlistsRef, orderBy('createdAt', 'desc'));
+                const snapshot = await getDocs(q);
+                const playlistData = snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                })) as PlaylistData[];
+                setPlaylists(playlistData);
+            } catch (e: any) {
+                // Fallback if index is missing
+                if (e.code === 'failed-precondition' || e.message.includes('index')) {
+                    const snapshot = await getDocs(playlistsRef);
+                    const playlistData = snapshot.docs.map(doc => ({
+                        id: doc.id,
+                        ...doc.data()
+                    })) as PlaylistData[];
+                    setPlaylists(playlistData);
+                } else {
+                    throw e;
+                }
+            }
+        } catch (err: any) {
+            console.error('Error fetching playlists:', err);
+        } finally {
+            setLoadingPlaylists(false);
+        }
+    };
+
+    // Filtered playlists
+    const filteredPlaylists = playlists.filter(p =>
+        p.name?.toLowerCase().includes(playlistSearchQuery.toLowerCase()) ||
+        p.ownerName?.toLowerCase().includes(playlistSearchQuery.toLowerCase()) ||
+        p.description?.toLowerCase().includes(playlistSearchQuery.toLowerCase())
+    );
+
+    // Request playlist deletion
+    const requestPlaylistDeletion = (playlistId: string, playlistName: string) => {
+        setPendingPlaylistDelete({ playlistId, playlistName });
+        setShowPlaylistDeleteModal(true);
+    };
+
+    // Confirm Playlist Deletion
+    const confirmDeletePlaylist = async () => {
+        if (!pendingPlaylistDelete) return;
+
+        const { playlistId } = pendingPlaylistDelete;
+        setUpdating(playlistId);
+
+        try {
+            await deleteDoc(doc(db, 'playlists', playlistId));
+            setPlaylists(prev => prev.filter(p => p.id !== playlistId));
+            setSuccess('Playlist deleted successfully');
+        } catch (err: any) {
+            setError('Failed to delete playlist');
+        } finally {
+            setUpdating(null);
+            setShowPlaylistDeleteModal(false);
+            setPendingPlaylistDelete(null);
+        }
+    };
+
     // Admin functions moved below
 
 
@@ -761,7 +828,7 @@ export default function AdminPage() {
                     </div>
                 )}
 
-                                {/* Settings Tab (My Tier) */}
+                {/* Settings Tab (My Tier) */}
                 {activeTab === 'settings' && (
                     <div className="space-y-8 max-w-2xl">
                         <div className="p-6 bg-[var(--card)] border border-[var(--border)] rounded-2xl">
