@@ -48,10 +48,17 @@ export default function Sidebar() {
         <>
             {/* Desktop Sidebar - Uses calc to account for player bar height */}
             <div className="hidden md:flex w-64 bg-[var(--background)] border-r border-[var(--border)] flex-col p-6 shrink-0 fixed top-0 left-0 z-30 transition-all duration-300" style={{ height: 'calc(100vh - 96px)' }}>
-                <div className="text-2xl font-bold mb-6 text-cyan-400 tracking-tighter shrink-0">Nitro<span className="text-[var(--foreground)]">.</span></div>
+                <Link href="/" className="flex items-center gap-4 mb-10 group pl-2">
+                    <div className="w-9 h-9 rounded-xl overflow-hidden shadow-none ring-1 ring-white/10 group-hover:ring-white/30 transition-all">
+                        <img src="/logo.png" className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity" alt="Nitro Logo" />
+                    </div>
+                    <div className="flex items-baseline gap-2">
+                        <div className="text-xl font-bold text-[var(--foreground)] tracking-tight shrink-0">Nitro<span className="text-[var(--foreground-muted)]">.</span></div>
+                    </div>
+                </Link>
 
                 {/* Navigation */}
-                <nav className="flex flex-col gap-2 flex-1 overflow-y-auto pr-1">
+                <nav className="flex flex-col gap-1 flex-1 overflow-y-auto pr-1">
                     {allLinks.filter(l => !l.desktopOnly).concat(allLinks.filter(l => l.desktopOnly)).map(l => {
 
                         const Icon = l.icon;
@@ -61,19 +68,18 @@ export default function Sidebar() {
                             <Link
                                 key={l.name}
                                 href={l.href}
-                                className={`flex items-center gap-4 p-3 rounded-xl transition-all ${active
-                                    ? isAdminLink
-                                        ? 'bg-amber-900/20 text-amber-400 border border-amber-500/20'
-                                        : 'bg-cyan-900/20 text-cyan-400 border border-cyan-500/20'
-                                    : isAdminLink
-                                        ? 'text-amber-400/70 hover:text-amber-400 hover:bg-amber-500/10'
-                                        : 'text-[var(--foreground-secondary)] hover:text-[var(--foreground)] hover:bg-[var(--card-hover)]'
-                                    } transition-colors duration-300`}
+                                className={`flex items-center gap-3.5 px-4 py-2.5 rounded-lg transition-all duration-200 group relative ${active
+                                    ? 'text-[var(--foreground)] bg-[var(--card-hover)] font-semibold'
+                                    : 'text-[var(--foreground-secondary)] hover:text-[var(--foreground)] hover:bg-[var(--card)] font-medium'
+                                    }`}
                             >
-                                <Icon size={20} />
-                                <span className="font-medium">{l.name}</span>
+                                {active && (
+                                    <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-4 bg-[var(--accent-cyan)] rounded-r-full" />
+                                )}
+                                <Icon size={18} className={`transition-colors ${active ? 'text-[var(--foreground)]' : 'text-[var(--foreground-muted)] group-hover:text-[var(--foreground)]'}`} />
+                                <span className="text-sm tracking-wide">{l.name}</span>
                                 {isAdminLink && (
-                                    <span className="ml-auto text-[10px] px-2 py-0.5 bg-amber-500/20 text-amber-400 rounded-full">
+                                    <span className="ml-auto text-[10px] px-1.5 py-0.5 bg-[var(--card)] border border-[var(--border)] text-[var(--foreground-muted)] rounded">
                                         Admin
                                     </span>
                                 )}
@@ -126,25 +132,7 @@ export default function Sidebar() {
             {/* Desktop Sidebar Spacer - This pushes the main content */}
             <div className="hidden md:block w-64 shrink-0" />
 
-            {/* Mobile Header - Removed Hamburger Menu */}
-            <div className="md:hidden fixed top-0 left-0 w-full h-16 bg-[var(--background)]/90 backdrop-blur-xl border-b border-[var(--border)] flex items-center justify-between px-6 z-40 transition-all duration-300">
-                <div className="text-xl font-bold text-cyan-400 tracking-tighter">Nitro<span className="text-[var(--foreground)]">.</span></div>
-                <div className="flex items-center gap-4">
-                    {user && (
-                        <Link href="/profile" className="active:scale-95 transition-all">
-                            <div className="w-9 h-9 rounded-full overflow-hidden border-2 border-cyan-500/30">
-                                {userProfile?.photoURL ? (
-                                    <img src={userProfile.photoURL} className="w-full h-full object-cover" alt="" />
-                                ) : (
-                                    <div className="w-full h-full bg-gradient-to-br from-cyan-500 to-purple-600 flex items-center justify-center text-white text-[10px] font-bold">
-                                        {userProfile?.displayName?.[0] || 'U'}
-                                    </div>
-                                )}
-                            </div>
-                        </Link>
-                    )}
-                </div>
-            </div>
+
 
             {/* Mobile Drawer Removed */}
 

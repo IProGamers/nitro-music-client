@@ -4,6 +4,7 @@ import { useSettings } from './SettingsContext';
 import { useAuth } from './AuthContext';
 import { useAudioFX } from './AudioFXContext';
 import { useRouter } from 'next/navigation';
+import { getSong as getOfflineSong } from '@/lib/offlineDb';
 
 const FREE_PLAY_LIMIT = 10;
 const PLAY_COUNT_KEY = 'nitro_free_plays';
@@ -24,6 +25,8 @@ interface PlayerContextType {
     volume: number;
     setVolume: (v: number) => void;
     is3DActive: boolean;
+    threeDMode: 'off' | 'simple' | 'extreme';
+    setThreeDMode: (mode: 'off' | 'simple' | 'extreme') => void;
     toggle3D: () => void;
     freePlayCount: number;
     showLoginPrompt: boolean;
@@ -32,6 +35,25 @@ interface PlayerContextType {
     toggleShuffle: () => void;
     repeatMode: 'off' | 'all' | 'one';
     toggleRepeat: () => void;
+    // Queue Management
+    reorderQueue: (fromIndex: number, toIndex: number) => void;
+    removeFromQueue: (index: number) => void;
+    addToQueue: (song: any) => void;
+    clearQueue: () => void;
+    currentIndex: number;
+    // Radio
+    startRadio: (seedSong: any) => Promise<void>;
+    isRadioMode: boolean;
+    // A-B Loop
+    loopA: number | null;
+    loopB: number | null;
+    setLoopA: () => void;
+    setLoopB: () => void;
+    clearLoop: () => void;
+    isLooping: boolean;
+    // Smart Shuffle
+    isSmartShuffle: boolean;
+    toggleSmartShuffle: () => void;
 }
 
 const PlayerContext = createContext<PlayerContextType | undefined>(undefined);
@@ -47,6 +69,12 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
     const audioRef = useRef<HTMLAudioElement>(null);
     const { enable3DAudio, audioQuality } = useSettings();
     const [is3DActive, setIs3DActive] = useState(false);
+    const [threeDMode, setThreeDModeInternal] = useState<'off' | 'simple' | 'extreme'>('off');
+
+    const setThreeDMode = (mode: 'off' | 'simple' | 'extreme') => {
+        setThreeDModeInternal(mode);
+        setIs3DActive(mode !== 'off');
+    };
     const { user, saveToPlayHistory } = useAuth();
     const { connectAudioSource } = useAudioFX();
     const router = useRouter();
@@ -58,6 +86,13 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
     // Shuffle and Repeat state
     const [isShuffleOn, setIsShuffleOn] = useState(false);
     const [repeatMode, setRepeatMode] = useState<'off' | 'all' | 'one'>('off');
+    const [isSmartShuffle, setIsSmartShuffle] = useState(false);
+    const recentlyPlayedRef = useRef<string[]>([]);
+
+    // A-B Loop state
+    const [loopA, setLoopAState] = useState<number | null>(null);
+    const [loopB, setLoopBState] = useState<number | null>(null);
+    const isLooping = loopA !== null && loopB !== null;
 
     // Persistence keys
     const CURRENT_SONG_KEY = 'nitro_current_song';
@@ -114,10 +149,27 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
 
     // Sync is3DActive with global setting
     useEffect(() => {
-        setIs3DActive(enable3DAudio);
+        if (enable3DAudio && threeDMode === 'off') {
+            setThreeDMode('simple');
+            setIs3DActive(true);
+        } else if (!enable3DAudio) {
+            setThreeDMode('off');
+            setIs3DActive(false);
+        }
     }, [enable3DAudio]);
 
-    const toggle3D = () => setIs3DActive(!is3DActive);
+    const toggle3D = () => {
+        if (threeDMode === 'off') {
+            setThreeDMode('simple');
+            setIs3DActive(true);
+        } else if (threeDMode === 'simple') {
+            setThreeDMode('extreme');
+            setIs3DActive(true);
+        } else {
+            setThreeDMode('off');
+            setIs3DActive(false);
+        }
+    };
 
     // Web Audio API Refs
     const audioContextRef = useRef<AudioContext | null>(null);
@@ -157,26 +209,68 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
                 pannerRef.current.setPosition(0, 0, 1);
             }
         }
+    }, [connectAudioSource]);
 
-        // Handle Routing with optional 3D Panner
-        if (is3DActive && pannerRef.current && fxGainRef.current) {
+    // Handle Routing with optional 3D Panner
+    useEffect(() => {
+        if (is3DActive && pannerRef.current && fxGainRef.current && audioContextRef.current) {
             // Path: AudioFX Chain -> Panner -> Destination
             fxGainRef.current.disconnect();
             fxGainRef.current.connect(pannerRef.current);
-            pannerRef.current.connect(audioContextRef.current!.destination);
-        } else if (fxGainRef.current) {
+            pannerRef.current.connect(audioContextRef.current.destination);
+        } else if (fxGainRef.current && audioContextRef.current) {
             // Path: AudioFX Chain -> Destination
             if (pannerRef.current) pannerRef.current.disconnect();
             fxGainRef.current.disconnect();
-            fxGainRef.current.connect(audioContextRef.current!.destination);
+            fxGainRef.current.connect(audioContextRef.current.destination);
+        }
+    }, [is3DActive]);
+
+    // 8D/16D Rotating Audio Effect
+    const animationFrameRef = useRef<number | undefined>(undefined);
+    const angleRef = useRef<number>(0);
+
+    useEffect(() => {
+        if (!is3DActive || !pannerRef.current || !isPlaying) {
+            if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+            // Reset position to center if inactive
+            if (pannerRef.current) pannerRef.current.setPosition(0, 0, 1);
+            return;
         }
 
-        // Resume context if suspended (browser policy)
-        if (audioContextRef.current?.state === 'suspended') {
+        const rotate = () => {
+            if (!pannerRef.current) return;
+
+            // Different speeds and depths for Simple vs Extreme
+            const speed = threeDMode === 'extreme' ? 0.015 : 0.008;
+            const radius = threeDMode === 'extreme' ? 10 : 5;
+
+            angleRef.current += speed;
+
+            const x = Math.sin(angleRef.current) * radius;
+            const z = Math.cos(angleRef.current) * radius;
+
+            // For extreme mode, add a slight vertical movement (Y axis) to feel "fully filled"
+            const y = threeDMode === 'extreme' ? Math.sin(angleRef.current * 0.5) * 2 : 0;
+
+            pannerRef.current.setPosition(x, y, z);
+
+            animationFrameRef.current = requestAnimationFrame(rotate);
+        };
+
+        animationFrameRef.current = requestAnimationFrame(rotate);
+
+        return () => {
+            if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+        };
+    }, [is3DActive, threeDMode, isPlaying]);
+
+    // Resume context if suspended (browser policy)
+    useEffect(() => {
+        if (audioContextRef.current?.state === 'suspended' && isPlaying) {
             audioContextRef.current.resume();
         }
-
-    }, [is3DActive, connectAudioSource]);
+    }, [isPlaying]);
 
     const getImg = (t: any) => {
         if (typeof t.image === 'string') return t.image;
@@ -192,19 +286,37 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
             // Map quality setting to downloadUrl index
             // downloadUrl array typically: [0: 12kbps, 1: 48kbps, 2: 96kbps, 3: 160kbps, 4: 320kbps]
             const qualityMap = {
-                'low': 2,      // 96 kbps
-                'medium': 3,   // 160 kbps
-                'high': 4,     // 320 kbps (highest available)
-                'supreme': 4   // Lossless (use highest available as fallback)
+                'low': 1,      // 48kbps (Data Saver)
+                'medium': 2,   // 96kbps (Standard)
+                'high': 4,     // 320kbps (High Definition)
+                'supreme': 4   // Lossless (Highest available)
             };
 
-            const targetIndex = qualityMap[audioQuality] || 4; // Default to high quality
+            const targetIndex = qualityMap[audioQuality as keyof typeof qualityMap] || 4; // Default to high quality
 
             // Use the target quality or the highest available if target doesn't exist
             const index = Math.min(targetIndex, t.downloadUrl.length - 1);
             return t.downloadUrl[index].url || t.downloadUrl[index].link || '';
         }
         return null;
+    };
+
+    // Get audio URL, checking offline cache first
+    const getAudioWithOffline = async (t: any): Promise<string | null> => {
+        const songId = String(t.songId || t.id || '');
+
+        // Check offline cache first
+        try {
+            const offlineSong = await getOfflineSong(songId);
+            if (offlineSong?.audioBlob) {
+                return URL.createObjectURL(offlineSong.audioBlob);
+            }
+        } catch (e) {
+            // IndexedDB not available or error - fall through to streaming
+        }
+
+        // Fall back to streaming URL
+        return getAudio(t);
     };
 
     const getArtist = (t: any) => {
@@ -228,7 +340,8 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
 
         // Normalize song ID (history items use songId, search items use id)
         // Ensure it's a string to avoid Zod "Bad Request"
-        const trackId = String(song.id || song.songId || '');
+        // IMPORTANT: Prioritize songId over id to avoid using database auto-increment IDs
+        const trackId = String(song.songId || song.id || '');
 
         if (!trackId) {
             console.error("No track ID found", song);
@@ -237,21 +350,26 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
 
         if (newQueue) {
             setQueue(newQueue);
-            setCurrentIndex(newQueue.findIndex(s => String(s.id || s.songId) === trackId));
+            setCurrentIndex(newQueue.findIndex(s => String(s.songId || s.id) === trackId));
         } else {
             if (queue.length === 0) setQueue([song]);
         }
 
-        // Check if the song already has audio data
-        const existingAudioUrl = getAudio(song);
+        // Check if the song already has audio data OR is available offline
+        const offlineAudioUrl = await getAudioWithOffline(song);
+        const existingAudioUrl = offlineAudioUrl || getAudio(song);
 
         if (existingAudioUrl) {
-            // Song already has all the data it needs - play directly
-            setCurrentSong(song);
+            // Song has audio (either offline or streaming) - play directly
+            // If from offline, attach the blob URL to the song object for the player
+            const songToPlay = offlineAudioUrl
+                ? { ...song, audioUrl: existingAudioUrl, isOffline: true }
+                : song;
+            setCurrentSong(songToPlay);
             setIsPlaying(true);
 
             // Save to server history
-            const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+            const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
             fetch(`${apiUrl}/api/history`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -338,6 +456,51 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
         setQueue(newQueue);
     };
 
+    // Queue Management
+    const reorderQueue = (fromIndex: number, toIndex: number) => {
+        const newQueue = [...queue];
+        const [movedItem] = newQueue.splice(fromIndex, 1);
+        newQueue.splice(toIndex, 0, movedItem);
+        setQueue(newQueue);
+        // If the current index was one of the moved items, update it
+        if (currentIndex === fromIndex) {
+            setCurrentIndex(toIndex);
+        } else if (currentIndex > fromIndex && currentIndex <= toIndex) {
+            setCurrentIndex(currentIndex - 1);
+        } else if (currentIndex < fromIndex && currentIndex >= toIndex) {
+            setCurrentIndex(currentIndex + 1);
+        }
+    };
+
+    const removeFromQueue = (index: number) => {
+        const newQueue = [...queue];
+        newQueue.splice(index, 1);
+        setQueue(newQueue);
+        if (index < currentIndex) {
+            setCurrentIndex(currentIndex - 1);
+        } else if (index === currentIndex) {
+            if (newQueue.length > 0) {
+                const nextIdx = index % newQueue.length;
+                setCurrentIndex(nextIdx);
+                playTrack(newQueue[nextIdx]);
+            } else {
+                setCurrentSong(null);
+                setIsPlaying(false);
+            }
+        }
+    };
+
+    const addToQueue = (song: any) => {
+        setQueue(prev => [...prev, song]);
+    };
+
+    const clearQueue = () => {
+        setQueue([]);
+        setCurrentIndex(0);
+        setCurrentSong(null);
+        setIsPlaying(false);
+    };
+
     // Toggle Shuffle Mode
     const toggleShuffle = () => {
         setIsShuffleOn(!isShuffleOn);
@@ -350,8 +513,59 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
         else setRepeatMode('off');
     };
 
+    // Toggle Smart Shuffle
+    const toggleSmartShuffle = () => {
+        setIsSmartShuffle(!isSmartShuffle);
+    };
+
+    // Helper to get artist name from song
+    const getArtistName = (song: any): string => {
+        if (song?.artists?.primary?.[0]?.name) return song.artists.primary[0].name;
+        if (typeof song?.artist === 'string') return song.artist;
+        return 'Unknown';
+    };
+
+    // Smart shuffle scoring function
+    const getSmartShuffleIndex = (availableIndices: number[], currentSong: any): number => {
+        if (availableIndices.length === 0) return 0;
+        if (availableIndices.length === 1) return availableIndices[0];
+
+        const currentArtist = getArtistName(currentSong);
+        const recentArtists = recentlyPlayedRef.current.slice(0, 5);
+
+        // Score each available song
+        const scoredIndices = availableIndices.map(idx => {
+            const song = queue[idx];
+            const artist = getArtistName(song);
+            let score = Math.random() * 30; // Base randomness (0-30)
+
+            // Prefer different artists (avoid repetition)
+            if (artist !== currentArtist) score += 40;
+
+            // Avoid recently played artists
+            const recencyPenalty = recentArtists.indexOf(artist);
+            if (recencyPenalty === -1) {
+                score += 30; // Not played recently, bonus
+            } else {
+                score -= (5 - recencyPenalty) * 5; // More penalty for more recent
+            }
+
+            return { idx, score };
+        });
+
+        // Sort by score descending and pick the best
+        scoredIndices.sort((a, b) => b.score - a.score);
+        return scoredIndices[0].idx;
+    };
+
     const next = () => {
         if (queue.length === 0) return;
+
+        // Track current song artist for smart shuffle
+        if (currentSong && isSmartShuffle) {
+            const artist = getArtistName(currentSong);
+            recentlyPlayedRef.current = [artist, ...recentlyPlayedRef.current.slice(0, 9)];
+        }
 
         // If repeat one, replay current song
         if (repeatMode === 'one') {
@@ -364,11 +578,14 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
 
         let nextIdx: number;
         if (isShuffleOn) {
-            // Random index excluding current
             const availableIndices = queue.map((_, i) => i).filter(i => i !== currentIndex);
             if (availableIndices.length === 0) {
                 nextIdx = 0;
+            } else if (isSmartShuffle) {
+                // Use smart shuffle algorithm
+                nextIdx = getSmartShuffleIndex(availableIndices, currentSong);
             } else {
+                // Random shuffle
                 nextIdx = availableIndices[Math.floor(Math.random() * availableIndices.length)];
             }
         } else {
@@ -400,7 +617,33 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
         if (audioRef.current) {
             audioRef.current.currentTime = time;
         }
-    }
+    };
+
+    // A-B Loop functions
+    const setLoopA = () => {
+        if (audioRef.current) {
+            setLoopAState(audioRef.current.currentTime);
+        }
+    };
+
+    const setLoopB = () => {
+        if (audioRef.current && loopA !== null) {
+            const currentTime = audioRef.current.currentTime;
+            if (currentTime > loopA) {
+                setLoopBState(currentTime);
+            }
+        }
+    };
+
+    const clearLoop = () => {
+        setLoopAState(null);
+        setLoopBState(null);
+    };
+
+    // Clear loop when song changes
+    useEffect(() => {
+        clearLoop();
+    }, [currentSong]);
 
     const isInitialMount = useRef(true);
 
@@ -472,6 +715,40 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
         }
     }, []);
 
+    // Radio Mode
+    const [isRadioMode, setIsRadioMode] = useState(false);
+
+    const startRadio = async (seedSong: any) => {
+        try {
+            setIsRadioMode(true);
+            const songName = seedSong.name || seedSong.title || '';
+            const artistName = seedSong.artists?.primary?.[0]?.name || seedSong.artist || '';
+
+            // Search for similar songs
+            const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+            const query = encodeURIComponent(`${artistName} ${songName}`.trim());
+            const res = await fetch(`${apiUrl}/api/search/songs?query=${query}&limit=20`);
+            const data = await res.json();
+
+            if (data.success && data.data?.results) {
+                // Filter out the seed song and create new queue
+                const seedId = String(seedSong.id || seedSong.songId);
+                const radioSongs = data.data.results.filter((s: any) =>
+                    String(s.id) !== seedId
+                );
+
+                // Start with seed song, add similar songs
+                const newQueue = [seedSong, ...radioSongs];
+                setQueue(newQueue);
+                setCurrentIndex(0);
+                playTrack(seedSong, newQueue);
+            }
+        } catch (err) {
+            console.error('Failed to start radio:', err);
+            setIsRadioMode(false);
+        }
+    };
+
 
     return (
         <PlayerContext.Provider value={{
@@ -490,6 +767,8 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
             volume,
             setVolume,
             is3DActive,
+            threeDMode,
+            setThreeDMode,
             toggle3D,
             freePlayCount,
             showLoginPrompt,
@@ -497,15 +776,35 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
             isShuffleOn,
             toggleShuffle,
             repeatMode,
-            toggleRepeat
+            toggleRepeat,
+            reorderQueue,
+            removeFromQueue,
+            addToQueue,
+            clearQueue,
+            currentIndex,
+            startRadio,
+            isRadioMode,
+            loopA,
+            loopB,
+            setLoopA,
+            setLoopB,
+            clearLoop,
+            isLooping,
+            isSmartShuffle,
+            toggleSmartShuffle
         }}>
             {children}
             <audio
                 ref={audioRef}
                 crossOrigin="anonymous"
                 onTimeUpdate={(e) => {
-                    setProgress(e.currentTarget.currentTime);
+                    const currentTime = e.currentTarget.currentTime;
+                    setProgress(currentTime);
                     setDuration(e.currentTarget.duration);
+                    // A-B Loop: if we've passed point B, jump back to A
+                    if (loopA !== null && loopB !== null && currentTime >= loopB) {
+                        e.currentTarget.currentTime = loopA;
+                    }
                 }}
                 onEnded={next}
             />

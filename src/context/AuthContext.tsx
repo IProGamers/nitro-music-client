@@ -1,5 +1,5 @@
 "use client"
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import {
     User,
     onAuthStateChanged,
@@ -10,19 +10,27 @@ import {
     updateProfile,
     sendPasswordResetEmail
 } from 'firebase/auth';
-import { doc, getDoc, setDoc, updateDoc, collection, addDoc, deleteDoc, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, collection, addDoc, deleteDoc, query, where, getDocs, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import { auth, db, googleProvider, githubProvider } from '@/lib/firebase';
 
 export type SubscriptionTier = 'NITRO_CORE' | 'NITRO_ELITE' | 'NITRO_SUPREME';
+export type UserStatus = 'online' | 'idle' | 'dnd' | 'invisible';
 
 interface UserProfile {
     uid: string;
     email: string | null;
     displayName: string | null;
     photoURL: string | null;
+    bannerURL: string | null;
     bio: string;
     tier: SubscriptionTier;
     isAdmin: boolean;
+    status: UserStatus;
+    lastActive: Date;
+    // Username system
+    username: string | null;
+    usernameChangesLeft: number; // Starts at 2, decrements on each change
+    pendingUsernameChange: string | null; // If awaiting admin approval
     createdAt: Date;
     updatedAt: Date;
 }
@@ -35,6 +43,8 @@ export interface Playlist {
     ownerName: string;
     ownerPhoto: string | null;
     isPublic: boolean;
+    isCollaborative: boolean;
+    collaborators: string[]; // Array of user IDs
     songs: any[];
     createdAt: any;
     updatedAt: any;
@@ -66,6 +76,20 @@ interface AuthContextType {
     getUserPlaylists: () => Promise<Playlist[]>;
     getPlaylist: (playlistId: string) => Promise<Playlist | null>;
     getRecentPlays: (limitCount?: number) => Promise<any[]>;
+    updateNowPlaying: (song: { id: string; name: string; artist: string; image: string } | null) => Promise<void>;
+    // Collaborative Playlists
+    addCollaborator: (playlistId: string, userId: string) => Promise<void>;
+    removeCollaborator: (playlistId: string, userId: string) => Promise<void>;
+    // Friend System
+    searchUsersByName: (searchQuery: string) => Promise<{ uid: string; displayName: string; username: string | null; photoURL: string | null; status: UserStatus }[]>;
+    updateUserStatus: (status: UserStatus) => Promise<void>;
+    // Account notifications (deletion/plan changes)
+    accountNotification: {
+        type: 'deleted' | 'plan_upgraded' | 'plan_downgraded' | null;
+        message: string;
+        newTier?: SubscriptionTier;
+    } | null;
+    clearAccountNotification: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -75,6 +99,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+
+    // In-memory cache for liked songs to avoid repeated Firestore reads
+    const [likedSongsCache, setLikedSongsCache] = useState<Set<string>>(new Set());
+
+    // Account notification state (for deletion/plan changes)
+    const [accountNotification, setAccountNotification] = useState<{
+        type: 'deleted' | 'plan_upgraded' | 'plan_downgraded' | null;
+        message: string;
+        newTier?: SubscriptionTier;
+    } | null>(null);
 
     // Fetch or create user profile in Firestore
     const fetchOrCreateProfile = async (firebaseUser: User): Promise<UserProfile> => {
@@ -90,9 +124,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                 email: firebaseUser.email,
                 displayName: firebaseUser.displayName || 'Music Lover',
                 photoURL: firebaseUser.photoURL,
+                bannerURL: null,
                 bio: 'Music enthusiast & audiophile. Exploring the universe of sound one track at a time.',
                 tier: 'NITRO_CORE',
                 isAdmin: false,
+                status: 'online',
+                lastActive: new Date(),
+                username: null,
+                usernameChangesLeft: 2,
+                pendingUsernameChange: null,
                 createdAt: new Date(),
                 updatedAt: new Date()
             };
@@ -110,6 +150,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                     setUser(firebaseUser);
                     const profile = await fetchOrCreateProfile(firebaseUser);
                     setUserProfile(profile);
+                    // Clear any previous account notifications when a new user successfully signs in
+                    setAccountNotification(null);
                 } else {
                     setUser(null);
                     setUserProfile(null);
@@ -125,48 +167,189 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         return () => unsubscribe();
     }, []);
 
-    const signIn = async (email: string, password: string) => {
+    // Preload liked songs cache when user logs in
+    useEffect(() => {
+        const loadLikedSongs = async () => {
+            if (!user) {
+                setLikedSongsCache(new Set());
+                return;
+            }
+            try {
+                const likesRef = collection(db, 'users', user.uid, 'likedSongs');
+                const snap = await getDocs(likesRef);
+                const ids = new Set(snap.docs.map(doc => doc.id));
+                setLikedSongsCache(ids);
+            } catch (err) {
+                console.error('Failed to preload liked songs:', err);
+            }
+        };
+        loadLikedSongs();
+    }, [user]);
+
+    // Real-time listener for user document changes (deletion, plan changes)
+    useEffect(() => {
+        if (!user || loading) return;
+
+        const userRef = doc(db, 'users', user.uid);
+        const unsubscribe = onSnapshot(userRef, async (snapshot) => {
+            if (!snapshot.exists()) {
+                // User document was deleted by admin!
+                // Only show this if we had a profile (prevents race condition on new account creation)
+                if (userProfile) {
+                    setAccountNotification({
+                        type: 'deleted',
+                        message: 'Your account has been removed by an administrator. Please create a new account to continue.'
+                    });
+                    // Sign out the user
+                    try {
+                        await firebaseSignOut(auth);
+                    } catch (e) {
+                        console.error('Failed to sign out after account deletion:', e);
+                    }
+                }
+                return;
+            }
+
+            const newData = snapshot.data() as UserProfile;
+
+            // Check for plan changes
+            if (userProfile && newData.tier !== userProfile.tier) {
+                const oldTier = userProfile.tier;
+                const newTier = newData.tier;
+
+                // Determine if upgrade or downgrade
+                const tierOrder = ['NITRO_CORE', 'NITRO_ELITE', 'NITRO_SUPREME'];
+                const oldIndex = tierOrder.indexOf(oldTier);
+                const newIndex = tierOrder.indexOf(newTier);
+
+                if (newIndex > oldIndex) {
+                    setAccountNotification({
+                        type: 'plan_upgraded',
+                        message: `Congratulations! You've been upgraded to ${formatTierName(newTier)}! 🎉`,
+                        newTier
+                    });
+                } else if (newIndex < oldIndex) {
+                    setAccountNotification({
+                        type: 'plan_downgraded',
+                        message: `Your plan has been changed to ${formatTierName(newTier)}.`,
+                        newTier
+                    });
+                }
+            }
+
+            // Update local profile state
+            setUserProfile(newData);
+        }, (error) => {
+            console.error('Error listening to user document:', error);
+        });
+
+        return () => unsubscribe();
+    }, [user, loading, userProfile?.tier]);
+
+    // Helper to format tier names nicely
+    const formatTierName = (tier: SubscriptionTier): string => {
+        switch (tier) {
+            case 'NITRO_CORE': return 'Nitro Core';
+            case 'NITRO_ELITE': return 'Nitro Elite';
+            case 'NITRO_SUPREME': return 'Nitro Supreme';
+            default: return tier;
+        }
+    };
+
+    // Clear account notification
+    // Clear account notification
+    const clearAccountNotification = useCallback(() => {
+        setAccountNotification(null);
+    }, []);
+
+    const formatAuthError = useCallback((error: any) => {
+        const code = error?.code || '';
+        switch (code) {
+            case 'auth/user-not-found':
+                return 'No account found with this email. Please sign up instead!';
+            case 'auth/wrong-password':
+            case 'auth/invalid-credential':
+                // Firebase often returns invalid-credential for both "user not found" and "wrong password" 
+                // for security (email enumeration protection).
+                return 'Incorrect email or password. If you don\'t have an account, please Create One below!';
+            case 'auth/invalid-email':
+                return 'Please enter a valid email address.';
+            case 'auth/email-already-in-use':
+                return 'This email is already registered. Try signing in instead!';
+            case 'auth/weak-password':
+                return 'Password should be at least 6 characters long.';
+            case 'auth/too-many-requests':
+                return 'Too many failed attempts. Please try again later.';
+            case 'auth/network-request-failed':
+                return 'Network error. Please check your internet connection.';
+            default:
+                return error.message || 'Authentication failed. Please try again.';
+        }
+    }, []);
+
+    const isTempEmail = useCallback((email: string) => {
+        const tempDomains = [
+            'tempmail.com', '10minutemail.com', 'guerrillamail.com',
+            'mailinator.com', 'yopmail.com', 'dispostable.com',
+            'getnada.com', 'temp-mail.org', 'throwawaymail.com'
+        ];
+        const domain = email.split('@')[1]?.toLowerCase();
+        return tempDomains.includes(domain);
+    }, []);
+
+    const signIn = useCallback(async (email: string, password: string) => {
         setError(null);
         try {
             await signInWithEmailAndPassword(auth, email, password);
         } catch (err: any) {
-            setError(err.message || 'Failed to sign in');
-            throw err;
+            const friendlyError = formatAuthError(err);
+            setError(friendlyError);
+            throw { ...err, message: friendlyError };
         }
-    };
+    }, [formatAuthError]);
 
-    const signUp = async (email: string, password: string, displayName: string) => {
+    const signUp = useCallback(async (email: string, password: string, displayName: string) => {
         setError(null);
+
+        if (isTempEmail(email)) {
+            const tempError = 'Temporary/Disposable emails are not allowed for security reasons. Please use a real email.';
+            setError(tempError);
+            throw new Error(tempError);
+        }
+
         try {
             const result = await createUserWithEmailAndPassword(auth, email, password);
             await updateProfile(result.user, { displayName });
         } catch (err: any) {
-            setError(err.message || 'Failed to create account');
-            throw err;
+            const friendlyError = formatAuthError(err);
+            setError(friendlyError);
+            throw { ...err, message: friendlyError };
         }
-    };
+    }, [isTempEmail, formatAuthError]);
 
-    const signInWithGoogle = async () => {
+    const signInWithGoogle = useCallback(async () => {
         setError(null);
         try {
             await signInWithPopup(auth, googleProvider);
         } catch (err: any) {
-            setError(err.message || 'Failed to sign in with Google');
-            throw err;
+            const friendlyError = formatAuthError(err);
+            setError(friendlyError);
+            throw { ...err, message: friendlyError };
         }
-    };
+    }, [formatAuthError]);
 
-    const signInWithGithub = async () => {
+    const signInWithGithub = useCallback(async () => {
         setError(null);
         try {
             await signInWithPopup(auth, githubProvider);
         } catch (err: any) {
-            setError(err.message || 'Failed to sign in with GitHub');
-            throw err;
+            const friendlyError = formatAuthError(err);
+            setError(friendlyError);
+            throw { ...err, message: friendlyError };
         }
-    };
+    }, [formatAuthError]);
 
-    const signOut = async () => {
+    const signOut = useCallback(async () => {
         setError(null);
         try {
             await firebaseSignOut(auth);
@@ -174,9 +357,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             setError(err.message || 'Failed to sign out');
             throw err;
         }
-    };
+    }, []);
 
-    const resetPassword = async (email: string) => {
+    const resetPassword = useCallback(async (email: string) => {
         setError(null);
         try {
             await sendPasswordResetEmail(auth, email);
@@ -184,9 +367,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             setError(err.message || 'Failed to send reset email');
             throw err;
         }
-    };
+    }, []);
 
-    const updateUserProfile = async (data: Partial<UserProfile>) => {
+    const updateUserProfile = useCallback(async (data: Partial<UserProfile>) => {
         if (!user) throw new Error('Not authenticated');
 
         setError(null);
@@ -211,17 +394,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             setError(err.message || 'Failed to update profile');
             throw err;
         }
-    };
+    }, [user]);
 
-    const refreshProfile = async () => {
+    const refreshProfile = useCallback(async () => {
         if (user) {
             const profile = await fetchOrCreateProfile(user);
             setUserProfile(profile);
         }
-    };
+    }, [user]);
 
     // Save song to user's play history
-    const saveToPlayHistory = async (song: { id: string; name: string; artist: string; image: string }) => {
+    const saveToPlayHistory = useCallback(async (song: { id: string; name: string; artist: string; image: string }) => {
         if (!user) return;
 
         try {
@@ -236,11 +419,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         } catch (err) {
             console.error('Failed to save play history:', err);
         }
-    };
+    }, [user]);
 
     // Add song to liked songs
-    const addLikedSong = async (song: { id: string; name: string; artist: string; image: string }) => {
+    const addLikedSong = useCallback(async (song: { id: string; name: string; artist: string; image: string }) => {
         if (!user) return;
+
+        // Optimistically update cache
+        setLikedSongsCache(prev => new Set(prev).add(song.id));
 
         try {
             const likesRef = collection(db, 'users', user.uid, 'likedSongs');
@@ -252,42 +438,46 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                 likedAt: new Date()
             });
         } catch (err) {
+            // Rollback cache on error
+            setLikedSongsCache(prev => {
+                const next = new Set(prev);
+                next.delete(song.id);
+                return next;
+            });
             console.error('Failed to add liked song:', err);
         }
-    };
+    }, [user]);
 
     // Remove song from liked songs
-    const removeLikedSong = async (songId: string) => {
+    const removeLikedSong = useCallback(async (songId: string) => {
         if (!user) return;
+
+        // Optimistically update cache
+        setLikedSongsCache(prev => {
+            const next = new Set(prev);
+            next.delete(songId);
+            return next;
+        });
 
         try {
             const songRef = doc(db, 'users', user.uid, 'likedSongs', songId);
             await deleteDoc(songRef);
         } catch (err) {
+            // Rollback cache on error
+            setLikedSongsCache(prev => new Set(prev).add(songId));
             console.error('Failed to remove liked song:', err);
         }
-    };
+    }, [user]);
 
-    // Check if song is liked
-    const isLikedSong = async (songId: string): Promise<boolean> => {
+    // Check if song is liked - Now uses cache for instant results
+    const isLikedSong = useCallback(async (songId: string): Promise<boolean> => {
         if (!user) return false;
-
-        try {
-            const songRef = doc(db, 'users', user.uid, 'likedSongs', songId);
-            const songSnap = await getDoc(songRef);
-            return songSnap.exists();
-        } catch (err: any) {
-            if (err.code === 'permission-denied') {
-                console.error('🔥 [Firebase Permission Error]: Please update your Firestore Security Rules to allow subcollection access. See project root for firestore.rules');
-            } else {
-                console.error('Failed to check liked song:', err);
-            }
-            return false;
-        }
-    };
+        // Use cache for instant check - no Firestore read needed
+        return likedSongsCache.has(songId);
+    }, [user, likedSongsCache]);
 
     // Playlist implementation
-    const createPlaylist = async (name: string, description: string, isPublic: boolean) => {
+    const createPlaylist = useCallback(async (name: string, description: string, isPublic: boolean) => {
         if (!user) throw new Error('Not authenticated');
         const playlistRef = collection(db, 'playlists');
         const docRef = await addDoc(playlistRef, {
@@ -302,21 +492,21 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             updatedAt: new Date()
         });
         return docRef.id;
-    };
+    }, [user, userProfile]);
 
-    const updatePlaylist = async (playlistId: string, data: Partial<Playlist>) => {
+    const updatePlaylist = useCallback(async (playlistId: string, data: Partial<Playlist>) => {
         const playlistRef = doc(db, 'playlists', playlistId);
         await updateDoc(playlistRef, {
             ...data,
             updatedAt: new Date()
         });
-    };
+    }, []);
 
-    const deletePlaylist = async (playlistId: string) => {
+    const deletePlaylist = useCallback(async (playlistId: string) => {
         await deleteDoc(doc(db, 'playlists', playlistId));
-    };
+    }, []);
 
-    const addSongToPlaylist = async (playlistId: string, song: any) => {
+    const addSongToPlaylist = useCallback(async (playlistId: string, song: any) => {
         const playlistRef = doc(db, 'playlists', playlistId);
         const snap = await getDoc(playlistRef);
         if (snap.exists()) {
@@ -329,9 +519,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                 updatedAt: new Date()
             });
         }
-    };
+    }, []);
 
-    const removeSongFromPlaylist = async (playlistId: string, songId: string) => {
+    const removeSongFromPlaylist = useCallback(async (playlistId: string, songId: string) => {
         const playlistRef = doc(db, 'playlists', playlistId);
         const snap = await getDoc(playlistRef);
         if (snap.exists()) {
@@ -341,56 +531,192 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                 updatedAt: new Date()
             });
         }
-    };
+    }, []);
 
-    const getUserPlaylists = async (): Promise<Playlist[]> => {
+    const getUserPlaylists = useCallback(async (): Promise<Playlist[]> => {
         if (!user) return [];
         const q = query(collection(db, 'playlists'), where('ownerId', '==', user.uid));
         const snap = await getDocs(q);
         return snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Playlist));
-    };
+    }, [user]);
 
-    const getPlaylist = async (playlistId: string): Promise<Playlist | null> => {
+    const getPlaylist = useCallback(async (playlistId: string): Promise<Playlist | null> => {
         const snap = await getDoc(doc(db, 'playlists', playlistId));
         if (snap.exists()) return { id: snap.id, ...snap.data() } as Playlist;
         return null;
-    };
+    }, []);
 
-    const getRecentPlays = async (limitCount = 20) => {
+    const getRecentPlays = useCallback(async (limitCount = 20) => {
         if (!user) return [];
         const historyRef = collection(db, 'users', user.uid, 'playHistory');
         const q = query(historyRef, orderBy('playedAt', 'desc'), limit(limitCount));
         const snap = await getDocs(q);
         return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    };
+    }, [user]);
+
+    // Update nowPlaying for friend activity
+    const updateNowPlaying = useCallback(async (song: { id: string; name: string; artist: string; image: string } | null) => {
+        if (!user) return;
+        try {
+            const userRef = doc(db, 'users', user.uid);
+            await updateDoc(userRef, {
+                nowPlaying: song ? {
+                    songId: song.id,
+                    songName: song.name,
+                    artistName: song.artist,
+                    image: song.image,
+                    startedAt: new Date()
+                } : null
+            });
+        } catch (err) {
+            console.error('Failed to update nowPlaying:', err);
+        }
+    }, [user]);
+
+    // Collaborative Playlist Functions
+    const addCollaborator = useCallback(async (playlistId: string, userId: string) => {
+        const playlistRef = doc(db, 'playlists', playlistId);
+        const snap = await getDoc(playlistRef);
+        if (snap.exists()) {
+            const currentCollaborators = snap.data().collaborators || [];
+            if (!currentCollaborators.includes(userId)) {
+                await updateDoc(playlistRef, {
+                    collaborators: [...currentCollaborators, userId],
+                    isCollaborative: true,
+                    updatedAt: new Date()
+                });
+            }
+        }
+    }, []);
+
+    const removeCollaborator = useCallback(async (playlistId: string, userId: string) => {
+        const playlistRef = doc(db, 'playlists', playlistId);
+        const snap = await getDoc(playlistRef);
+        if (snap.exists()) {
+            const currentCollaborators = snap.data().collaborators || [];
+            const newCollaborators = currentCollaborators.filter((id: string) => id !== userId);
+            await updateDoc(playlistRef, {
+                collaborators: newCollaborators,
+                isCollaborative: newCollaborators.length > 0,
+                updatedAt: new Date()
+            });
+        }
+    }, []);
+
+    // Search users by name or username
+    const searchUsersByName = useCallback(async (searchQuery: string) => {
+        try {
+            const usersRef = collection(db, 'users');
+            const snapshot = await getDocs(usersRef);
+            const results: { uid: string; displayName: string; username: string | null; photoURL: string | null; status: UserStatus }[] = [];
+
+            const queryLower = searchQuery.toLowerCase();
+            snapshot.forEach(doc => {
+                const data = doc.data();
+                const displayName = data.displayName || '';
+                const username = data.username || '';
+
+                // Case-insensitive partial match on name or username
+                if ((displayName.toLowerCase().includes(queryLower) || username.toLowerCase().includes(queryLower)) && doc.id !== user?.uid) {
+                    results.push({
+                        uid: doc.id,
+                        displayName: displayName,
+                        username: username || null,
+                        photoURL: data.photoURL || null,
+                        status: data.status || 'offline'
+                    });
+                }
+            });
+
+            return results.slice(0, 10); // Limit to 10 results
+        } catch (err) {
+            console.error('Failed to search users:', err);
+            return [];
+        }
+    }, [user]);
+
+    // Update user status (online/idle/dnd/invisible)
+    const updateUserStatus = useCallback(async (status: UserStatus) => {
+        if (!user) return;
+        try {
+            const userRef = doc(db, 'users', user.uid);
+            await updateDoc(userRef, {
+                status: status,
+                lastActive: new Date()
+            });
+        } catch (err) {
+            console.error('Failed to update status:', err);
+        }
+    }, [user]);
+
+    const value = useMemo(() => ({
+        user,
+        userProfile,
+        loading,
+        error,
+        signIn,
+        signUp,
+        signInWithGoogle,
+        signInWithGithub,
+        signOut,
+        resetPassword,
+        updateUserProfile,
+        refreshProfile,
+        saveToPlayHistory,
+        addLikedSong,
+        removeLikedSong,
+        isLikedSong,
+        createPlaylist,
+        updatePlaylist,
+        deletePlaylist,
+        addSongToPlaylist,
+        removeSongFromPlaylist,
+        getUserPlaylists,
+        getPlaylist,
+        getRecentPlays,
+        updateNowPlaying,
+        addCollaborator,
+        removeCollaborator,
+        searchUsersByName,
+        updateUserStatus,
+        accountNotification,
+        clearAccountNotification
+    }), [
+        user,
+        userProfile,
+        loading,
+        error,
+        signIn,
+        signUp,
+        signInWithGoogle,
+        signInWithGithub,
+        signOut,
+        resetPassword,
+        updateUserProfile,
+        refreshProfile,
+        saveToPlayHistory,
+        addLikedSong,
+        removeLikedSong,
+        isLikedSong,
+        createPlaylist,
+        updatePlaylist,
+        deletePlaylist,
+        addSongToPlaylist,
+        removeSongFromPlaylist,
+        getUserPlaylists,
+        getPlaylist,
+        getRecentPlays,
+        updateNowPlaying,
+        addCollaborator,
+        removeCollaborator,
+        searchUsersByName,
+        updateUserStatus,
+        accountNotification,
+        clearAccountNotification
+    ]);
 
     return (
-        <AuthContext.Provider value={{
-            user,
-            userProfile,
-            loading,
-            error,
-            signIn,
-            signUp,
-            signInWithGoogle,
-            signInWithGithub,
-            signOut,
-            resetPassword,
-            updateUserProfile,
-            refreshProfile,
-            saveToPlayHistory,
-            addLikedSong,
-            removeLikedSong,
-            isLikedSong,
-            createPlaylist,
-            updatePlaylist,
-            deletePlaylist,
-            addSongToPlaylist,
-            removeSongFromPlaylist,
-            getUserPlaylists,
-            getPlaylist,
-            getRecentPlays
-        }}>
+        <AuthContext.Provider value={value}>
             {children}
         </AuthContext.Provider>
     );

@@ -91,13 +91,16 @@ export default function AuthPage() {
             <div className="relative z-10 w-full max-w-md">
                 {/* Logo */}
                 <div className="text-center mb-10">
-                    <Link href="/" className="inline-flex items-center gap-3 group">
-                        <div className="p-3 bg-gradient-to-br from-cyan-500 to-purple-600 rounded-2xl group-hover:scale-110 transition-transform">
-                            <Music size={28} className="text-white" />
+                    <Link href="/" className="inline-flex flex-col items-center gap-6 group">
+                        <div className="w-16 h-16 rounded-2xl overflow-hidden shadow-[0_0_40px_rgba(34,211,238,0.2)] group-hover:scale-110 transition-transform">
+                            <img src="/logo.png" className="w-full h-full object-cover" alt="Nitro Logo" />
                         </div>
-                        <span className="text-3xl font-bold text-[var(--foreground)] tracking-tighter">
-                            Nitro<span className="text-cyan-400">.</span>
-                        </span>
+                        <div className="flex items-baseline gap-3">
+                            <span className="text-4xl font-bold text-[var(--foreground)] tracking-tighter">
+                                Nitro
+                            </span>
+                            <span className="text-sm font-bold text-[var(--foreground-muted)] tracking-[0.2em] lowercase opacity-50">by ipro</span>
+                        </div>
                     </Link>
                     <p className="text-[var(--foreground-muted)] mt-3 text-sm">
                         {isSignUp ? 'Create your account to start streaming' : 'Welcome back, music lover'}

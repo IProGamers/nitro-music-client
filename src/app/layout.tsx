@@ -7,15 +7,33 @@ import { AuthProvider } from "@/context/AuthContext";
 import { AudioFXProvider } from "@/context/AudioFXContext";
 import { ThemeProvider } from "@/context/ThemeContext";
 import { MusicDataProvider } from "@/context/MusicDataContext";
+import { DeviceProvider } from "@/context/DeviceContext";
+import { StatsProvider } from "@/context/StatsContext";
+import { DJProvider } from "@/context/DJContext";
+import { UsageProvider } from "@/context/UsageContext";
+import { OfflineProvider } from "@/context/OfflineContext";
 import Sidebar from "@/components/Sidebar";
 import Player from "@/components/Player";
 import LoginPromptModal from "@/components/LoginPromptModal";
+import LimitReachedModal from "@/components/LimitReachedModal";
+import AccountNotificationModal from "@/components/AccountNotificationModal";
+import UsernameGuard from "@/components/UsernameGuard";
+import MobileHeader from "@/components/MobileHeader";
 
 const font = Outfit({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Nitro Music",
+  title: "Nitro",
   description: "Premium Music App",
+  icons: {
+    icon: "/logo.png",
+    apple: "/logo.png",
+  },
+  manifest: "/manifest.json",
+};
+
+export const viewport = {
+  themeColor: "#000000",
 };
 
 export default function RootLayout({
@@ -28,20 +46,35 @@ export default function RootLayout({
       <body className={`${font.className} h-screen flex overflow-hidden`} suppressHydrationWarning>
         <AuthProvider>
           <SettingsProvider>
-            <ThemeProvider>
-              <MusicDataProvider>
-                <AudioFXProvider>
-                  <PlayerProvider>
-                    <Sidebar />
-                    <main className="flex-1 overflow-y-auto pb-32 md:pb-28 relative">
-                      {children}
-                    </main>
-                    <Player />
-                    <LoginPromptModal />
-                  </PlayerProvider>
-                </AudioFXProvider>
-              </MusicDataProvider>
-            </ThemeProvider>
+            <UsageProvider>
+              <ThemeProvider>
+                <MusicDataProvider>
+                  <AudioFXProvider>
+                    <PlayerProvider>
+                      <StatsProvider>
+                        <DJProvider>
+                          <DeviceProvider>
+                            <OfflineProvider>
+                              <Sidebar />
+                              <main className="flex-1 overflow-y-auto pb-32 md:pb-28 relative">
+                                <MobileHeader />
+                                <UsernameGuard>
+                                  {children}
+                                </UsernameGuard>
+                              </main>
+                              <Player />
+                              <LimitReachedModal />
+                              <LoginPromptModal />
+                              <AccountNotificationModal />
+                            </OfflineProvider>
+                          </DeviceProvider>
+                        </DJProvider>
+                      </StatsProvider>
+                    </PlayerProvider>
+                  </AudioFXProvider>
+                </MusicDataProvider>
+              </ThemeProvider>
+            </UsageProvider>
           </SettingsProvider>
         </AuthProvider>
       </body>

@@ -64,7 +64,7 @@ export default function AlbumPage() {
     return (
         <div className="min-h-screen pb-32">
             {/* Header Section */}
-            <div className="relative pt-20 pb-10 px-6 md:px-8 bg-[var(--background)]/50">
+            <div className="relative pt-4 md:pt-20 pb-10 px-6 md:px-8 bg-[var(--background)]/50">
                 <div className="absolute inset-x-0 top-0 h-96">
                     <img src={getImg(album.image)} className="w-full h-full object-cover blur-3xl opacity-20 saturate-150 scale-110" alt="" />
                     <div className="absolute inset-0 bg-gradient-to-t from-[var(--background)] via-[var(--background)]/60 to-transparent" />

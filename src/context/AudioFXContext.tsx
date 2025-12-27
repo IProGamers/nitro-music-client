@@ -41,10 +41,14 @@ interface AudioFXContextType {
     // Visualizer
     visualizerEnabled: boolean;
     setVisualizerEnabled: (enabled: boolean) => void;
-    visualizerStyle: 'bars' | 'wave' | 'circle' | 'particles';
-    setVisualizerStyle: (style: 'bars' | 'wave' | 'circle' | 'particles') => void;
+    visualizerStyle: 'bars' | 'wave' | 'circle' | 'particles' | 'spectrum';
+    setVisualizerStyle: (style: 'bars' | 'wave' | 'circle' | 'particles' | 'spectrum') => void;
     visualizerIntensity: number;
     setVisualizerIntensity: (intensity: number) => void;
+
+    // Audio Normalizer
+    normalizerEnabled: boolean;
+    setNormalizerEnabled: (enabled: boolean) => void;
 
     // Audio Analysis
     frequencyData: Uint8Array | null;
@@ -86,9 +90,12 @@ export const AudioFXProvider = ({ children }: { children: React.ReactNode }) => 
     const [crossfadeEnabled, setCrossfadeEnabled] = useState(false);
     const [crossfadeDuration, setCrossfadeDuration] = useState(5);
     const [visualizerEnabled, setVisualizerEnabled] = useState(true);
-    const [visualizerStyle, setVisualizerStyle] = useState<'bars' | 'wave' | 'circle' | 'particles'>('wave');
+    const [visualizerStyle, setVisualizerStyle] = useState<'bars' | 'wave' | 'circle' | 'particles' | 'spectrum'>('wave');
     const [visualizerIntensity, setVisualizerIntensity] = useState(1);
+    const [analyserNode, setAnalyserNode] = useState<AnalyserNode | null>(null);
     const [frequencyData, setFrequencyData] = useState<Uint8Array | null>(null);
+    const frequencyDataRef = useRef<Uint8Array | null>(null);
+    const [normalizerEnabled, setNormalizerEnabledState] = useState(false);
 
     // Custom Vocal Settings
     const [vocalSettings, setVocalSettings] = useState({
@@ -103,6 +110,7 @@ export const AudioFXProvider = ({ children }: { children: React.ReactNode }) => 
     const convolverRef = useRef<ConvolverNode | null>(null);
     const biquadFiltersRef = useRef<BiquadFilterNode[]>([]);
     const gainNodeRef = useRef<GainNode | null>(null);
+    const compressorRef = useRef<DynamicsCompressorNode | null>(null);
     const sleepIntervalRef = useRef<NodeJS.Timeout | null>(null);
     const hapticIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -122,6 +130,9 @@ export const AudioFXProvider = ({ children }: { children: React.ReactNode }) => 
 
         const savedVisualizerEnabled = localStorage.getItem('nitro_visualizer_enabled');
         if (savedVisualizerEnabled !== null) setVisualizerEnabled(savedVisualizerEnabled !== 'false');
+
+        const savedNormalizer = localStorage.getItem('nitro_normalizer');
+        if (savedNormalizer !== null) setNormalizerEnabledState(savedNormalizer === 'true');
     }, []);
 
     // Save settings to localStorage
@@ -132,7 +143,8 @@ export const AudioFXProvider = ({ children }: { children: React.ReactNode }) => 
         localStorage.setItem('nitro_crossfade', String(crossfadeEnabled));
         localStorage.setItem('nitro_visualizer_style', visualizerStyle);
         localStorage.setItem('nitro_visualizer_enabled', String(visualizerEnabled));
-    }, [sceneMode, vocalMode, hapticEnabled, crossfadeEnabled, visualizerStyle, visualizerEnabled]);
+        localStorage.setItem('nitro_normalizer', String(normalizerEnabled));
+    }, [sceneMode, vocalMode, hapticEnabled, crossfadeEnabled, visualizerStyle, visualizerEnabled, normalizerEnabled]);
 
     // Haptic feedback
     const triggerHaptic = useCallback((intensity: number = 50) => {
@@ -221,22 +233,29 @@ export const AudioFXProvider = ({ children }: { children: React.ReactNode }) => 
         }
     }, []);
 
-    // Frequency data updater for visualizer
+    // Frequency data updater - optimized
     useEffect(() => {
+        if (!analyserNode) return;
+
         let animationId: number;
+        const data = new Uint8Array(analyserNode.frequencyBinCount);
 
         const updateFrequencyData = () => {
-            if (analyserRef.current) {
-                const data = new Uint8Array(analyserRef.current.frequencyBinCount);
-                analyserRef.current.getByteFrequencyData(data);
-                setFrequencyData(data);
+            if (analyserNode) {
+                analyserNode.getByteFrequencyData(data);
+                frequencyDataRef.current = data;
+                // We'll update the state at 30fps instead of 60fps to save React overhead,
+                // while visualizers should use the analyserNode directly for 60fps.
+                if (Math.random() > 0.5) { // Throttle state update
+                    setFrequencyData(new Uint8Array(data));
+                }
             }
             animationId = requestAnimationFrame(updateFrequencyData);
         };
 
         updateFrequencyData();
         return () => cancelAnimationFrame(animationId);
-    }, []);
+    }, [analyserNode]);
 
     // Refs for wet/dry gain control
     const dryGainRef = useRef<GainNode | null>(null);
@@ -248,8 +267,9 @@ export const AudioFXProvider = ({ children }: { children: React.ReactNode }) => 
 
         // Create analyser
         const analyser = context.createAnalyser();
-        analyser.fftSize = 256;
+        analyser.fftSize = 1024; // Increased from 256 for better resolution
         analyserRef.current = analyser;
+        setAnalyserNode(analyser); // Expose to state
 
         // Create convolver for reverb/scene effects
         const convolver = context.createConvolver();
@@ -281,6 +301,15 @@ export const AudioFXProvider = ({ children }: { children: React.ReactNode }) => 
         const gainNode = context.createGain();
         gainNodeRef.current = gainNode;
 
+        // Create dynamics compressor for normalizer
+        const compressor = context.createDynamicsCompressor();
+        compressor.threshold.value = -24;  // Start compressing at -24dB
+        compressor.knee.value = 30;        // Soft knee for natural compression
+        compressor.ratio.value = 12;       // High ratio for limiting
+        compressor.attack.value = 0.003;   // Fast attack
+        compressor.release.value = 0.25;   // Moderate release
+        compressorRef.current = compressor;
+
         // Connect chain: source -> filters
         source.connect(lowFilter);
         lowFilter.connect(midFilter);
@@ -295,8 +324,9 @@ export const AudioFXProvider = ({ children }: { children: React.ReactNode }) => 
         convolver.connect(wetGain);
         wetGain.connect(analyser);
 
-        // Output
-        analyser.connect(gainNode);
+        // Output: analyser -> compressor (if enabled) -> gainNode
+        analyser.connect(compressor);
+        compressor.connect(gainNode);
 
         // Initial Balance (Dry by default)
         dryGain.gain.value = 1;
@@ -419,6 +449,17 @@ export const AudioFXProvider = ({ children }: { children: React.ReactNode }) => 
         highFilter.gain.value = (vocalSettings.clarity - 1) * 5;
     }, [vocalSettings, vocalMode]);
 
+    // Audio Normalizer toggle
+    const setNormalizerEnabled = useCallback((enabled: boolean) => {
+        setNormalizerEnabledState(enabled);
+        if (compressorRef.current) {
+            // When disabled, set ratio to 1 (no compression)
+            // When enabled, set ratio to 12 (strong compression for normalization)
+            compressorRef.current.ratio.value = enabled ? 12 : 1;
+            compressorRef.current.threshold.value = enabled ? -24 : 0;
+        }
+    }, []);
+
     return (
         <AudioFXContext.Provider value={{
             sceneMode,
@@ -445,8 +486,10 @@ export const AudioFXProvider = ({ children }: { children: React.ReactNode }) => 
             vocalSettings,
             setVocalSettings,
             frequencyData,
-            analyserNode: analyserRef.current,
-            connectAudioSource
+            analyserNode,
+            connectAudioSource,
+            normalizerEnabled,
+            setNormalizerEnabled
         }}>
             {children}
         </AudioFXContext.Provider>

@@ -35,14 +35,18 @@ export default function SearchPage() {
     const [loading, setLoading] = useState(false);
     const [isFocused, setIsFocused] = useState(false);
     const [activeTab, setActiveTab] = useState<'all' | 'songs' | 'artists' | 'albums' | 'playlists'>('all');
+    const [loadingMore, setLoadingMore] = useState(false);
     const [debouncedQuery, setDebouncedQuery] = useState('');
     const searchAbortControllerRef = useRef<AbortController | null>(null);
+    const categoryAbortControllerRef = useRef<AbortController | null>(null);
     const { searchCache } = useMusicData();
 
     // Debounce query
     useEffect(() => {
         const timer = setTimeout(() => {
             setDebouncedQuery(query);
+            // Reset active tab to 'all' when query changes significantly? 
+            // Better to keep it if the user is refining their search in a category
         }, 400); // 400ms delay for debouncing
 
         return () => clearTimeout(timer);
@@ -86,21 +90,8 @@ export default function SearchPage() {
                     // Save to cache
                     searchCache.set(q, data.data);
 
-                    // Auto-switching tab logic
-                    if (q.length <= 4) {
-                        setActiveTab('songs');
-                    } else {
-                        const hasStrongArtistMatch = data.data.artists?.results?.some(
-                            (a: any) => a.title.toLowerCase().includes(q.toLowerCase()) ||
-                                q.toLowerCase().includes(a.title.toLowerCase())
-                        );
-
-                        if (hasStrongArtistMatch && q.length > 5) {
-                            setActiveTab('all');
-                        } else {
-                            setActiveTab('songs');
-                        }
-                    }
+                    // Default to 'all' tab so users see the summary first
+                    setActiveTab('all');
                 }
             } catch (e: any) {
                 if (e.name !== 'AbortError') {
@@ -123,19 +114,74 @@ export default function SearchPage() {
         };
     }, [debouncedQuery]);
 
+    // Fetch more results when tab changes
+    useEffect(() => {
+        const q = debouncedQuery.trim();
+        if (q === '' || activeTab === 'all') {
+            setLoadingMore(false);
+            return;
+        }
+
+        const fetchCategoryResults = async () => {
+            if (categoryAbortControllerRef.current) {
+                categoryAbortControllerRef.current.abort();
+            }
+
+            const controller = new AbortController();
+            categoryAbortControllerRef.current = controller;
+            setLoadingMore(true);
+
+            try {
+                const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+                // Using a higher limit for category-specific view
+                const res = await fetch(`${apiUrl}/api/search/${activeTab}?query=${encodeURIComponent(q)}&limit=50`, {
+                    signal: controller.signal
+                });
+                const data = await res.json();
+
+                if (data.success && controller.signal.aborted === false) {
+                    setResults(prev => {
+                        if (!prev) return null;
+                        return {
+                            ...prev,
+                            [activeTab]: data.data
+                        };
+                    });
+                }
+            } catch (e: any) {
+                if (e.name !== 'AbortError') {
+                    console.error(`Error fetching more ${activeTab}:`, e);
+                }
+            } finally {
+                if (categoryAbortControllerRef.current === controller) {
+                    setLoadingMore(false);
+                }
+            }
+        };
+
+        fetchCategoryResults();
+
+        return () => {
+            if (categoryAbortControllerRef.current) {
+                categoryAbortControllerRef.current.abort();
+            }
+        };
+    }, [activeTab, debouncedQuery]);
+
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setQuery(e.target.value);
     };
     useEffect(() => {
         try {
-            const saved = localStorage.getItem(SEARCH_PLAYED_KEY);
-            if (saved) {
-                setSearchPlayedSongs(JSON.parse(saved));
+            const savedSongs = localStorage.getItem(SEARCH_PLAYED_KEY);
+            if (savedSongs) {
+                setSearchPlayedSongs(JSON.parse(savedSongs));
             }
         } catch (e) {
-            console.error('Failed to load search played songs:', e);
+            console.error('Failed to load search history:', e);
         }
     }, []);
+
 
     // Save song to search played history
     const saveToSearchHistory = (song: any) => {
@@ -164,7 +210,7 @@ export default function SearchPage() {
         });
     };
 
-    // Clear search played history
+    // Clear search history
     const clearSearchHistory = () => {
         setSearchPlayedSongs([]);
         try {
@@ -258,18 +304,23 @@ export default function SearchPage() {
     ];
 
     return (
-        <div className="p-4 md:p-8 pb-32 pt-20 md:pt-8 min-h-screen max-w-7xl mx-auto overflow-x-hidden">
-            <div className="sticky top-0 z-30 bg-[var(--background)]/90 backdrop-blur-2xl pb-4 md:static md:bg-transparent md:pb-0">
+        <div className="p-4 md:p-6 lg:p-8 pb-32 pt-4 md:pt-8 min-h-screen max-w-[1700px] mx-auto overflow-x-hidden">
+            <div className="sticky top-0 z-30 bg-[var(--background)]/95 backdrop-blur-xl pb-4 pt-2 md:pt-0 md:static md:bg-transparent md:pb-0">
                 <div className="relative group">
                     <Search className={`absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${query ? 'text-cyan-400' : 'text-[var(--foreground-muted)] group-hover:text-[var(--foreground)]'}`} size={18} />
                     <input
                         type="text"
-                        placeholder="Search for songs, artists, or albums..."
+                        placeholder="What do you want to listen to?"
                         value={query}
                         onChange={handleInputChange}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                                (e.target as HTMLInputElement).blur();
+                            }
+                        }}
                         onFocus={() => setIsFocused(true)}
                         onBlur={() => setTimeout(() => setIsFocused(false), 200)}
-                        className={`w-full bg-[var(--card)] border border-[var(--border)] rounded-xl md:rounded-2xl py-3 md:py-4 pl-11 md:pl-12 pr-10 text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:bg-[var(--card-hover)] transition-all placeholder:text-[var(--foreground-muted)] text-base md:text-lg shadow-2xl ${isFocused ? 'ring-2 ring-cyan-500/30 bg-[var(--card-hover)]' : ''}`}
+                        className={`w-full bg-[#242424] border-none rounded-full py-3 md:py-3.5 pl-11 md:pl-12 pr-10 text-white focus:outline-none focus:ring-2 focus:ring-white/20 transition-all placeholder:text-[#a7a7a7] text-sm md:text-base shadow-2xl ${isFocused ? 'bg-[#2a2a2a]' : ''}`}
                     />
                     {query && (
                         <button onClick={clearSearch} className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 md:p-2 text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:bg-[var(--card-hover)] rounded-full transition-all">
@@ -305,7 +356,7 @@ export default function SearchPage() {
                         <div>
                             <div className="flex items-center justify-between mb-4">
                                 <h2 className="text-xl font-bold flex items-center gap-3 text-[var(--foreground)]">
-                                    <Clock className="text-cyan-400" size={20} /> Recently Searched
+                                    <Clock className="text-cyan-400" size={20} /> Recently Played
                                 </h2>
                                 {searchPlayedSongs.length > 0 && (
                                     <button
@@ -350,16 +401,20 @@ export default function SearchPage() {
                     ) : (
                         /* Browse Categories - Shown by default when NOT focused */
                         <div>
-                            <h2 className="text-xl md:text-2xl font-bold text-[var(--foreground)] mb-6">Browse All</h2>
-                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 gap-4 md:gap-6">
+                            <h2 className="text-xl md:text-2xl font-bold text-[var(--foreground)] mb-4 md:mb-6">Browse All</h2>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-3 md:gap-4 lg:gap-5">
                                 {categories.map((cat) => (
                                     <button
                                         key={cat.id}
-                                        onClick={() => setQuery(cat.query)}
+                                        onClick={() => {
+                                            // Simply set the query to trigger song search
+                                            setQuery(cat.query);
+                                            setActiveTab('songs');
+                                        }}
                                         className={`${cat.color} relative aspect-[16/9] md:aspect-square rounded-xl md:rounded-2xl overflow-hidden group hover:scale-[1.02] transition-all duration-300 shadow-xl`}
                                     >
-                                        <div className="p-4 md:p-6 text-left h-full">
-                                            <h3 className="text-lg md:text-2xl font-bold text-white tracking-tighter leading-tight drop-shadow-md">
+                                        <div className="p-3 md:p-4 text-left h-full">
+                                            <h3 className="text-base md:text-xl lg:text-2xl font-bold text-white tracking-tighter leading-tight drop-shadow-md">
                                                 {cat.title}
                                             </h3>
                                         </div>
@@ -377,156 +432,178 @@ export default function SearchPage() {
                         </div>
                     )}
                 </div>
-            )}
+            )
+            }
 
 
-            {loading && (
-                <div className="flex flex-col items-center justify-center py-20 text-cyan-400 gap-4">
-                    <div className="animate-spin w-10 h-10 border-4 border-current border-t-transparent rounded-full shadow-lg shadow-cyan-500/20"></div>
-                    <p className="text-[var(--foreground-muted)] font-medium animate-pulse">Scanning the airwaves...</p>
-                </div>
-            )}
+            {
+                loading && (
+                    <div className="flex flex-col items-center justify-center py-20 text-cyan-400 gap-4">
+                        <div className="animate-spin w-10 h-10 border-4 border-current border-t-transparent rounded-full shadow-lg shadow-cyan-500/20"></div>
+                        <p className="text-[var(--foreground-muted)] font-medium animate-pulse">Scanning the airwaves...</p>
+                    </div>
+                )
+            }
 
-            {!loading && query && results && (
-                <div className="mt-8 space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            {
+                !loading && query && results && (
+                    <div className="mt-8 space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                        {activeTab !== 'all' && (
+                            <button
+                                onClick={() => setActiveTab('all')}
+                                className="flex items-center gap-2 text-cyan-400 font-bold hover:gap-3 transition-all group"
+                            >
+                                <ChevronRight size={20} className="rotate-180" />
+                                Back to All Results
+                            </button>
+                        )}
 
-                    {/* Artists Section */}
-                    {(activeTab === 'all' || activeTab === 'artists') && results.artists?.results?.length > 0 && (
-                        <section>
-                            <div className="flex items-center justify-between mb-6">
-                                <h2 className="text-2xl font-bold text-[var(--foreground)] flex items-center gap-3">
-                                    <User className="text-cyan-400" /> Artists
-                                </h2>
-                                {activeTab === 'all' && (
-                                    <button onClick={() => setActiveTab('artists')} className="text-sm font-bold text-cyan-400 hover:underline flex items-center">
-                                        View All <ChevronRight size={16} />
-                                    </button>
-                                )}
-                            </div>
-                            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-4 lg:grid-cols-6 gap-3 md:gap-6">
-                                {results.artists.results.slice(0, activeTab === 'all' ? 12 : results.artists.results.length).map((artist: any) => (
-                                    <div
-                                        key={artist.id}
-                                        onClick={() => handleArtistClick(artist.id)}
-                                        className="flex flex-col items-center text-center group cursor-pointer"
-                                    >
-                                        <div className="relative aspect-square w-full mb-4 rounded-full overflow-hidden bg-[var(--card)] border-2 border-transparent group-hover:border-cyan-400/50 transition-all shadow-xl group-hover:shadow-cyan-500/10">
-                                            <img src={getImg(artist)} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
+                        {/* Artists Section */}
+                        {activeTab === 'artists' && results?.artists?.results?.length > 0 && (
+                            <section>
+                                <div className="flex items-center justify-between mb-6">
+                                    <h2 className="text-xl md:text-2xl font-bold text-[var(--foreground)] flex items-center gap-3">
+                                        <User className="text-cyan-400" /> Artists
+                                    </h2>
+                                </div>
+                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-7 2xl:grid-cols-8 gap-4 md:gap-5">
+                                    {results.artists.results.map((artist: any) => (
+                                        <div
+                                            key={artist.id}
+                                            onClick={() => handleArtistClick(artist.id)}
+                                            className="flex flex-col items-center text-center group cursor-pointer"
+                                        >
+                                            <div className="relative aspect-square w-full mb-3 rounded-full overflow-hidden bg-[#181818] shadow-2xl transition-transform duration-300 group-hover:scale-105">
+                                                <img src={getImg(artist)} className="w-full h-full object-cover" />
+                                            </div>
+                                            <h3 className="font-bold text-sm md:text-base text-[var(--foreground)] group-hover:underline transition-colors truncate w-full">{artist.title || artist.name}</h3>
+                                            <p className="text-xs text-[var(--foreground-muted)] mt-1">Artist</p>
                                         </div>
-                                        <h3 className="font-bold text-[var(--foreground)] group-hover:text-cyan-400 transition-colors truncate w-full">{artist.title}</h3>
-                                        <p className="text-xs text-[var(--foreground-muted)] mt-1 uppercase tracking-wider">{artist.type}</p>
+                                    ))}
+                                </div>
+                                {loadingMore && (
+                                    <div className="flex justify-center py-8">
+                                        <div className="animate-spin w-6 h-6 border-2 border-cyan-400 border-t-transparent rounded-full"></div>
                                     </div>
-                                ))}
-                            </div>
-                        </section>
-                    )}
-
-                    {/* Songs Section - Uses playFromSearch to save to history */}
-                    {(activeTab === 'all' || activeTab === 'songs') && results.songs?.results?.length > 0 && (
-                        <section>
-                            <div className="flex items-center justify-between mb-6">
-                                <h2 className="text-2xl font-bold text-[var(--foreground)] flex items-center gap-3">
-                                    <Music className="text-cyan-400" /> Songs
-                                </h2>
-                                {activeTab === 'all' && (
-                                    <button onClick={() => setActiveTab('songs')} className="text-sm font-bold text-cyan-400 hover:underline flex items-center">
-                                        View All <ChevronRight size={16} />
-                                    </button>
                                 )}
-                            </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                {results.songs.results.slice(0, activeTab === 'all' ? 12 : results.songs.results.length).map((song: any) => (
-                                    <div
-                                        key={song.id}
-                                        onClick={() => playFromSearch(song, results.songs.results)}
-                                        className="flex items-center gap-3 p-2 rounded-xl bg-[var(--card)] hover:bg-[var(--card-hover)] border border-[var(--border)] hover:border-cyan-500/30 cursor-pointer group transition-all"
-                                    >
-                                        <div className="relative w-11 h-11 flex-shrink-0">
-                                            <img src={getImg(song)} className="w-full h-full rounded-lg object-cover" />
-                                        </div>
-                                        <div className="flex-1 overflow-hidden">
-                                            <h3 className="font-bold text-xs md:text-sm text-[var(--foreground)] group-hover:text-cyan-400 transition-colors truncate">{song.title}</h3>
-                                            <p className="text-[9px] md:text-xs text-[var(--foreground-muted)] truncate mt-0.5">{song.primaryArtists || song.album}</p>
-                                        </div>
-                                        <div className="opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
-                                            <SongContextMenu song={song} queue={results.songs.results} />
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </section>
-                    )}
+                            </section>
+                        )}
 
-                    {/* Albums Section */}
-                    {(activeTab === 'all' || activeTab === 'albums') && results.albums?.results?.length > 0 && (
-                        <section>
-                            <div className="flex items-center justify-between mb-6">
-                                <h2 className="text-2xl font-bold text-[var(--foreground)] flex items-center gap-3">
-                                    <Disc className="text-cyan-400" /> Albums
-                                </h2>
-                                {activeTab === 'all' && (
-                                    <button onClick={() => setActiveTab('albums')} className="text-sm font-bold text-cyan-400 hover:underline flex items-center">
-                                        View All <ChevronRight size={16} />
-                                    </button>
-                                )}
-                            </div>
-                            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-6">
-                                {results.albums.results.slice(0, activeTab === 'all' ? 12 : results.albums.results.length).map((album: any) => (
-                                    <div key={album.id} onClick={() => handleAlbumClick(album.id)} className="group cursor-pointer">
-                                        <div className="relative aspect-square mb-4 overflow-hidden rounded-2xl bg-[var(--card)] shadow-xl group-hover:shadow-cyan-500/10 border border-[var(--border)]">
-                                            <img src={getImg(album)} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
-                                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-4">
-                                                <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-2xl">
-                                                    <Disc className="text-black" size={20} />
-                                                </div>
+                        {/* Songs Section - Uses playFromSearch to save to history */}
+                        {(activeTab === 'all' || activeTab === 'songs') && results?.songs?.results?.length > 0 && (
+                            <section>
+                                <div className="flex items-center justify-between mb-6">
+                                    <h2 className="text-xl md:text-2xl font-bold text-[var(--foreground)] flex items-center gap-3">
+                                        <Music className="text-cyan-400" /> Songs
+                                    </h2>
+                                    {activeTab === 'all' && (
+                                        <button onClick={() => setActiveTab('songs')} className="text-xs md:text-sm font-bold text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:underline flex items-center gap-1 transition-colors">
+                                            Show all
+                                        </button>
+                                    )}
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-x-6 gap-y-1">
+                                    {results.songs.results.slice(0, activeTab === 'all' ? 12 : results.songs.results.length).map((song: any) => (
+                                        <div
+                                            key={song.id}
+                                            onClick={() => playFromSearch(song, results.songs.results)}
+                                            className="flex items-center gap-3 p-2 rounded-xl bg-[var(--card)] hover:bg-[var(--card-hover)] border border-[var(--border)] hover:border-cyan-500/30 cursor-pointer group transition-all"
+                                        >
+                                            <div className="relative w-10 h-10 flex-shrink-0">
+                                                <img src={getImg(song)} className="w-full h-full rounded object-cover shadow-lg" />
+                                            </div>
+                                            <div className="flex-1 overflow-hidden">
+                                                <h3 className="font-bold text-sm text-[var(--foreground)] truncate">{song.title || song.name}</h3>
+                                                <p className="text-xs text-[var(--foreground-muted)] truncate mt-0.5 hover:underline" onClick={(e) => { e.stopPropagation(); song.artistId && handleArtistClick(song.artistId); }}>{song.primaryArtists || song.artist || song.album?.name || song.album}</p>
+                                            </div>
+                                            <div className="opacity-0 group-hover:opacity-100 transition-opacity pr-2" onClick={e => e.stopPropagation()}>
+                                                <SongContextMenu song={song} queue={results.songs.results} />
                                             </div>
                                         </div>
-                                        <h3 className="font-bold text-[var(--foreground)] group-hover:text-cyan-400 transition-colors truncate">{album.title}</h3>
-                                        <p className="text-xs text-[var(--foreground-muted)] truncate mt-1">{album.artist || album.year}</p>
+                                    ))}
+                                </div>
+                                {activeTab !== 'all' && loadingMore && (
+                                    <div className="flex justify-center py-8">
+                                        <div className="animate-spin w-6 h-6 border-2 border-cyan-400 border-t-transparent rounded-full"></div>
                                     </div>
-                                ))}
-                            </div>
-                        </section>
-                    )}
-
-                    {/* Playlists Section */}
-                    {(activeTab === 'all' || activeTab === 'playlists') && results.playlists?.results?.length > 0 && (
-                        <section>
-                            <div className="flex items-center justify-between mb-6">
-                                <h2 className="text-2xl font-bold text-[var(--foreground)] flex items-center gap-3">
-                                    <ListMusic className="text-cyan-400" /> Playlists
-                                </h2>
-                                {activeTab === 'all' && (
-                                    <button onClick={() => setActiveTab('playlists')} className="text-sm font-bold text-cyan-400 hover:underline flex items-center">
-                                        View All <ChevronRight size={16} />
-                                    </button>
                                 )}
-                            </div>
-                            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-6">
-                                {results.playlists.results.slice(0, activeTab === 'all' ? 12 : results.playlists.results.length).map((playlist: any) => (
-                                    <div key={playlist.id} onClick={() => handlePlaylistClick(playlist.id)} className="group cursor-pointer">
-                                        <div className="relative aspect-square mb-4 overflow-hidden rounded-2xl bg-[var(--card)] border border-[var(--border)] shadow-xl">
-                                            <img src={getImg(playlist)} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
-                                            <div className="absolute top-3 right-3 bg-black/60 backdrop-blur-md px-2 py-1 rounded-md text-[10px] font-bold text-white uppercase tracking-tighter">
-                                                Playlist
-                                            </div>
-                                        </div>
-                                        <h3 className="font-bold text-[var(--foreground)] group-hover:text-cyan-400 transition-colors truncate">{playlist.title}</h3>
-                                        <p className="text-xs text-[var(--foreground-muted)] truncate mt-1" dangerouslySetInnerHTML={{ __html: playlist.description }}></p>
-                                    </div>
-                                ))}
-                            </div>
-                        </section>
-                    )}
-                </div>
-            )}
+                            </section>
+                        )}
 
-            {!loading && query && (!results || (
-                !results.songs?.results?.length &&
-                !results.artists?.results?.length &&
-                !results.albums?.results?.length &&
-                !results.playlists?.results?.length
-            )) && (
+                        {/* Albums Section */}
+                        {(activeTab === 'all' || activeTab === 'albums') && results?.albums?.results?.length > 0 && (
+                            <section>
+                                <div className="flex items-center justify-between mb-6">
+                                    <h2 className="text-xl md:text-2xl font-bold text-[var(--foreground)] flex items-center gap-3">
+                                        <Disc className="text-cyan-400" /> Albums
+                                    </h2>
+                                    {activeTab === 'all' && (
+                                        <button onClick={() => setActiveTab('albums')} className="text-xs md:text-sm font-bold text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:underline flex items-center gap-1 transition-colors">
+                                            Show all
+                                        </button>
+                                    )}
+                                </div>
+                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-7 2xl:grid-cols-8 gap-4 md:gap-5">
+                                    {results.albums.results.slice(0, activeTab === 'all' ? 8 : results.albums.results.length).map((album: any) => (
+                                        <div key={album.id} onClick={() => handleAlbumClick(album.id)} className="group cursor-pointer">
+                                            <div className="relative aspect-square mb-3 overflow-hidden rounded-md bg-[#181818] shadow-2xl transition-transform duration-300 group-hover:scale-105">
+                                                <img src={getImg(album)} className="w-full h-full object-cover" />
+                                            </div>
+                                            <h3 className="font-bold text-sm md:text-base text-[var(--foreground)] group-hover:underline transition-colors truncate">{album.title || album.name}</h3>
+                                            <p className="text-xs text-[var(--foreground-muted)] truncate mt-1">{album.artist || album.year}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                                {activeTab !== 'all' && loadingMore && (
+                                    <div className="flex justify-center py-8">
+                                        <div className="animate-spin w-6 h-6 border-2 border-cyan-400 border-t-transparent rounded-full"></div>
+                                    </div>
+                                )}
+                            </section>
+                        )}
+
+                        {/* Playlists Section */}
+                        {(activeTab === 'all' || activeTab === 'playlists') && results?.playlists?.results?.length > 0 && (
+                            <section>
+                                <div className="flex items-center justify-between mb-6">
+                                    <h2 className="text-xl md:text-2xl font-bold text-[var(--foreground)] flex items-center gap-3">
+                                        <ListMusic className="text-cyan-400" /> Playlists
+                                    </h2>
+                                    {activeTab === 'all' && (
+                                        <button onClick={() => setActiveTab('playlists')} className="text-xs md:text-sm font-bold text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:underline flex items-center gap-1 transition-colors">
+                                            Show all
+                                        </button>
+                                    )}
+                                </div>
+                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-7 2xl:grid-cols-8 gap-4 md:gap-5">
+                                    {results.playlists.results.slice(0, activeTab === 'all' ? 8 : results.playlists.results.length).map((playlist: any) => (
+                                        <div key={playlist.id} onClick={() => handlePlaylistClick(playlist.id)} className="group cursor-pointer">
+                                            <div className="relative aspect-square mb-3 overflow-hidden rounded-md bg-[#181818] shadow-2xl transition-transform duration-300 group-hover:scale-105">
+                                                <img src={getImg(playlist)} className="w-full h-full object-cover" />
+                                            </div>
+                                            <h3 className="font-bold text-sm md:text-base text-[var(--foreground)] group-hover:underline transition-colors truncate">{playlist.title || playlist.name}</h3>
+                                            <p className="text-xs text-[var(--foreground-muted)] truncate mt-1 line-clamp-2" dangerouslySetInnerHTML={{ __html: playlist.description }}></p>
+                                        </div>
+                                    ))}
+                                </div>
+                                {activeTab !== 'all' && loadingMore && (
+                                    <div className="flex justify-center py-8">
+                                        <div className="animate-spin w-6 h-6 border-2 border-cyan-400 border-t-transparent rounded-full"></div>
+                                    </div>
+                                )}
+                            </section>
+                        )}
+                    </div>
+                )
+            }
+
+            {
+                !loading && query && (!results || (
+                    !results.songs?.results?.length &&
+                    !results.artists?.results?.length &&
+                    !results.albums?.results?.length &&
+                    !results.playlists?.results?.length
+                )) && (
                     <div className="flex flex-col items-center justify-center py-20 text-center animate-in fade-in zoom-in duration-300">
                         <div className="w-20 h-20 bg-[var(--card)] rounded-full flex items-center justify-center mb-6 border border-[var(--border)]">
                             <Search size={32} className="text-[var(--foreground-muted)]" />
@@ -534,7 +611,8 @@ export default function SearchPage() {
                         <h3 className="text-xl font-bold text-[var(--foreground)] mb-2">No results found for "{query}"</h3>
                         <p className="text-[var(--foreground-muted)] max-w-xs">Try searching for something else or check your spelling.</p>
                     </div>
-                )}
-        </div>
-    )
+                )
+            }
+        </div >
+    );
 }

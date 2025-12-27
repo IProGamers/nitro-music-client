@@ -3,9 +3,9 @@ import { useState } from 'react';
 import { useAudioFX, SceneMode, VocalMode } from '@/context/AudioFXContext';
 import { useSettings } from '@/context/SettingsContext';
 import {
-    X, Waves, Mic, MicOff, Vibrate, Moon, Timer, Shuffle,
+    X, Waves, Mic, MicOff, Vibrate, Moon, Timer, Shuffle, Eye,
     BarChart3, Radio, Music2, CloudRain, Mountain, Sparkles,
-    Volume2, Disc, CircleDot, PartyPopper, Droplets, Circle, Lock, Crown
+    Volume2, Disc, CircleDot, PartyPopper, Droplets, Circle, Lock, Crown, Gauge
 } from 'lucide-react';
 
 interface AudioFXPanelProps {
@@ -43,6 +43,7 @@ const VISUALIZER_STYLES = [
     { id: 'wave', name: 'Wave', icon: <Waves size={18} /> },
     { id: 'circle', name: 'Circle', icon: <Circle size={18} /> },
     { id: 'particles', name: 'Particles', icon: <CircleDot size={18} /> },
+    { id: 'spectrum', name: 'Spectrum', icon: <Gauge size={18} /> },
 ];
 
 export default function AudioFXPanel({ isOpen, onClose }: AudioFXPanelProps) {
@@ -54,11 +55,12 @@ export default function AudioFXPanel({ isOpen, onClose }: AudioFXPanelProps) {
         crossfadeEnabled, setCrossfadeEnabled, crossfadeDuration, setCrossfadeDuration,
         visualizerEnabled, setVisualizerEnabled,
         visualizerStyle, setVisualizerStyle, visualizerIntensity, setVisualizerIntensity,
-        vocalSettings, setVocalSettings
+        vocalSettings, setVocalSettings,
+        normalizerEnabled, setNormalizerEnabled
     } = useAudioFX();
 
     const { tier } = useSettings();
-    const [activeTab, setActiveTab] = useState<'scene' | 'vocal' | 'effects' | 'timer'>('scene');
+    const [activeTab, setActiveTab] = useState<'scene' | 'vocal' | 'effects' | 'visualizer' | 'timer'>('scene');
 
     // Feature access by tier
     const isEliteOrAbove = tier === 'NITRO_ELITE' || tier === 'NITRO_SUPREME';
@@ -108,38 +110,53 @@ export default function AudioFXPanel({ isOpen, onClose }: AudioFXPanelProps) {
                             <X size={20} className="text-[var(--foreground-muted)]" />
                         </button>
                     </div>
+                </div>
 
-                    {/* Tabs */}
-                    <div className="flex gap-2 mt-4">
-                        {[
-                            { id: 'scene', label: 'Scene', icon: Radio },
-                            { id: 'vocal', label: 'Vocals', icon: Mic },
-                            { id: 'effects', label: 'Effects', icon: Waves },
-                            { id: 'timer', label: 'Sleep', icon: Moon },
-                        ].map(tab => (
-                            <button
-                                key={tab.id}
-                                onClick={() => setActiveTab(tab.id as any)}
-                                className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-medium transition-all ${activeTab === tab.id
-                                    ? 'bg-[var(--foreground)] text-[var(--background)]'
-                                    : 'bg-[var(--card)] text-[var(--foreground-muted)] border border-[var(--border)] hover:bg-[var(--card-hover)]'
-                                    }`}
-                            >
-                                <tab.icon size={14} />
-                                {tab.label}
-                            </button>
-                        ))}
-                    </div>
+                {/* Tabs */}
+                <div className="flex items-center gap-1 p-2 border-b border-[var(--border)] overflow-x-auto no-scrollbar">
+                    <button
+                        onClick={() => setActiveTab('scene')}
+                        className={`flex flex-col items-center gap-1 p-2 min-w-[60px] rounded-xl transition-all ${activeTab === 'scene' ? 'bg-[var(--card-hover)] text-[var(--accent-cyan)]' : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)]'}`}
+                    >
+                        <Music2 size={20} />
+                        <span className="text-[10px] font-medium">Scene</span>
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('vocal')}
+                        className={`flex flex-col items-center gap-1 p-2 min-w-[60px] rounded-xl transition-all ${activeTab === 'vocal' ? 'bg-[var(--card-hover)] text-[var(--accent-pink)]' : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)]'}`}
+                    >
+                        <Mic size={20} />
+                        <span className="text-[10px] font-medium">Vocal</span>
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('effects')}
+                        className={`flex flex-col items-center gap-1 p-2 min-w-[60px] rounded-xl transition-all ${activeTab === 'effects' ? 'bg-[var(--card-hover)] text-[var(--accent-amber)]' : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)]'}`}
+                    >
+                        <Vibrate size={20} />
+                        <span className="text-[10px] font-medium">FX</span>
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('visualizer')}
+                        className={`flex flex-col items-center gap-1 p-2 min-w-[60px] rounded-xl transition-all ${activeTab === 'visualizer' ? 'bg-[var(--card-hover)] text-[var(--accent-purple)]' : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)]'}`}
+                    >
+                        <Eye size={20} />
+                        <span className="text-[10px] font-medium">Visuals</span>
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('timer')}
+                        className={`flex flex-col items-center gap-1 p-2 min-w-[60px] rounded-xl transition-all ${activeTab === 'timer' ? 'bg-[var(--card-hover)] text-[var(--accent-emerald)]' : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)]'}`}
+                    >
+                        <Timer size={20} />
+                        <span className="text-[10px] font-medium">Sleep</span>
+                    </button>
                 </div>
 
                 {/* Content */}
-                <div className="p-6 overflow-y-auto max-h-[60vh]">
-
-                    {/* Scene Mode Tab */}
+                <div className="p-6 h-full overflow-y-auto pb-32">
+                    {/* Scene Modes */}
                     {activeTab === 'scene' && (
                         <div className="space-y-4">
                             {!features.scene ? (
-                                /* Locked State for CORE users */
                                 <div className="relative">
                                     <div className="absolute inset-0 bg-[var(--background)]/60 backdrop-blur-sm z-10 flex flex-col items-center justify-center rounded-2xl">
                                         <div className="p-3 bg-amber-500/20 rounded-full mb-3">
@@ -158,10 +175,7 @@ export default function AudioFXPanel({ isOpen, onClose }: AudioFXPanelProps) {
                                         </p>
                                         <div className="grid grid-cols-2 gap-3">
                                             {SCENE_MODES.slice(0, 4).map(mode => (
-                                                <div
-                                                    key={mode.id}
-                                                    className="p-4 rounded-2xl border-2 bg-[var(--card)] border-transparent"
-                                                >
+                                                <div key={mode.id} className="p-4 rounded-2xl border-2 bg-[var(--card)] border-transparent">
                                                     <div className={`mb-2 ${mode.color}`}>{mode.icon}</div>
                                                     <p className="font-bold text-sm text-[var(--foreground)]">{mode.name}</p>
                                                     <p className="text-[10px] text-[var(--foreground-muted)]">{mode.description}</p>
@@ -171,7 +185,6 @@ export default function AudioFXPanel({ isOpen, onClose }: AudioFXPanelProps) {
                                     </div>
                                 </div>
                             ) : (
-                                /* Unlocked State for Elite+ users */
                                 <>
                                     <h3 className="text-sm font-bold text-[var(--foreground)] mb-4">🎭 Scene Remastering</h3>
                                     <p className="text-xs text-[var(--foreground-muted)] mb-4">
@@ -202,7 +215,6 @@ export default function AudioFXPanel({ isOpen, onClose }: AudioFXPanelProps) {
                     {activeTab === 'vocal' && (
                         <div className="space-y-4">
                             {!features.vocals ? (
-                                /* Locked State for CORE and ELITE users */
                                 <div className="relative">
                                     <div className="absolute inset-0 bg-[var(--background)]/60 backdrop-blur-sm z-10 flex flex-col items-center justify-center rounded-2xl">
                                         <div className="p-3 bg-purple-500/20 rounded-full mb-3">
@@ -221,10 +233,7 @@ export default function AudioFXPanel({ isOpen, onClose }: AudioFXPanelProps) {
                                         </p>
                                         <div className="space-y-3">
                                             {VOCAL_MODES.slice(0, 3).map(mode => (
-                                                <div
-                                                    key={mode.id}
-                                                    className="w-full p-4 rounded-2xl border-2 flex items-center gap-4 bg-[var(--card)] border-transparent"
-                                                >
+                                                <div key={mode.id} className="w-full p-4 rounded-2xl border-2 flex items-center gap-4 bg-[var(--card)] border-transparent">
                                                     <div className="p-3 rounded-xl bg-[var(--card-hover)]">
                                                         {mode.icon}
                                                     </div>
@@ -238,7 +247,6 @@ export default function AudioFXPanel({ isOpen, onClose }: AudioFXPanelProps) {
                                     </div>
                                 </div>
                             ) : (
-                                /* Unlocked State for Supreme users */
                                 <>
                                     <h3 className="text-sm font-bold text-[var(--foreground)] mb-4">🎤 Vocal Processing</h3>
                                     <p className="text-xs text-[var(--foreground-muted)] mb-4">
@@ -270,12 +278,10 @@ export default function AudioFXPanel({ isOpen, onClose }: AudioFXPanelProps) {
                                         </p>
                                     </div>
 
-                                    {/* Custom Vocal Sliders */}
                                     <div className="mt-8 space-y-6 bg-[var(--card)] p-6 rounded-2xl border border-[var(--border)]">
                                         <h4 className="text-xs font-bold text-cyan-400 uppercase tracking-widest flex items-center gap-2">
                                             <Sparkles size={14} /> Custom Vocal Master
                                         </h4>
-
                                         <div className="space-y-4">
                                             <div>
                                                 <div className="flex justify-between text-[10px] text-[var(--foreground-muted)] mb-2 font-bold uppercase tracking-wider">
@@ -290,7 +296,6 @@ export default function AudioFXPanel({ isOpen, onClose }: AudioFXPanelProps) {
                                                     className="w-full h-1.5 bg-[var(--background)] rounded-lg appearance-none cursor-pointer accent-cyan-400"
                                                 />
                                             </div>
-
                                             <div>
                                                 <div className="flex justify-between text-[10px] text-[var(--foreground-muted)] mb-2 font-bold uppercase tracking-wider">
                                                     <span>Presence (Forwardness)</span>
@@ -304,7 +309,6 @@ export default function AudioFXPanel({ isOpen, onClose }: AudioFXPanelProps) {
                                                     className="w-full h-1.5 bg-[var(--background)] rounded-lg appearance-none cursor-pointer accent-purple-500"
                                                 />
                                             </div>
-
                                             <div>
                                                 <div className="flex justify-between text-[10px] text-[var(--foreground-muted)] mb-2 font-bold uppercase tracking-wider">
                                                     <span>Isolation (Cut-off)</span>
@@ -328,7 +332,35 @@ export default function AudioFXPanel({ isOpen, onClose }: AudioFXPanelProps) {
                     {/* Effects Tab */}
                     {activeTab === 'effects' && (
                         <div className="space-y-6">
-                            {/* Haptic Sync - Supreme Only */}
+                            {/* Audio Normalizer */}
+                            <div className="p-4 rounded-2xl bg-[var(--card)]">
+                                <div className="flex items-center justify-between mb-3">
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2 bg-emerald-500/20 rounded-xl">
+                                            <Gauge size={18} className="text-emerald-400" />
+                                        </div>
+                                        <div>
+                                            <p className="font-bold text-[var(--foreground)] text-sm">Audio Normalizer</p>
+                                            <p className="text-[10px] text-[var(--foreground-muted)]">Auto-balance volume across tracks</p>
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={() => setNormalizerEnabled(!normalizerEnabled)}
+                                        className={`w-12 h-6 rounded-full flex items-center px-0.5 transition-all ${normalizerEnabled ? 'bg-emerald-400' : 'bg-[var(--foreground-muted)]'}`}
+                                    >
+                                        <div className={`w-5 h-5 rounded-full bg-white transition-transform ${normalizerEnabled ? 'translate-x-6' : ''}`} />
+                                    </button>
+                                </div>
+                                {normalizerEnabled && (
+                                    <div className="mt-3 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
+                                        <p className="text-xs text-emerald-400">
+                                            ✓ Volume levels are now balanced - quiet songs won't be jarring next to loud ones
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Haptic Sync */}
                             <div className={`p-4 rounded-2xl relative ${features.haptic ? 'bg-[var(--card)]' : 'bg-[var(--card)] opacity-60'}`}>
                                 {!features.haptic && (
                                     <div className="absolute top-2 right-2 flex items-center gap-1.5 px-2 py-1 bg-purple-500/20 rounded-full">
@@ -364,7 +396,7 @@ export default function AudioFXPanel({ isOpen, onClose }: AudioFXPanelProps) {
                                 </div>
                             </div>
 
-                            {/* Crossfade - Elite+ */}
+                            {/* Crossfade */}
                             <div className={`p-4 rounded-2xl relative ${features.crossfade ? 'bg-[var(--card)]' : 'bg-[var(--card)] opacity-60'}`}>
                                 {!features.crossfade && (
                                     <div className="absolute top-2 right-2 flex items-center gap-1.5 px-2 py-1 bg-amber-500/20 rounded-full">
@@ -403,8 +435,7 @@ export default function AudioFXPanel({ isOpen, onClose }: AudioFXPanelProps) {
                                         </div>
                                         <input
                                             type="range"
-                                            min="2"
-                                            max="12"
+                                            min="2" max="12"
                                             value={crossfadeDuration}
                                             onChange={(e) => setCrossfadeDuration(Number(e.target.value))}
                                             className="w-full h-2 bg-[var(--background)] rounded-full appearance-none cursor-pointer accent-purple-500"
@@ -412,72 +443,90 @@ export default function AudioFXPanel({ isOpen, onClose }: AudioFXPanelProps) {
                                     </div>
                                 )}
                             </div>
+                        </div>
+                    )}
 
-                            {/* Visualizer - Elite+ */}
+
+                    {/* Visualizer Tab */}
+                    {activeTab === 'visualizer' && (
+                        <div className="space-y-6">
                             <div className={`p-4 rounded-2xl relative ${features.visualizer ? 'bg-[var(--card)]' : 'bg-[var(--card)] opacity-60'}`}>
                                 {!features.visualizer && (
-                                    <div className="absolute top-2 right-2 flex items-center gap-1.5 px-2 py-1 bg-amber-500/20 rounded-full">
-                                        <Lock size={10} className="text-amber-400" />
-                                        <span className="text-[9px] font-bold text-amber-400">ELITE+</span>
+                                    <div className="absolute top-2 right-2 flex items-center gap-1.5 px-2 py-1 bg-purple-500/20 rounded-full">
+                                        <Lock size={10} className="text-purple-400" />
+                                        <span className="text-[9px] font-bold text-purple-400">ELITE+</span>
                                     </div>
                                 )}
                                 <div className="flex items-center justify-between mb-4">
                                     <div className="flex items-center gap-3">
-                                        <div className="p-2 bg-amber-500/20 rounded-xl">
-                                            <BarChart3 size={18} className="text-amber-400" />
+                                        <div className="p-2 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl">
+                                            <Eye size={18} className="text-white" />
                                         </div>
                                         <div>
-                                            <p className="font-bold text-[var(--foreground)] text-sm">Audio Visualizer</p>
-                                            <p className="text-[10px] text-[var(--foreground-muted)]">Real-time audio visualization</p>
+                                            <p className="font-bold text-[var(--foreground)] text-sm">Visualizer Studio</p>
+                                            <p className="text-[10px] text-[var(--foreground-muted)]">Customize your visual experience</p>
                                         </div>
                                     </div>
                                     {features.visualizer ? (
                                         <button
                                             onClick={() => setVisualizerEnabled(!visualizerEnabled)}
-                                            className={`w-12 h-6 rounded-full flex items-center px-0.5 transition-all ${visualizerEnabled ? 'bg-amber-400' : 'bg-[var(--foreground-muted)]'}`}
+                                            className={`w-12 h-6 rounded-full flex items-center px-0.5 transition-all ${visualizerEnabled ? 'bg-purple-500' : 'bg-[var(--foreground-muted)]'}`}
                                         >
                                             <div className={`w-5 h-5 rounded-full bg-white transition-transform ${visualizerEnabled ? 'translate-x-6' : ''}`} />
                                         </button>
                                     ) : (
-                                        <a href="/upgrade" className="px-3 py-1.5 bg-amber-500/20 text-amber-400 text-xs font-bold rounded-full flex items-center gap-1">
+                                        <a href="/upgrade" className="px-3 py-1.5 bg-purple-500/20 text-purple-400 text-xs font-bold rounded-full flex items-center gap-1">
                                             <Crown size={12} /> Upgrade
                                         </a>
                                     )}
                                 </div>
 
-                                {visualizerEnabled && features.visualizer && (
+                                {visualizerEnabled && features.visualizer ? (
                                     <>
-                                        <div className="grid grid-cols-4 gap-2">
+                                        <div className="grid grid-cols-4 gap-2 mb-6">
                                             {VISUALIZER_STYLES.map(style => (
                                                 <button
                                                     key={style.id}
                                                     onClick={() => setVisualizerStyle(style.id as any)}
-                                                    className={`p-3 rounded-xl flex flex-col items-center gap-1 transition-all ${visualizerStyle === style.id
-                                                        ? 'bg-amber-500 text-black'
+                                                    className={`p-3 rounded-xl flex flex-col items-center gap-2 transition-all ${visualizerStyle === style.id
+                                                        ? 'bg-purple-500 text-white shadow-lg shadow-purple-500/25'
                                                         : 'bg-[var(--card-hover)] text-[var(--foreground-muted)] hover:bg-[var(--foreground-muted)]/10'
                                                         }`}
                                                 >
-                                                    {style.icon}
+                                                    <div className={visualizerStyle === style.id ? 'text-white' : 'text-purple-400'}>
+                                                        {style.icon}
+                                                    </div>
                                                     <span className="text-[10px] font-medium">{style.name}</span>
                                                 </button>
                                             ))}
                                         </div>
-                                        <div className="mt-4">
-                                            <div className="flex items-center justify-between text-xs text-[var(--foreground-muted)] mb-2">
-                                                <span>Intensity</span>
-                                                <span>{Math.round(visualizerIntensity * 100)}%</span>
+
+                                        <div className="bg-[var(--background)]/50 rounded-xl p-4 border border-[var(--border)]">
+                                            <div className="flex items-center justify-between text-xs text-[var(--foreground)] mb-3 font-bold">
+                                                <span className="flex items-center gap-2">
+                                                    <Sparkles size={12} className="text-purple-400" />
+                                                    Reactivity Intensity
+                                                </span>
+                                                <span className="bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded-full">{Math.round(visualizerIntensity * 100)}%</span>
                                             </div>
                                             <input
                                                 type="range"
-                                                min="0.2"
-                                                max="2"
-                                                step="0.1"
+                                                min="0.2" max="2" step="0.1"
                                                 value={visualizerIntensity}
                                                 onChange={(e) => setVisualizerIntensity(Number(e.target.value))}
-                                                className="w-full h-2 bg-[var(--background)] rounded-full appearance-none cursor-pointer accent-amber-500"
+                                                className="w-full h-2 bg-[var(--card)] rounded-full appearance-none cursor-pointer accent-purple-500"
                                             />
+                                            <div className="flex justify-between mt-2 text-[9px] text-[var(--foreground-muted)] uppercase tracking-wider font-bold">
+                                                <span>Subtle</span>
+                                                <span>Intense</span>
+                                            </div>
                                         </div>
                                     </>
+                                ) : (
+                                    <div className="p-8 text-center border-2 border-dashed border-[var(--border)] rounded-xl opacity-50">
+                                        <Eye size={32} className="mx-auto text-[var(--foreground-muted)] mb-2" />
+                                        <p className="text-sm font-medium text-[var(--foreground-muted)]">Enable Visualizer to customize</p>
+                                    </div>
                                 )}
                             </div>
                         </div>
@@ -487,7 +536,6 @@ export default function AudioFXPanel({ isOpen, onClose }: AudioFXPanelProps) {
                     {activeTab === 'timer' && (
                         <div className="space-y-4">
                             {!features.sleepTimer ? (
-                                /* Locked State for CORE and ELITE users */
                                 <div className="relative">
                                     <div className="absolute inset-0 bg-[var(--background)]/60 backdrop-blur-sm z-10 flex flex-col items-center justify-center rounded-2xl">
                                         <div className="p-3 bg-indigo-500/20 rounded-full mb-3">
@@ -506,10 +554,7 @@ export default function AudioFXPanel({ isOpen, onClose }: AudioFXPanelProps) {
                                         </p>
                                         <div className="grid grid-cols-2 gap-3">
                                             {SLEEP_OPTIONS.slice(0, 4).map(option => (
-                                                <div
-                                                    key={option.minutes}
-                                                    className="p-4 bg-[var(--card)] rounded-2xl"
-                                                >
+                                                <div key={option.minutes} className="p-4 bg-[var(--card)] rounded-2xl">
                                                     <Timer size={20} className="text-indigo-400 mb-2" />
                                                     <p className="font-bold text-[var(--foreground)]">{option.label}</p>
                                                 </div>
@@ -518,13 +563,11 @@ export default function AudioFXPanel({ isOpen, onClose }: AudioFXPanelProps) {
                                     </div>
                                 </div>
                             ) : (
-                                /* Unlocked State for Supreme users */
                                 <>
                                     <h3 className="text-sm font-bold text-[var(--foreground)] mb-4">😴 Sleep Timer</h3>
                                     <p className="text-xs text-[var(--foreground-muted)] mb-4">
                                         Music gradually fades out with reduced treble to ease you into sleep
                                     </p>
-
                                     {sleepTimerRemaining !== null && sleepTimerRemaining > 0 ? (
                                         <div className="p-6 bg-gradient-to-br from-indigo-500/20 to-purple-500/20 rounded-2xl text-center">
                                             <Moon size={32} className="text-indigo-400 mx-auto mb-3" />
@@ -553,7 +596,6 @@ export default function AudioFXPanel({ isOpen, onClose }: AudioFXPanelProps) {
                                             ))}
                                         </div>
                                     )}
-
                                     <div className="p-4 bg-indigo-500/10 border border-indigo-500/20 rounded-xl">
                                         <p className="text-xs text-indigo-400">
                                             💡 The music will naturally fade over the last 5 minutes, reducing volume and high frequencies to help your brain transition to sleep.

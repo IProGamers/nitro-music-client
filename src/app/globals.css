@@ -1,48 +1,64 @@
 @import "tailwindcss";
 
-/* Dark Theme (Default) */
+/* Dark Theme (Default) - Professional Tech */
 :root,
 .dark-theme {
   --background: #000000;
   --background-secondary: #09090b;
-  --background-tertiary: #18181b;
+  --background-tertiary: #121215;
   --foreground: #ffffff;
   --foreground-secondary: #a1a1aa;
-  --foreground-muted: #52525b;
-  --border: rgba(255, 255, 255, 0.05);
-  --border-hover: rgba(255, 255, 255, 0.1);
-  --card: rgba(255, 255, 255, 0.05);
-  --card-hover: rgba(255, 255, 255, 0.08);
-  --overlay: rgba(0, 0, 0, 0.95);
-  --shadow: rgba(0, 0, 0, 0.5);
-  /* Accent colors remain the same */
-  --accent-cyan: #22d3ee;
-  --accent-purple: #a855f7;
+  --foreground-muted: #71717a;
+
+  /* Glassmorphism Variables */
+  --border: rgba(255, 255, 255, 0.08);
+  --border-hover: rgba(255, 255, 255, 0.15);
+  --card: rgba(255, 255, 255, 0.03);
+  --card-hover: rgba(255, 255, 255, 0.07);
+  --overlay: rgba(0, 0, 0, 0.85);
+  --shadow: rgba(0, 0, 0, 0.3);
+
+  /* Refined Accent Colors - Less Neon, More Professional */
+  --accent-cyan: #06b6d4;
+  /* Cyan-500 -> Cyan-500 (Clean) */
+  --accent-purple: #9333ea;
+  /* Purple-600 */
   --accent-amber: #f59e0b;
-  --accent-pink: #ec4899;
-  --accent-emerald: #34d399;
+  /* Amber-500 */
+  --accent-pink: #db2777;
+  /* Pink-600 */
+  --accent-emerald: #10b981;
+  /* Emerald-500 */
+
+  /* Gradient Definitions */
+  --gradient-primary: linear-gradient(135deg, rgba(6, 182, 212, 0.15), rgba(0, 0, 0, 0));
+  --gradient-glass: linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.03) 100%);
 }
 
-/* Light Theme */
+/* Light Theme - Clean Modern */
 .light-theme {
   --background: #ffffff;
-  --background-secondary: #f4f4f5;
-  --background-tertiary: #e4e4e7;
+  --background-secondary: #fafafa;
+  --background-tertiary: #f4f4f5;
   --foreground: #09090b;
   --foreground-secondary: #52525b;
   --foreground-muted: #a1a1aa;
-  --border: rgba(0, 0, 0, 0.08);
-  --border-hover: rgba(0, 0, 0, 0.15);
-  --card: rgba(0, 0, 0, 0.03);
-  --card-hover: rgba(0, 0, 0, 0.06);
-  --overlay: rgba(255, 255, 255, 0.95);
-  --shadow: rgba(0, 0, 0, 0.1);
-  /* Slightly adjusted accent colors for light mode contrast */
+
+  --border: rgba(0, 0, 0, 0.06);
+  --border-hover: rgba(0, 0, 0, 0.12);
+  --card: rgba(0, 0, 0, 0.02);
+  --card-hover: rgba(0, 0, 0, 0.05);
+  --overlay: rgba(255, 255, 255, 0.9);
+  --shadow: rgba(0, 0, 0, 0.05);
+
   --accent-cyan: #0891b2;
-  --accent-purple: #9333ea;
+  --accent-purple: #7e22ce;
   --accent-amber: #d97706;
-  --accent-pink: #db2777;
+  --accent-pink: #be185d;
   --accent-emerald: #059669;
+
+  --gradient-primary: linear-gradient(135deg, rgba(8, 145, 178, 0.1), rgba(255, 255, 255, 0));
+  --gradient-glass: linear-gradient(180deg, rgba(0, 0, 0, 0.02) 0%, rgba(0, 0, 0, 0.05) 100%);
 }
 
 @theme inline {
@@ -55,8 +71,11 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: 'Outfit', sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  /* Switched to Inter for more professional look */
   transition: background-color 0.3s ease, color 0.3s ease;
+  line-height: 1.5;
+  letter-spacing: -0.01em;
 }
 
 /* Custom Scrollbar Hide Utility */

@@ -14,6 +14,7 @@ import {
     ListMusic, Globe, LockIcon
 } from 'lucide-react';
 import Link from 'next/link';
+import UsernameRequestsAdmin from '@/components/UsernameRequestsAdmin';
 
 const TIER_INFO: Record<string, { name: string; icon: React.ReactNode; color: string; bgColor: string; gradient: string }> = {
     NITRO_CORE: { name: 'Nitro Core', icon: <Star size={16} />, color: 'text-zinc-400', bgColor: 'bg-zinc-500/20', gradient: 'from-zinc-600 to-zinc-800' },
@@ -90,6 +91,11 @@ export default function AdminPage() {
     const [playlistSearchQuery, setPlaylistSearchQuery] = useState('');
     const [pendingPlaylistDelete, setPendingPlaylistDelete] = useState<{ playlistId: string; playlistName: string } | null>(null);
     const [showPlaylistDeleteModal, setShowPlaylistDeleteModal] = useState(false);
+
+    // User details expansion state
+    const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
+    const [userDetails, setUserDetails] = useState<{ [key: string]: { likedSongs: any[], playlists: any[], playHistory: any[] } }>({});
+    const [loadingUserDetails, setLoadingUserDetails] = useState<string | null>(null);
 
     // Fetch all users
     const fetchUsers = async () => {
@@ -390,6 +396,49 @@ export default function AdminPage() {
         setPendingDeleteAction(null);
     };
 
+    // Fetch user details (liked songs, playlists, history)
+    const fetchUserDetails = async (userId: string) => {
+        if (userDetails[userId] || loadingUserDetails === userId) return;
+
+        setLoadingUserDetails(userId);
+        try {
+            // Fetch liked songs
+            const likedSongsRef = collection(db, 'users', userId, 'likedSongs');
+            const likedSnap = await getDocs(likedSongsRef);
+            const likedSongs = likedSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+            // Fetch user's playlists
+            const playlistsQuery = query(collection(db, 'playlists'), where('ownerId', '==', userId));
+            const playlistsSnap = await getDocs(playlistsQuery);
+            const userPlaylists = playlistsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+            // Fetch play history
+            const historyRef = collection(db, 'users', userId, 'playHistory');
+            const historyQuery = query(historyRef, orderBy('playedAt', 'desc'), limit(10));
+            const historySnap = await getDocs(historyQuery);
+            const playHistory = historySnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+            setUserDetails(prev => ({
+                ...prev,
+                [userId]: { likedSongs, playlists: userPlaylists, playHistory }
+            }));
+        } catch (err) {
+            console.error('Error fetching user details:', err);
+        } finally {
+            setLoadingUserDetails(null);
+        }
+    };
+
+    // Toggle user expansion
+    const toggleUserExpansion = (userId: string) => {
+        if (expandedUserId === userId) {
+            setExpandedUserId(null);
+        } else {
+            setExpandedUserId(userId);
+            fetchUserDetails(userId);
+        }
+    };
+
     // Stats calculation
     const stats = {
         totalUsers: users.length,
@@ -444,7 +493,7 @@ export default function AdminPage() {
     return (
         <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] pb-32">
             <div className="bg-gradient-to-b from-amber-500/10 to-[var(--background)] border-b border-[var(--border)]">
-                <div className="max-w-7xl mx-auto p-4 md:p-8 pt-20 md:pt-8">
+                <div className="max-w-7xl mx-auto p-4 md:p-8 pt-4 md:pt-8">
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                         <div className="flex items-center gap-3 md:gap-4">
                             <div className="p-2.5 md:p-3 bg-gradient-to-br from-amber-500 to-orange-600 rounded-xl md:rounded-2xl shadow-lg shadow-amber-500/20">
@@ -626,6 +675,9 @@ export default function AdminPage() {
                                 </button>
                             )}
                         </div>
+
+                        {/* Username Change Requests */}
+                        <UsernameRequestsAdmin />
                     </div>
                 )}
 
@@ -708,6 +760,13 @@ export default function AdminPage() {
                                                     >
                                                         <Trash2 size={14} />
                                                     </button>
+                                                    <button
+                                                        onClick={() => toggleUserExpansion(u.uid)}
+                                                        className="p-2 rounded-lg transition-colors bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/30"
+                                                        title="View user details"
+                                                    >
+                                                        {expandedUserId === u.uid ? <ChevronUp size={14} /> : <Eye size={14} />}
+                                                    </button>
                                                 </div>
                                             </div>
 
@@ -733,6 +792,102 @@ export default function AdminPage() {
                                                     <Loader2 size={14} className="animate-spin text-cyan-400 shrink-0" />
                                                 )}
                                             </div>
+
+                                            {/* User Details Expansion */}
+                                            {expandedUserId === u.uid && (
+                                                <div className="pt-4 border-t border-[var(--border)] space-y-4">
+                                                    {loadingUserDetails === u.uid ? (
+                                                        <div className="flex items-center justify-center py-8">
+                                                            <Loader2 size={24} className="animate-spin text-cyan-400" />
+                                                        </div>
+                                                    ) : userDetails[u.uid] ? (
+                                                        <div className="space-y-4">
+                                                            {/* Liked Songs */}
+                                                            <div>
+                                                                <h4 className="text-xs font-bold text-[var(--foreground)] mb-2 flex items-center gap-2">
+                                                                    <Heart size={12} className="text-red-400" />
+                                                                    Liked Songs ({userDetails[u.uid].likedSongs.length})
+                                                                </h4>
+                                                                {userDetails[u.uid].likedSongs.length > 0 ? (
+                                                                    <div className="space-y-1">
+                                                                        {userDetails[u.uid].likedSongs.slice(0, 5).map((song) => (
+                                                                            <div key={song.id} className="flex items-center gap-2 p-2 bg-[var(--background)] rounded-lg">
+                                                                                <img src={song.image} className="w-8 h-8 rounded" alt="" />
+                                                                                <div className="flex-1 min-w-0">
+                                                                                    <p className="text-[10px] font-medium text-[var(--foreground)] truncate">{song.name}</p>
+                                                                                    <p className="text-[8px] text-[var(--foreground-muted)] truncate">{song.artist}</p>
+                                                                                </div>
+                                                                            </div>
+                                                                        ))}
+                                                                        {userDetails[u.uid].likedSongs.length > 5 && (
+                                                                            <p className="text-[8px] text-[var(--foreground-muted)] text-center pt-1">
+                                                                                +{userDetails[u.uid].likedSongs.length - 5} more
+                                                                            </p>
+                                                                        )}
+                                                                    </div>
+                                                                ) : (
+                                                                    <p className="text-[10px] text-[var(--foreground-muted)] italic">No liked songs</p>
+                                                                )}
+                                                            </div>
+
+                                                            {/* Playlists */}
+                                                            <div>
+                                                                <h4 className="text-xs font-bold text-[var(--foreground)] mb-2 flex items-center gap-2">
+                                                                    <ListMusic size={12} className="text-purple-400" />
+                                                                    Playlists ({userDetails[u.uid].playlists.length})
+                                                                </h4>
+                                                                {userDetails[u.uid].playlists.length > 0 ? (
+                                                                    <div className="space-y-1">
+                                                                        {userDetails[u.uid].playlists.map((playlist) => (
+                                                                            <div key={playlist.id} className="flex items-center justify-between p-2 bg-[var(--background)] rounded-lg">
+                                                                                <div className="flex-1 min-w-0">
+                                                                                    <p className="text-[10px] font-medium text-[var(--foreground)] truncate">{playlist.name}</p>
+                                                                                    <p className="text-[8px] text-[var(--foreground-muted)]">{playlist.songs?.length || 0} songs</p>
+                                                                                </div>
+                                                                                {playlist.isPublic ? (
+                                                                                    <Globe size={10} className="text-green-400" />
+                                                                                ) : (
+                                                                                    <LockIcon size={10} className="text-zinc-400" />
+                                                                                )}
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
+                                                                ) : (
+                                                                    <p className="text-[10px] text-[var(--foreground-muted)] italic">No playlists created</p>
+                                                                )}
+                                                            </div>
+
+                                                            {/* Recent Play History */}
+                                                            <div>
+                                                                <h4 className="text-xs font-bold text-[var(--foreground)] mb-2 flex items-center gap-2">
+                                                                    <Clock size={12} className="text-cyan-400" />
+                                                                    Recent Plays ({userDetails[u.uid].playHistory.length})
+                                                                </h4>
+                                                                {userDetails[u.uid].playHistory.length > 0 ? (
+                                                                    <div className="space-y-1">
+                                                                        {userDetails[u.uid].playHistory.slice(0, 5).map((song) => (
+                                                                            <div key={song.id} className="flex items-center gap-2 p-2 bg-[var(--background)] rounded-lg">
+                                                                                <img src={song.image} className="w-8 h-8 rounded" alt="" />
+                                                                                <div className="flex-1 min-w-0">
+                                                                                    <p className="text-[10px] font-medium text-[var(--foreground)] truncate">{song.name}</p>
+                                                                                    <p className="text-[8px] text-[var(--foreground-muted)] truncate">{song.artist}</p>
+                                                                                </div>
+                                                                            </div>
+                                                                        ))}
+                                                                        {userDetails[u.uid].playHistory.length > 5 && (
+                                                                            <p className="text-[8px] text-[var(--foreground-muted)] text-center pt-1">
+                                                                                +{userDetails[u.uid].playHistory.length - 5} more
+                                                                            </p>
+                                                                        )}
+                                                                    </div>
+                                                                ) : (
+                                                                    <p className="text-[10px] text-[var(--foreground-muted)] italic">No play history</p>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    ) : null}
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 ))}

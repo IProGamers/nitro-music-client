@@ -6,13 +6,13 @@ import { getAnalytics, isSupported } from "firebase/analytics";
 // Your web app's Firebase configuration
 // Uses environment variables for security, falls back to hardcoded values for development
 const firebaseConfig = {
-    apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "AIzaSyCLLSA_jGTSG_9ka-emCYF3WkVlI-jpj4s",
-    authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "nitro-music-app.firebaseapp.com",
-    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "nitro-music-app",
-    storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "nitro-music-app.firebasestorage.app",
-    messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "1002536882582",
-    appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "1:1002536882582:web:cc795a6ff61cdf83d84db7",
-    measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID || "G-TCE7ZWMNG6"
+    apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "AIzaSyCbbeOEamrnIFOdkFhIudvhuwGTyi-szi0",
+    authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "nitrobyipro.firebaseapp.com",
+    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "nitrobyipro",
+    storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "nitrobyipro.firebasestorage.app",
+    messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "862734502458",
+    appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "1:862734502458:web:f05e63f66e4f9438758303",
+    measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID || "G-4JNQLB800Q"
 };
 
 // Initialize Firebase (prevent re-initialization in development)

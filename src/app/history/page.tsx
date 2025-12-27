@@ -1,28 +1,54 @@
 "use client"
 import { useEffect, useState } from 'react';
 import { usePlayer } from '@/context/PlayerContext';
+import { useMusicData } from '@/context/MusicDataContext';
 import { Clock, Play, Trash2, Calendar, Music } from 'lucide-react';
 
 export default function HistoryPage() {
     const { playTrack } = usePlayer();
-    const [history, setHistory] = useState<any[]>([]);
-    const [loading, setLoading] = useState(true);
+    const {
+        historyPageData, setHistoryPageData,
+        hasLoadedHistoryPage, setHasLoadedHistoryPage
+    } = useMusicData();
+
+    const [history, setHistory] = useState<any[]>(historyPageData?.history || []);
+    const [loading, setLoading] = useState(!hasLoadedHistoryPage);
 
     useEffect(() => {
         const fetchHistory = async () => {
+            // Only show loading if no cached data
+            if (!hasLoadedHistoryPage && !historyPageData) setLoading(true);
+
             try {
                 const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
                 const res = await fetch(`${apiUrl}/api/history`);
                 const data = await res.json();
-                if (data.success) setHistory(data.data);
+                if (data.success) {
+                    setHistory(data.data);
+                    // Update cache
+                    setHistoryPageData({
+                        history: data.data,
+                        lastFetchedAt: Date.now()
+                    });
+                    setHasLoadedHistoryPage(true);
+                }
             } catch (e) {
                 console.error(e);
             } finally {
                 setLoading(false);
             }
+        };
+
+        // Background refresh if stale (30 minutes) or first load
+        const thirtyMinutes = 30 * 60 * 1000;
+        const isStale = historyPageData && (Date.now() - historyPageData.lastFetchedAt > thirtyMinutes);
+
+        if (!hasLoadedHistoryPage || isStale) {
+            fetchHistory();
+        } else {
+            setLoading(false);
         }
-        fetchHistory();
-    }, []);
+    }, [hasLoadedHistoryPage]);
 
     const clearHistory = async () => {
         if (!confirm('Are you sure you want to clear your listening history?')) return;
@@ -35,6 +61,8 @@ export default function HistoryPage() {
             const data = await res.json();
             if (data.success) {
                 setHistory([]);
+                // Clear cache too
+                setHistoryPageData({ history: [], lastFetchedAt: Date.now() });
             }
         } catch (e) {
             console.error('Failed to clear history:', e);

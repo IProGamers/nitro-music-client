@@ -105,7 +105,7 @@ export default function PlaylistDetailPage() {
     const isOwner = user?.uid === playlist.ownerId;
 
     return (
-        <div className="px-4 md:px-12 py-8 pb-32 max-w-7xl mx-auto space-y-10">
+        <div className="px-4 md:px-12 pt-4 pb-32 md:py-8 max-w-7xl mx-auto space-y-10">
             {/* Header section */}
             <header className="flex flex-col md:flex-row gap-6 md:gap-8 md:items-end p-5 md:p-10 rounded-2xl md:rounded-[3rem] bg-gradient-to-b from-[var(--background)] to-transparent border border-[var(--border)] relative overflow-hidden group">
                 <div className="w-40 h-40 md:w-64 md:h-64 rounded-2xl md:rounded-[2.5rem] bg-[var(--card)] shadow-2xl overflow-hidden shrink-0 border border-[var(--border)] mx-auto md:mx-0">

@@ -1,6 +1,7 @@
 "use client"
 import { useState, useEffect } from 'react';
 import { useAuth, Playlist } from '@/context/AuthContext';
+import { useUsage } from '@/context/UsageContext';
 import {
     X, Plus, Music, Lock, Globe,
     ListPlus, Loader2, CheckCircle2, AlertCircle, PlusCircle
@@ -14,6 +15,7 @@ interface AddToPlaylistModalProps {
 
 export default function AddToPlaylistModal({ isOpen, onClose, song }: AddToPlaylistModalProps) {
     const { user, getUserPlaylists, createPlaylist, addSongToPlaylist } = useAuth();
+    const { checkAccess, setShowLimitModal, setLimitFeature } = useUsage();
     const [playlists, setPlaylists] = useState<Playlist[]>([]);
     const [loading, setLoading] = useState(true);
     const [creating, setCreating] = useState(false);
@@ -42,6 +44,13 @@ export default function AddToPlaylistModal({ isOpen, onClose, song }: AddToPlayl
     const handleCreatePlaylist = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!newPlaylistName.trim()) return;
+
+        const { limit } = checkAccess('playlists_created');
+        if (limit !== undefined && limit !== -1 && playlists.length >= limit) {
+            setLimitFeature('playlists_created');
+            setShowLimitModal(true);
+            return;
+        }
 
         setCreating(true);
         setStatus(null);
