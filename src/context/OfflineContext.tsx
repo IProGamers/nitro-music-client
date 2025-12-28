@@ -10,9 +10,9 @@ import {
     clearAllDownloads,
     type OfflineSong
 } from '@/lib/offlineDb';
+import { useSettings } from '@/context/SettingsContext';
+import { DOWNLOAD_STORAGE_LIMITS } from '@/lib/features';
 
-const MAX_STORAGE_MB = 500; // Maximum storage limit in MB
-const MAX_STORAGE_BYTES = MAX_STORAGE_MB * 1024 * 1024;
 
 interface DownloadedSongMeta {
     id: string;
@@ -43,12 +43,16 @@ interface OfflineContextType {
 const OfflineContext = createContext<OfflineContextType | undefined>(undefined);
 
 export function OfflineProvider({ children }: { children: ReactNode }) {
+    const { tier } = useSettings();
     const [downloads, setDownloads] = useState<DownloadedSongMeta[]>([]);
     const [downloadedIds, setDownloadedIds] = useState<Set<string>>(new Set());
     const [downloadProgress, setDownloadProgress] = useState(0);
     const [isDownloading, setIsDownloading] = useState(false);
     const [currentDownloadId, setCurrentDownloadId] = useState<string | null>(null);
     const [storageUsed, setStorageUsed] = useState(0);
+
+    // Get storage limit based on tier
+    const storageLimit = DOWNLOAD_STORAGE_LIMITS[tier as keyof typeof DOWNLOAD_STORAGE_LIMITS] || DOWNLOAD_STORAGE_LIMITS.NITRO_CORE;
 
     // Load downloads on mount
     useEffect(() => {
@@ -80,9 +84,9 @@ export function OfflineProvider({ children }: { children: ReactNode }) {
         // Already downloaded
         if (downloadedIds.has(songId)) return;
 
-        // Check storage
-        if (storageUsed >= MAX_STORAGE_BYTES) {
-            throw new Error('Storage limit reached. Please remove some downloads.');
+        // Check storage (-1 means unlimited)
+        if (storageLimit !== -1 && storageUsed >= storageLimit) {
+            throw new Error('Storage limit reached. Please remove some downloads or upgrade your plan.');
         }
 
         setIsDownloading(true);
@@ -218,7 +222,7 @@ export function OfflineProvider({ children }: { children: ReactNode }) {
             isDownloading,
             currentDownloadId,
             storageUsed,
-            storageLimit: MAX_STORAGE_BYTES,
+            storageLimit: storageLimit,
             refreshDownloads
         }}>
             {children}

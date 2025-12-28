@@ -181,13 +181,15 @@ export default function Home() {
     return 'Various Artists';
   }, []);
 
-  // Quick access for signed-in users
+  // Quick access for signed-in users - shows most listened songs (sorted by play count)
   const quickAccess = useMemo(() => {
     const items: any[] = [];
     if (user) {
       items.push({ id: 'liked', type: 'liked', name: 'Liked Songs', route: '/profile' });
     }
-    lastPlayed.slice(0, user ? 5 : 6).forEach((song: any) => {
+    // Sort by playCount if available, otherwise just use lastPlayed order
+    const sortedByPlays = [...lastPlayed].sort((a, b) => (b.playCount || 1) - (a.playCount || 1));
+    sortedByPlays.slice(0, user ? 5 : 6).forEach((song: any) => {
       items.push({ id: song.id || song.songId, type: 'song', name: getName(song), image: getImg(song), data: song });
     });
     return items.slice(0, 6);
@@ -397,13 +399,41 @@ export default function Home() {
 
         {/* Plans Advertisement Section */}
         {(!isSupreme && !isElite) && (
-          <section className="mb-10 px-1" onClick={() => router.push('/upgrade')}>
+          <section className="mb-10 px-1">
             <div className="flex items-center gap-2 mb-4">
               <Crown size={18} className="text-amber-400" />
-              <h2 className="text-lg md:text-xl font-bold text-[var(--foreground)]">Choose your power</h2>
+              <h2 className="text-lg md:text-xl font-bold text-[var(--foreground)]">Upgrade your experience</h2>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Mobile: Single Elite Card */}
+            <div className="md:hidden">
+              <div
+                onClick={() => router.push('/upgrade')}
+                className="bg-gradient-to-br from-purple-500/20 to-indigo-500/20 border border-purple-500/40 rounded-2xl p-5 relative overflow-hidden cursor-pointer active:scale-[0.98] transition-transform"
+              >
+                <div className="absolute top-0 right-0 p-3 opacity-20">
+                  <Zap size={50} className="text-purple-400" />
+                </div>
+                <div className="flex items-center gap-2 mb-2">
+                  <Zap size={18} className="text-purple-400" />
+                  <h3 className="text-lg font-bold text-purple-400">Nitro Elite</h3>
+                  <span className="text-[9px] bg-purple-500 text-white px-2 py-0.5 rounded-full font-bold">POPULAR</span>
+                </div>
+                <p className="text-xs text-[var(--foreground-muted)] mb-3">Unlock 3D Audio, HD Streaming, and more</p>
+                <ul className="space-y-1.5 mb-4">
+                  <li className="flex items-center gap-2 text-xs text-[var(--foreground)]"><span className="text-purple-400">✓</span> 3D Spatial Audio</li>
+                  <li className="flex items-center gap-2 text-xs text-[var(--foreground)]"><span className="text-purple-400">✓</span> No Ads</li>
+                  <li className="flex items-center gap-2 text-xs text-[var(--foreground)]"><span className="text-purple-400">✓</span> Unlimited Audio FX</li>
+                </ul>
+                <button className="w-full py-2.5 bg-purple-500 hover:bg-purple-600 text-white rounded-xl text-sm font-bold transition-colors shadow-lg shadow-purple-500/30 flex items-center justify-center gap-2">
+                  <ArrowUpCircle size={16} />
+                  View All Plans
+                </button>
+              </div>
+            </div>
+
+            {/* Desktop: All 3 Cards */}
+            <div className="hidden md:grid md:grid-cols-3 gap-4" onClick={() => router.push('/upgrade')}>
               {/* Nitro Core */}
               <div className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-5 relative overflow-hidden group cursor-default">
                 <div className="absolute top-0 right-0 p-3 opacity-10">
@@ -461,7 +491,7 @@ export default function Home() {
                 <Mic2 size={16} className="text-purple-400" />
                 <h2 className="text-lg md:text-xl font-bold text-[var(--foreground)]">Popular artists</h2>
               </div>
-              <button onClick={() => router.push('/search')} className="text-xs font-medium text-cyan-400 hover:underline">See all</button>
+              <button onClick={() => router.push('/search?q=popular+artists')} className="text-xs font-medium text-cyan-400 hover:underline">See all</button>
             </div>
             <div className="flex gap-4 md:gap-6 overflow-x-auto pb-2 no-scrollbar -mx-4 px-4 md:mx-0 md:px-0">
               {featuredArtists.slice(0, 10).map((artist: any, idx: number) => (
@@ -498,7 +528,7 @@ export default function Home() {
                 <Disc3 size={16} className="text-emerald-400" />
                 <h2 className="text-lg md:text-xl font-bold text-[var(--foreground)]">New releases</h2>
               </div>
-              <button onClick={() => router.push('/search')} className="text-xs font-medium text-cyan-400 hover:underline">See all</button>
+              <button onClick={() => router.push('/search?q=new+releases+2024')} className="text-xs font-medium text-cyan-400 hover:underline">See all</button>
             </div>
             <div className="flex gap-3 md:gap-4 overflow-x-auto pb-2 no-scrollbar -mx-4 px-4 md:mx-0 md:px-0">
               {newReleases.slice(0, 10).map((album: any, idx: number) => (
@@ -532,7 +562,7 @@ export default function Home() {
           <section>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg md:text-xl font-bold text-[var(--foreground)]">Bollywood hits</h2>
-              <button onClick={() => router.push('/search')} className="text-xs font-medium text-cyan-400 hover:underline">See all</button>
+              <button onClick={() => router.push('/search?q=bollywood+hits+2024')} className="text-xs font-medium text-cyan-400 hover:underline">See all</button>
             </div>
             <div className="flex gap-3 md:gap-4 overflow-x-auto pb-2 no-scrollbar -mx-4 px-4 md:mx-0 md:px-0">
               {bollywoodHits.slice(0, 12).map((song: any, idx: number) => (
@@ -547,7 +577,7 @@ export default function Home() {
           <section>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg md:text-xl font-bold text-[var(--foreground)]">International hits</h2>
-              <button onClick={() => router.push('/search')} className="text-xs font-medium text-cyan-400 hover:underline">See all</button>
+              <button onClick={() => router.push('/search?q=international+billboard+hits')} className="text-xs font-medium text-cyan-400 hover:underline">See all</button>
             </div>
             <div className="flex gap-3 md:gap-4 overflow-x-auto pb-2 no-scrollbar -mx-4 px-4 md:mx-0 md:px-0">
               {internationalHits.slice(0, 12).map((song: any, idx: number) => (
@@ -611,7 +641,7 @@ export default function Home() {
           <section>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg md:text-xl font-bold text-[var(--foreground)]">Party mix</h2>
-              <button onClick={() => router.push('/search')} className="text-xs font-medium text-cyan-400 hover:underline">See all</button>
+              <button onClick={() => router.push('/search?q=party+mix+dance+hits')} className="text-xs font-medium text-cyan-400 hover:underline">See all</button>
             </div>
             <div className="flex gap-3 md:gap-4 overflow-x-auto pb-2 no-scrollbar -mx-4 px-4 md:mx-0 md:px-0">
               {partyMix.slice(0, 12).map((song: any, idx: number) => (
@@ -641,7 +671,7 @@ function SongCard({ song, queue, getImg, getName, getArtist, playTrack }: { song
   return (
     <div
       onClick={() => playTrack(song, queue)}
-      className="group cursor-pointer w-[115px] md:w-[140px] flex-shrink-0"
+      className="group cursor-pointer w-[140px] md:w-[160px] flex-shrink-0"
     >
       <div className="relative aspect-square rounded-lg overflow-hidden bg-[var(--card)] shadow-md mb-2 border border-[var(--border)]">
         {getImg(song) ? (

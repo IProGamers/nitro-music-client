@@ -352,8 +352,46 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
             setQueue(newQueue);
             setCurrentIndex(newQueue.findIndex(s => String(s.songId || s.id) === trackId));
         } else {
-            if (queue.length === 0) setQueue([song]);
+            // When playing a single song without a queue, auto-fetch similar songs
+            if (queue.length === 0 || queue[0]?.id !== song.id) {
+                setQueue([song]);
+                setCurrentIndex(0);
+
+                // Fetch similar songs in the background and add to queue
+                const fetchSimilarSongs = async () => {
+                    try {
+                        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+                        const songName = song.name || song.title || '';
+                        const artistName = song.artists?.primary?.[0]?.name || song.artist || '';
+                        const query = encodeURIComponent(`${artistName} ${songName}`.trim());
+
+                        const res = await fetch(`${apiUrl}/api/search/songs?query=${query}&limit=15`);
+                        const data = await res.json();
+
+                        if (data.success && data.data?.results) {
+                            // Filter out the current song
+                            const similarSongs = data.data.results.filter((s: any) =>
+                                String(s.id) !== trackId && String(s.songId) !== trackId
+                            );
+
+                            if (similarSongs.length > 0) {
+                                // Add similar songs to queue after the current song
+                                setQueue(prev => {
+                                    const newQueue = [...prev, ...similarSongs];
+                                    return newQueue;
+                                });
+                            }
+                        }
+                    } catch (e) {
+                        console.log('Could not fetch similar songs:', e);
+                    }
+                };
+
+                // Don't await - let it run in background
+                fetchSimilarSongs();
+            }
         }
+
 
         // Check if the song already has audio data OR is available offline
         const offlineAudioUrl = await getAudioWithOffline(song);
