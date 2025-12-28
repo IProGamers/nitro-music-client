@@ -406,6 +406,26 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
             setCurrentSong(songToPlay);
             setIsPlaying(true);
 
+            // Immediately set audio source and play (don't wait for useEffect)
+            if (audioRef.current) {
+                audioRef.current.src = existingAudioUrl;
+                audioRef.current.crossOrigin = "anonymous";
+                const playPromise = audioRef.current.play();
+                if (playPromise !== undefined) {
+                    playPromise.catch(e => {
+                        if (e.name === 'NotAllowedError') {
+                            console.warn("Autoplay blocked - user interaction required");
+                        } else if (e.name !== 'AbortError') {
+                            console.error("Play failed", e);
+                        }
+                    });
+                }
+                // Resume audio context if needed
+                if (audioContextRef.current?.state === 'suspended') {
+                    audioContextRef.current.resume();
+                }
+            }
+
             // Save to server history
             const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
             fetch(`${apiUrl}/api/history`, {
@@ -445,6 +465,23 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
 
                     setCurrentSong(fullSong);
                     setIsPlaying(true);
+
+                    // Immediately set audio source and play
+                    if (audioRef.current && fullAudioUrl) {
+                        audioRef.current.src = fullAudioUrl;
+                        audioRef.current.crossOrigin = "anonymous";
+                        const playPromise = audioRef.current.play();
+                        if (playPromise !== undefined) {
+                            playPromise.catch(e => {
+                                if (e.name !== 'NotAllowedError' && e.name !== 'AbortError') {
+                                    console.error("Play failed", e);
+                                }
+                            });
+                        }
+                        if (audioContextRef.current?.state === 'suspended') {
+                            audioContextRef.current.resume();
+                        }
+                    }
 
                     fetch(`${apiUrl}/api/history`, {
                         method: 'POST',
