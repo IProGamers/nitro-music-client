@@ -12,6 +12,9 @@ interface MusicDataContextType {
         internationalHits: any[];
         globalPop: any[];
         lastPlayed: any[];
+        iconicEnglish: any[];
+        iconicHindi: any[];
+        topArtists: any[];
         lastFetchedAt: number;
     } | null;
     setHomeData: (data: any) => void;

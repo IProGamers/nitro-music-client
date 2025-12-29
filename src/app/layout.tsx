@@ -18,7 +18,9 @@ import LoginPromptModal from "@/components/LoginPromptModal";
 import LimitReachedModal from "@/components/LimitReachedModal";
 import AccountNotificationModal from "@/components/AccountNotificationModal";
 import UsernameGuard from "@/components/UsernameGuard";
+import ArihantGuard from "@/components/ArihantGuard";
 import MobileHeader from "@/components/MobileHeader";
+import PWAInstallPrompt from "@/components/PWAInstallPrompt";
 
 const font = Outfit({ subsets: ["latin"] });
 
@@ -59,13 +61,16 @@ export default function RootLayout({
                               <main className="flex-1 overflow-y-auto pb-32 md:pb-28 relative">
                                 <MobileHeader />
                                 <UsernameGuard>
-                                  {children}
+                                  <ArihantGuard>
+                                    {children}
+                                  </ArihantGuard>
                                 </UsernameGuard>
                               </main>
                               <Player />
                               <LimitReachedModal />
                               <LoginPromptModal />
                               <AccountNotificationModal />
+                              <PWAInstallPrompt />
                             </OfflineProvider>
                           </DeviceProvider>
                         </DJProvider>

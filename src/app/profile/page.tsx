@@ -13,7 +13,7 @@ import {
     User, Heart, Clock, Settings, Edit2, Music, Play, Camera, Save, X,
     Check, Download, Zap, Monitor, Globe, Crown, Star, Lock, Sparkles,
     Headphones, Eye, Shield, LogOut, ListMusic, ImagePlus, Trophy, Users, Gift, FileText,
-    Moon, Sun, Shuffle, DownloadCloud, Trash2
+    Moon, Sun, Shuffle, DownloadCloud, Trash2, Smartphone
 } from 'lucide-react';
 import Link from 'next/link';
 import { useOffline } from '@/context/OfflineContext';
@@ -1082,6 +1082,24 @@ function ProfileContent() {
                                                 className={`w-10 h-5 rounded-full flex items-center px-0.5 transition-all ${!features.download ? 'bg-[var(--card-hover)] cursor-not-allowed' : (enableDownload ? 'bg-green-500' : 'bg-[var(--card-hover)]')}`}
                                             >
                                                 <div className={`w-4 h-4 rounded-full transition-transform bg-white ${enableDownload && features.download ? 'translate-x-5' : ''}`} />
+                                            </button>
+                                        </div>
+
+                                        {/* PWA Install Instructions */}
+                                        <div className="flex items-center justify-between p-4 bg-[var(--card)] rounded-xl border border-[var(--border)]">
+                                            <div className="flex flex-col">
+                                                <span className="font-bold text-sm text-[var(--foreground)] flex items-center gap-2">
+                                                    Install Nitro App <Smartphone size={14} className="text-cyan-400" />
+                                                </span>
+                                                <span className="text-[10px] text-[var(--foreground-muted)] uppercase tracking-wider block mt-0.5">Add to Home Screen</span>
+                                            </div>
+                                            <button
+                                                onClick={() => {
+                                                    window.dispatchEvent(new CustomEvent('nitro_show_pwa_prompt'));
+                                                }}
+                                                className="px-4 py-2 bg-cyan-500/10 hover:bg-cyan-500 text-cyan-400 hover:text-white border border-cyan-500/20 rounded-xl text-xs font-bold transition-all"
+                                            >
+                                                Show Steps
                                             </button>
                                         </div>
                                     </div>

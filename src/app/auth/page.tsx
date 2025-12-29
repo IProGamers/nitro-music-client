@@ -8,6 +8,41 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 
+// Allowed email domains - only real email providers
+const ALLOWED_EMAIL_DOMAINS = [
+    // Google
+    'gmail.com', 'googlemail.com',
+    // Microsoft
+    'outlook.com', 'hotmail.com', 'live.com', 'msn.com',
+    // Yahoo
+    'yahoo.com', 'yahoo.in', 'yahoo.co.uk', 'yahoo.co.in', 'ymail.com',
+    // Apple
+    'icloud.com', 'me.com', 'mac.com',
+    // Privacy-focused
+    'protonmail.com', 'proton.me', 'pm.me', 'tutanota.com', 'tutamail.com',
+    // Indian providers
+    'rediffmail.com', 'in.com',
+    // Other popular
+    'aol.com', 'zoho.com', 'zohomail.in', 'mail.com',
+    // Educational
+    'edu', '.edu.in', '.ac.in',
+];
+
+// Check if email domain is allowed
+const isEmailAllowed = (email: string): boolean => {
+    const domain = email.split('@')[1]?.toLowerCase();
+    if (!domain) return false;
+
+    // Check for exact matches or edu domains
+    return ALLOWED_EMAIL_DOMAINS.some(allowed => {
+        if (allowed.startsWith('.')) {
+            // Suffix match (e.g., .edu.in)
+            return domain.endsWith(allowed);
+        }
+        return domain === allowed || domain.endsWith('.' + allowed);
+    });
+};
+
 export default function AuthPage() {
     const { user, loading, error, signIn, signUp, signInWithGoogle, signInWithGithub } = useAuth();
     const router = useRouter();
@@ -36,6 +71,10 @@ export default function AuthPage() {
             if (isSignUp) {
                 if (!displayName.trim()) {
                     throw new Error('Please enter your name');
+                }
+                // Validate email domain during signup
+                if (!isEmailAllowed(email)) {
+                    throw new Error('Please use a valid email provider (Gmail, Outlook, Yahoo, Proton, iCloud, etc.)');
                 }
                 await signUp(email, password, displayName);
             } else {

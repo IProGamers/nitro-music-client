@@ -28,9 +28,11 @@ interface UserData {
     uid: string;
     email: string | null;
     displayName: string | null;
+    username: string | null;
     photoURL: string | null;
     tier: SubscriptionTier;
     isAdmin: boolean;
+    arihantMode?: boolean;
     createdAt: any;
     updatedAt: any;
 }
@@ -82,8 +84,10 @@ export default function AdminPage() {
     const [securityAnswer, setSecurityAnswer] = useState('');
     const [pendingAdminAction, setPendingAdminAction] = useState<{ userId: string; currentStatus: boolean } | null>(null);
     const [pendingDeleteAction, setPendingDeleteAction] = useState<{ userId: string; userName: string } | null>(null);
+    const [pendingArihantAction, setPendingArihantAction] = useState<{ userId: string; currentStatus: boolean } | null>(null);
     const [securityError, setSecurityError] = useState<string | null>(null);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
+    const [showArihantModal, setShowArihantModal] = useState(false);
 
     // Playlists state
     const [playlists, setPlaylists] = useState<PlaylistData[]>([]);
@@ -309,6 +313,63 @@ export default function AdminPage() {
         setPendingAdminAction(null);
     };
 
+    // Request Arihant Mode toggle (shows security question first)
+    const requestArihantToggle = (userId: string, currentStatus: boolean) => {
+        const randomQuestion = SECURITY_QUESTIONS[Math.floor(Math.random() * SECURITY_QUESTIONS.length)];
+        setSecurityQuestion(randomQuestion);
+        setSecurityAnswer('');
+        setSecurityError(null);
+        setPendingArihantAction({ userId, currentStatus });
+        setShowArihantModal(true);
+    };
+
+    // Verify and toggle Arihant Mode
+    const verifyAndToggleArihant = async () => {
+        if (securityAnswer.trim().toLowerCase() !== 'veer') {
+            setSecurityError('Incorrect answer. Access denied.');
+            return;
+        }
+
+        if (!pendingArihantAction) return;
+
+        setShowArihantModal(false);
+        setSecurityAnswer('');
+        setSecurityError(null);
+
+        const { userId, currentStatus } = pendingArihantAction;
+        setPendingArihantAction(null);
+
+        setUpdating(userId);
+        setSuccess(null);
+        setError(null);
+
+        try {
+            const userRef = doc(db, 'users', userId);
+            await updateDoc(userRef, {
+                arihantMode: !currentStatus,
+                updatedAt: new Date()
+            });
+
+            setUsers(prev => prev.map(u =>
+                u.uid === userId ? { ...u, arihantMode: !currentStatus } : u
+            ));
+
+            setSuccess(`Arihant Mode ${!currentStatus ? 'enabled' : 'disabled'} successfully`);
+        } catch (err: any) {
+            setError('Failed to update Arihant Mode');
+        } finally {
+            setUpdating(null);
+        }
+    };
+
+    // Cancel Arihant modal
+    const cancelArihantModal = () => {
+        setShowArihantModal(false);
+        setSecurityAnswer('');
+        setSecurityError(null);
+        setPendingArihantAction(null);
+    };
+
     // Request user deletion (shows security question first)
     const requestUserDeletion = (userId: string, userName: string) => {
         if (userId === user?.uid) {
@@ -413,10 +474,22 @@ export default function AdminPage() {
             const userPlaylists = playlistsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
             // Fetch play history
+            // Fetch play history
             const historyRef = collection(db, 'users', userId, 'playHistory');
-            const historyQuery = query(historyRef, orderBy('playedAt', 'desc'), limit(10));
+            // Fetch more items to account for potentially filtered duplicates
+            const historyQuery = query(historyRef, orderBy('playedAt', 'desc'), limit(50));
             const historySnap = await getDocs(historyQuery);
-            const playHistory = historySnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            const rawHistory = historySnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+            // Deduplicate logic: Keep only the first occurrence (most recent) of each songId
+            const uniqueHistoryMap = new Map();
+            rawHistory.forEach((item: any) => {
+                const key = item.songId || item.id;
+                if (!uniqueHistoryMap.has(key)) {
+                    uniqueHistoryMap.set(key, item);
+                }
+            });
+            const playHistory = Array.from(uniqueHistoryMap.values()).slice(0, 20);
 
             setUserDetails(prev => ({
                 ...prev,
@@ -654,7 +727,12 @@ export default function AdminPage() {
                                             </div>
                                         )}
                                         <div className="flex-1 min-w-0">
-                                            <p className="font-medium text-[var(--foreground)] truncate">{u.displayName || 'User'}</p>
+                                            <div className="flex items-center gap-1.5">
+                                                <p className="font-medium text-[var(--foreground)] truncate">{u.displayName || 'User'}</p>
+                                                {u.username && (
+                                                    <span className="text-[10px] text-cyan-400 font-medium">@{u.username}</span>
+                                                )}
+                                            </div>
                                             <p className="text-xs text-[var(--foreground-muted)] truncate">{u.email}</p>
                                         </div>
                                         <div className={`px-3 py-1 rounded-full text-xs font-bold ${TIER_INFO[u.tier].bgColor} ${TIER_INFO[u.tier].color}`}>
@@ -728,6 +806,11 @@ export default function AdminPage() {
                                                     <div className="flex-1 min-w-0">
                                                         <div className="flex items-center flex-wrap gap-1.5">
                                                             <p className="font-bold text-sm text-[var(--foreground)] truncate">{u.displayName || 'User'}</p>
+                                                            {u.username && (
+                                                                <span className="px-1.5 py-0.5 bg-cyan-500/20 text-cyan-400 text-[8px] font-bold rounded-md">
+                                                                    @{u.username}
+                                                                </span>
+                                                            )}
                                                             {u.isAdmin && (
                                                                 <span className="px-1.5 py-0.5 bg-amber-500/20 text-amber-400 text-[8px] font-bold rounded-md">
                                                                     ADMIN
@@ -749,8 +832,20 @@ export default function AdminPage() {
                                                             ? 'bg-amber-500/20 text-amber-400'
                                                             : 'bg-[var(--card-hover)] text-[var(--foreground-muted)]'
                                                             } disabled:opacity-30`}
+                                                        title={u.isAdmin ? 'Revoke Admin' : 'Make Admin'}
                                                     >
                                                         {u.isAdmin ? <UserCheck size={14} /> : <UserX size={14} />}
+                                                    </button>
+                                                    <button
+                                                        onClick={() => requestArihantToggle(u.uid, !!u.arihantMode)}
+                                                        disabled={updating === u.uid}
+                                                        className={`p-2 rounded-lg transition-colors ${u.arihantMode
+                                                            ? 'bg-orange-500/20 text-orange-400'
+                                                            : 'bg-[var(--card-hover)] text-[var(--foreground-muted)]'
+                                                            } disabled:opacity-30`}
+                                                        title={u.arihantMode ? 'Disable Arihant Mode' : 'Enable Arihant Mode'}
+                                                    >
+                                                        🙏
                                                     </button>
                                                     <button
                                                         onClick={() => requestUserDeletion(u.uid, u.displayName || 'User')}
@@ -1186,6 +1281,64 @@ export default function AdminPage() {
                                     className="flex-1 px-6 py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold hover:shadow-lg hover:shadow-cyan-500/20 active:scale-95 transition-all"
                                 >
                                     Verify
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Arihant Mode Security Modal */}
+            {showArihantModal && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 animate-in fade-in duration-300">
+                    <div className="absolute inset-0 bg-black/80 backdrop-blur-md" onClick={cancelArihantModal} />
+                    <div className="relative bg-[var(--card)] border border-orange-500/30 rounded-3xl p-8 max-w-md w-full shadow-2xl animate-in zoom-in-95 duration-300">
+                        <div className="flex items-center gap-3 mb-6 text-orange-400">
+                            <span className="text-3xl">🙏</span>
+                            <h3 className="text-xl font-bold text-[var(--foreground)]">Arihant Mode</h3>
+                        </div>
+
+                        <p className="text-[var(--foreground-muted)] mb-6">
+                            {pendingArihantAction?.currentStatus
+                                ? 'You are disabling Arihant Mode for this user. They will return to the normal app.'
+                                : 'You are enabling Arihant Mode for this user. They will see only Jain Stavans.'}
+                        </p>
+
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-[var(--foreground-muted)] mb-2">
+                                    {securityQuestion}
+                                </label>
+                                <input
+                                    type="text"
+                                    value={securityAnswer}
+                                    onChange={(e) => setSecurityAnswer(e.target.value)}
+                                    onKeyDown={(e) => e.key === 'Enter' && verifyAndToggleArihant()}
+                                    placeholder="Type your answer..."
+                                    className="w-full bg-[var(--background)] border border-[var(--border)] rounded-xl px-4 py-3 text-[var(--foreground)] placeholder-[var(--foreground-muted)] focus:outline-none focus:border-orange-400/50 transition-colors"
+                                    autoFocus
+                                />
+                            </div>
+
+                            {securityError && (
+                                <p className="text-red-400 text-sm flex items-center gap-1">
+                                    <AlertTriangle size={14} />
+                                    {securityError}
+                                </p>
+                            )}
+
+                            <div className="flex gap-3 pt-4">
+                                <button
+                                    onClick={cancelArihantModal}
+                                    className="flex-1 px-6 py-3 rounded-xl bg-[var(--card-hover)] text-[var(--foreground)] font-medium hover:bg-[var(--border)] transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={verifyAndToggleArihant}
+                                    className="flex-1 px-6 py-3 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 text-white font-bold hover:shadow-lg hover:shadow-orange-500/20 active:scale-95 transition-all"
+                                >
+                                    Confirm
                                 </button>
                             </div>
                         </div>

@@ -34,6 +34,7 @@ interface PlayerContextType {
     isShuffleOn: boolean;
     toggleShuffle: () => void;
     repeatMode: 'off' | 'all' | 'one';
+    setRepeatMode?: (mode: 'off' | 'all' | 'one') => void;
     toggleRepeat: () => void;
     // Queue Management
     reorderQueue: (fromIndex: number, toIndex: number) => void;
@@ -271,6 +272,98 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
             audioContextRef.current.resume();
         }
     }, [isPlaying]);
+
+    // Media Session API - Show song info on car displays, lock screens, Bluetooth devices
+    useEffect(() => {
+        if (typeof window === 'undefined' || !('mediaSession' in navigator)) return;
+        if (!currentSong) return;
+
+        // Get song metadata (inline logic to avoid reference issues)
+        const title = currentSong.name || currentSong.title || 'Unknown Track';
+
+        // Get artist
+        let artist = 'Unknown Artist';
+        if (currentSong.artists?.primary?.length) {
+            artist = currentSong.artists.primary.map((a: any) => a.name).join(', ');
+        } else if (currentSong.artist) {
+            artist = currentSong.artist;
+        } else if (currentSong.primaryArtists) {
+            artist = currentSong.primaryArtists;
+        }
+
+        const album = currentSong.album?.name || currentSong.album || '';
+
+        // Get artwork URL
+        let artwork = '';
+        if (typeof currentSong.image === 'string') {
+            artwork = currentSong.image;
+        } else if (currentSong.image?.length) {
+            const img = currentSong.image[currentSong.image.length - 1];
+            artwork = img?.url || img?.link || '';
+        }
+
+        // Update Media Session metadata
+        try {
+            navigator.mediaSession.metadata = new MediaMetadata({
+                title: title,
+                artist: artist,
+                album: album,
+                artwork: artwork ? [
+                    { src: artwork, sizes: '96x96', type: 'image/jpeg' },
+                    { src: artwork, sizes: '128x128', type: 'image/jpeg' },
+                    { src: artwork, sizes: '192x192', type: 'image/jpeg' },
+                    { src: artwork, sizes: '256x256', type: 'image/jpeg' },
+                    { src: artwork, sizes: '384x384', type: 'image/jpeg' },
+                    { src: artwork, sizes: '512x512', type: 'image/jpeg' },
+                ] : []
+            });
+
+            // Set playback state
+            navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
+
+            // Set up media session action handlers
+            navigator.mediaSession.setActionHandler('play', () => {
+                if (audioRef.current) {
+                    audioRef.current.play();
+                    setIsPlaying(true);
+                }
+            });
+
+            navigator.mediaSession.setActionHandler('pause', () => {
+                if (audioRef.current) {
+                    audioRef.current.pause();
+                    setIsPlaying(false);
+                }
+            });
+
+            navigator.mediaSession.setActionHandler('previoustrack', () => {
+                prev();
+            });
+
+            navigator.mediaSession.setActionHandler('nexttrack', () => {
+                next();
+            });
+
+            navigator.mediaSession.setActionHandler('seekto', (details) => {
+                if (audioRef.current && details.seekTime !== undefined) {
+                    audioRef.current.currentTime = details.seekTime;
+                    setProgress(details.seekTime);
+                }
+            });
+
+            // Update position state for seek bar on external devices
+            if (audioRef.current && duration > 0) {
+                navigator.mediaSession.setPositionState({
+                    duration: duration,
+                    playbackRate: audioRef.current.playbackRate,
+                    position: Math.min(progress, duration)
+                });
+            }
+        } catch (e) {
+            // Media Session not fully supported
+            console.warn('Media Session error:', e);
+        }
+    }, [currentSong, isPlaying, duration, progress]);
 
     const getImg = (t: any) => {
         if (typeof t.image === 'string') return t.image;
@@ -851,6 +944,7 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
             isShuffleOn,
             toggleShuffle,
             repeatMode,
+            setRepeatMode,
             toggleRepeat,
             reorderQueue,
             removeFromQueue,

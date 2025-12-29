@@ -18,6 +18,8 @@ export default function Sidebar() {
         setMounted(true);
     }, []);
 
+    if (userProfile?.arihantMode) return null;
+
     // Base links - Profile href is static, we'll redirect in the Profile page if not logged in
     const links = [
         { name: 'Home', href: '/', icon: Home },
@@ -141,6 +143,7 @@ export default function Sidebar() {
                 {links.filter(l => !l.desktopOnly).map(l => {
                     const Icon = l.icon;
                     const active = pathname === l.href;
+                    if (pathname === '/upgrade' || pathname === '/auth' || userProfile?.arihantMode) return null;
                     return (
                         <Link key={l.name} href={l.href} className={`flex flex-col items-center gap-1 py-2 px-4 rounded-lg transition-colors ${active ? 'text-cyan-400' : 'text-[var(--foreground-muted)]'}`}>
                             <Icon size={22} strokeWidth={active ? 2.5 : 2} />

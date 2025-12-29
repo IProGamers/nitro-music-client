@@ -25,6 +25,7 @@ interface UserProfile {
     bio: string;
     tier: SubscriptionTier;
     isAdmin: boolean;
+    arihantMode: boolean; // Simplified Jain Stavan UI mode
     status: UserStatus;
     lastActive: Date;
     // Username system
@@ -128,6 +129,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                 bio: 'Music enthusiast & audiophile. Exploring the universe of sound one track at a time.',
                 tier: 'NITRO_CORE',
                 isAdmin: false,
+                arihantMode: false,
                 status: 'online',
                 lastActive: new Date(),
                 username: null,
@@ -408,9 +410,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         if (!user) return;
 
         try {
-            const historyRef = collection(db, 'users', user.uid, 'playHistory');
-            await addDoc(historyRef, {
-                songId: song.id,
+            // Use song.id as doc ID to prevent duplicates (upsert behavior)
+            const songRef = doc(db, 'users', user.uid, 'playHistory', String(song.id));
+            await setDoc(songRef, {
+                songId: String(song.id),
                 name: song.name,
                 artist: song.artist,
                 image: song.image,
@@ -549,9 +552,21 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const getRecentPlays = useCallback(async (limitCount = 20) => {
         if (!user) return [];
         const historyRef = collection(db, 'users', user.uid, 'playHistory');
-        const q = query(historyRef, orderBy('playedAt', 'desc'), limit(limitCount));
+        // Fetch more to handle duplicates
+        const q = query(historyRef, orderBy('playedAt', 'desc'), limit(limitCount * 2));
         const snap = await getDocs(q);
-        return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const rawHistory = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+        // Deduplicate
+        const uniqueHistoryMap = new Map();
+        rawHistory.forEach((item: any) => {
+            const key = item.songId || item.id;
+            if (!uniqueHistoryMap.has(key)) {
+                uniqueHistoryMap.set(key, item);
+            }
+        });
+
+        return Array.from(uniqueHistoryMap.values()).slice(0, limitCount);
     }, [user]);
 
     // Update nowPlaying for friend activity

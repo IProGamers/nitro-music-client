@@ -7,7 +7,7 @@ export default function MobileHeader() {
     const { user, userProfile } = useAuth();
     const pathname = usePathname();
 
-    if (pathname === '/upgrade' || pathname === '/auth') return null;
+    if (pathname === '/upgrade' || pathname === '/auth' || userProfile?.arihantMode) return null;
 
     return (
         <div className="md:hidden w-full h-16 bg-[var(--background)]/90 backdrop-blur-xl border-b border-[var(--border)] flex items-center justify-between px-6 shrink-0 z-40 transition-all duration-300">

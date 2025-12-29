@@ -80,15 +80,21 @@ export default function SetupUsernamePage() {
 
     // List of music-themed default avatars
     const DEFAULT_AVATARS = [
-        'https://api.dicebear.com/7.x/avataaars/svg?seed=Music1&backgroundColor=b6e3f4,c0aede',
-        'https://api.dicebear.com/7.x/avataaars/svg?seed=Beat&backgroundColor=ffdfbf,ffd5dc',
-        'https://api.dicebear.com/7.x/avataaars/svg?seed=Rhythm&backgroundColor=c1f4c1,d1f4ff',
-        'https://api.dicebear.com/7.x/avataaars/svg?seed=Vibe&backgroundColor=ffadad,ffd6a5',
-        'https://api.dicebear.com/7.x/avataaars/svg?seed=Studio&backgroundColor=fdffb6,caffbf',
-        'https://api.dicebear.com/7.x/avataaars/svg?seed=Producer&backgroundColor=9bf6ff,a0c4ff',
-        // Two special "Nitro" themed ones
-        'https://api.dicebear.com/7.x/bottts/svg?seed=Nitro1&backgroundColor=22d3ee',
-        'https://api.dicebear.com/7.x/bottts/svg?seed=Nitro2&backgroundColor=a855f7'
+        // Cool & Artistic (Micah style)
+        'https://api.dicebear.com/7.x/micah/svg?seed=Vibe&backgroundColor=ffdfbf,ffd5dc',
+        'https://api.dicebear.com/7.x/micah/svg?seed=Soul&backgroundColor=c1f4c1,d1f4ff',
+        'https://api.dicebear.com/7.x/micah/svg?seed=Jazz&backgroundColor=b6e3f4,c0aede',
+
+        // Adventurous & Action (Adventurer style)
+        'https://api.dicebear.com/7.x/adventurer/svg?seed=Rock&backgroundColor=ffadad,ffd6a5',
+        'https://api.dicebear.com/7.x/adventurer/svg?seed=Pop&backgroundColor=fdffb6,caffbf',
+
+        // Fun & Expressive (Fun Emoji)
+        'https://api.dicebear.com/7.x/fun-emoji/svg?seed=Music&backgroundColor=9bf6ff,a0c4ff',
+        'https://api.dicebear.com/7.x/fun-emoji/svg?seed=Beat&backgroundColor=ffdfbf,ffd5dc',
+
+        // Robot/Cyber (Bottts)
+        'https://api.dicebear.com/7.x/bottts/svg?seed=Cyber&backgroundColor=22d3ee',
     ];
 
     const [selectedAvatar, setSelectedAvatar] = useState(DEFAULT_AVATARS[0]);
@@ -153,9 +159,9 @@ export default function SetupUsernamePage() {
                     </h1>
                     <div className="bg-cyan-500/10 border border-cyan-500/20 rounded-2xl p-4 mb-6">
                         <p className="text-[var(--foreground)] text-sm font-medium leading-relaxed">
-                            A username is your <span className="text-cyan-400 font-bold">unique digital key</span>. 🗝️
+                            Set your username to make it easy for <span className="text-cyan-400 font-bold">friends to find you</span>! 👯‍♂️
                             <br />
-                            Use it to connect with <span className="text-purple-400 font-bold">mates</span>, share your <span className="text-pink-400 font-bold">vibe</span>, and build your <span className="text-cyan-400 font-bold">audio portfolio</span>.
+                            This isn't about reserving a name—it's about <span className="text-purple-400 font-bold">connecting</span> and sharing your music vibe. 🎵
                         </p>
                     </div>
                 </div>

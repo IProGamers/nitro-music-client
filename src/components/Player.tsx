@@ -19,6 +19,7 @@ import FullScreenVisualizer from './FullScreenVisualizer';
 import { useDJ } from '@/context/DJContext';
 import { useUsage } from '@/context/UsageContext';
 import { useOffline } from '@/context/OfflineContext';
+import FirstTimeTooltip from './FirstTimeTooltip';
 
 const decodeHtml = (html: string): string => {
     if (!html || typeof window === 'undefined') return html || '';
@@ -45,7 +46,7 @@ export default function Player() {
         triggerHaptic
     } = useAudioFX();
 
-    const { user, addLikedSong, removeLikedSong, isLikedSong } = useAuth();
+    const { user, userProfile, addLikedSong, removeLikedSong, isLikedSong } = useAuth();
 
     const [isFav, setIsFav] = useState(false);
     const [isExpanded, setIsExpanded] = useState(false);
@@ -124,7 +125,7 @@ export default function Player() {
         }
     }, [isPlaying, hapticEnabled, triggerHaptic]);
 
-    if (!currentSong) return null;
+    if (!currentSong || userProfile?.arihantMode) return null;
 
     const getImg = (t: any) => {
         if (!t) return '';
@@ -705,28 +706,39 @@ export default function Player() {
                                 <span className={`text-[8px] font-bold uppercase tracking-widest mt-1 ${sceneMode !== 'none' ? 'text-cyan-400' : 'text-zinc-500 group-hover:text-cyan-400 active:text-cyan-400'}`}>FX</span>
                             </button>
 
+                            {/* 3D Surround - Purple */}
+                            <FirstTimeTooltip id="player-3d-audio" content="Experience immersive 360° spatial audio!" position="top">
+                                <button className="flex flex-col items-center gap-1 group w-full" onClick={toggle3D}>
+                                    <div className={`p-2.5 rounded-2xl transition-all ${is3DActive ? 'bg-purple-500/20' : 'bg-[var(--card)] group-hover:bg-purple-500/20 active:bg-purple-500/20'}`}>
+                                        <Headphones size={16} className={`transition-all ${is3DActive ? 'text-purple-400 drop-shadow-[0_0_10px_rgba(168,85,247,0.8)] animate-pulse' : 'text-zinc-500 group-hover:text-purple-400 active:text-purple-400 active:drop-shadow-[0_0_10px_rgba(168,85,247,0.8)]'}`} />
+                                    </div>
+                                    <span className={`text-[8px] font-bold uppercase tracking-widest mt-1 ${is3DActive ? 'text-purple-400' : 'text-zinc-500 group-hover:text-purple-400 active:text-purple-400'}`}>3D</span>
+                                </button>
+                            </FirstTimeTooltip>
+
                             {/* Download - Green */}
-                            {/* Download - Green */}
-                            <button className="flex flex-col items-center gap-1 group w-full" onClick={handleDownloadClick}>
-                                <div className={`p-2.5 rounded-2xl transition-all ${isDownloaded(String(currentSong.id || currentSong.songId))
+                            <FirstTimeTooltip id="player-download" content="Download songs for offline playback!" position="top">
+                                <button className="flex flex-col items-center gap-1 group w-full" onClick={handleDownloadClick}>
+                                    <div className={`p-2.5 rounded-2xl transition-all ${isDownloaded(String(currentSong.id || currentSong.songId))
                                         ? 'bg-emerald-500/20'
                                         : 'bg-[var(--card)] group-hover:bg-emerald-500/20 active:bg-emerald-500/20'
-                                    }`}>
-                                    {isDownloading && currentDownloadId === String(currentSong.id || currentSong.songId) ? (
-                                        <Loader size={16} className="text-emerald-400 animate-spin" />
-                                    ) : isDownloaded(String(currentSong.id || currentSong.songId)) ? (
-                                        <Check size={16} className="text-emerald-400" />
-                                    ) : (
-                                        <Download size={16} className="text-zinc-500 group-hover:text-emerald-400 active:text-emerald-400 transition-all" />
-                                    )}
-                                </div>
-                                <span className={`text-[8px] font-bold uppercase tracking-widest mt-1 ${isDownloaded(String(currentSong.id || currentSong.songId))
+                                        }`}>
+                                        {isDownloading && currentDownloadId === String(currentSong.id || currentSong.songId) ? (
+                                            <Loader size={16} className="text-emerald-400 animate-spin" />
+                                        ) : isDownloaded(String(currentSong.id || currentSong.songId)) ? (
+                                            <Check size={16} className="text-emerald-400" />
+                                        ) : (
+                                            <Download size={16} className="text-zinc-500 group-hover:text-emerald-400 active:text-emerald-400 transition-all" />
+                                        )}
+                                    </div>
+                                    <span className={`text-[8px] font-bold uppercase tracking-widest mt-1 ${isDownloaded(String(currentSong.id || currentSong.songId))
                                         ? 'text-emerald-400'
                                         : 'text-zinc-500 group-hover:text-emerald-400 active:text-emerald-400'
-                                    }`}>
-                                    {isDownloaded(String(currentSong.id || currentSong.songId)) ? 'Saved' : 'Download'}
-                                </span>
-                            </button>
+                                        }`}>
+                                        {isDownloaded(String(currentSong.id || currentSong.songId)) ? 'Saved' : 'Download'}
+                                    </span>
+                                </button>
+                            </FirstTimeTooltip>
 
                             {/* Queue - Orange */}
                             <button className="flex flex-col items-center gap-1 group w-full" onClick={() => setShowQueue(true)}>
