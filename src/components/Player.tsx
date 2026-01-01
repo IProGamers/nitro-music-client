@@ -324,12 +324,21 @@ export default function Player() {
 
                 {/* Mobile Layout: Compact like reference image */}
                 <div className="flex md:hidden items-center w-full gap-2">
-                    {/* Left: Small Album Art + Truncated Title */}
-                    <div className="flex items-center gap-2 w-[90px] min-w-[90px]" onClick={e => e.stopPropagation()}>
-                        <img
-                            src={getImg(currentSong)}
-                            className="w-10 h-10 rounded-lg object-cover shadow-md flex-shrink-0"
-                        />
+                    {/* Left: Small Album Art + Truncated Title - TAPPABLE TO EXPAND */}
+                    <div
+                        className="flex items-center gap-2 w-[90px] min-w-[90px] cursor-pointer active:scale-95 transition-transform"
+                        onClick={() => setIsExpanded(true)}
+                    >
+                        <div className="relative">
+                            <img
+                                src={getImg(currentSong)}
+                                className="w-10 h-10 rounded-lg object-cover shadow-md flex-shrink-0"
+                            />
+                            {/* Expand indicator */}
+                            <div className="absolute inset-0 bg-black/30 rounded-lg flex items-center justify-center opacity-0 active:opacity-100 transition-opacity">
+                                <Maximize2 size={14} className="text-white" />
+                            </div>
+                        </div>
                         <div className="flex-1 overflow-hidden min-w-0">
                             <h3 className="font-bold text-[11px] text-[var(--foreground)] truncate leading-tight uppercase tracking-tight max-w-[50px]">
                                 {decodeHtml(currentSong.name).substring(0, 8)}...
