@@ -1,13 +1,14 @@
 "use client"
-import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { usePlayer } from '@/context/PlayerContext';
 import { useAuth } from '@/context/AuthContext';
 import { useSettings } from '@/context/SettingsContext';
 import { useMusicData } from '@/context/MusicDataContext';
-import { Play, Music, Heart, Mic2, Sparkles, Zap, Crown, TrendingUp, Clock, Disc3, ArrowUpCircle, ChevronRight } from 'lucide-react';
+import { Play, Music, Heart, Mic2, Sparkles, Zap, Crown, TrendingUp, Clock, Disc3, ArrowUpCircle, ChevronRight, ChevronLeft } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import SongContextMenu from '@/components/SongContextMenu';
 import FeatureDiscoveryCards from '@/components/FeatureDiscoveryCards';
+import { fetchWithCache, CACHE_TTL, preloadCriticalData } from '@/lib/apiCache';
 
 // Decode HTML entities
 const decodeHtml = (html: string): string => {
@@ -23,6 +24,30 @@ const getGreeting = (): string => {
   if (hour < 12) return 'Good morning';
   if (hour < 18) return 'Good afternoon';
   return 'Good evening';
+};
+
+// Seeded random shuffle using date - songs change order daily automatically
+const getDailySeed = (): number => {
+  const today = new Date();
+  return today.getFullYear() * 10000 + (today.getMonth() + 1) * 100 + today.getDate();
+};
+
+const seededRandom = (seed: number): () => number => {
+  let s = seed;
+  return () => {
+    s = (s * 9301 + 49297) % 233280;
+    return s / 233280;
+  };
+};
+
+const shuffleWithSeed = <T,>(array: T[], seed: number): T[] => {
+  const arr = [...array];
+  const random = seededRandom(seed);
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
 };
 
 export default function Home() {
@@ -43,10 +68,14 @@ export default function Home() {
   const [lastPlayed, setLastPlayed] = useState<any[]>(homeData?.lastPlayed || []);
   const [iconicEnglish, setIconicEnglish] = useState<any[]>(homeData?.iconicEnglish || []);
   const [iconicHindi, setIconicHindi] = useState<any[]>(homeData?.iconicHindi || []);
+  const [punjabiHits, setPunjabiHits] = useState<any[]>(homeData?.punjabiHits || []);
   const [topArtists, setTopArtists] = useState<any[]>(homeData?.topArtists || []);
+  const [madeForYou, setMadeForYou] = useState<any[]>(homeData?.madeForYou || []);
   const [loading, setLoading] = useState(!hasLoadedHome);
   const [userPlaylists, setUserPlaylists] = useState<any[]>([]);
   const [greeting] = useState(getGreeting());
+  const [heroSlide, setHeroSlide] = useState(0);
+  const heroIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const userName = userProfile?.displayName?.split(' ')[0] || '';
   const isSupreme = tier === 'NITRO_SUPREME' || (tier as string) === 'NITRO_ULTRA';
@@ -57,33 +86,32 @@ export default function Home() {
       try {
         const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 
+        // Use cached fetch for all API calls - massively improves load times
         const responses = await Promise.allSettled([
-          fetch(`${apiUrl}/api/modules`),
-          fetch(`${apiUrl}/api/search/artists?query=Arijit+Singh+Ar+Rahman+Diljit+Dosanjh+Taylor+Swift+The+Weeknd&limit=15`),
-          fetch(`${apiUrl}/api/search/songs?query=latest+instagram+reels+trending+viral+hits+2025&limit=30`),
-          fetch(`${apiUrl}/api/search/songs?query=latest+party+anthems+bollywood+hollywood+mashup+2025&limit=50`),
-          fetch(`${apiUrl}/api/search/songs?query=billboard+hot+100+western+hits+2025&limit=40`),
-          fetch(`${apiUrl}/api/search/songs?query=global+pop+superstars+2025&limit=40`),
-          fetch(`${apiUrl}/api/history`),
-          fetch(`${apiUrl}/api/search/songs?query=bollywood+top+romantic+dance+sad+hits+2025&limit=50`),
-          // New: Iconic English songs (timeless hits)
-          fetch(`${apiUrl}/api/search/songs?query=believer+shape+of+you+love+me+like+you+do+counting+stars+radioactive+someone+like+you+rolling+in+the+deep&limit=30`),
-          // New: Iconic Hindi songs (legendary Bollywood)
-          fetch(`${apiUrl}/api/search/songs?query=tum+hi+ho+kal+ho+naa+ho+kabhi+khushi+kabhie+gham+channa+mereya+gerua+tujhe+dekha+to&limit=30`),
-          // New: Top Artists (combined Hindi + English)
-          fetch(`${apiUrl}/api/search/artists?query=Arijit+Singh+Ed+Sheeran+Taylor+Swift+Atif+Aslam+The+Weeknd+Shreya+Ghoshal+Imagine+Dragons+Pritam+Dua+Lipa+Neha+Kakkar&limit=20`)
+          fetchWithCache(`${apiUrl}/api/modules`, CACHE_TTL.MODULES),
+          fetchWithCache(`${apiUrl}/api/search/artists?query=Arijit+Singh+Ar+Rahman+Diljit+Dosanjh+Taylor+Swift+The+Weeknd&limit=15`, CACHE_TTL.SEARCH),
+          fetchWithCache(`${apiUrl}/api/search/songs?query=trending+india+bollywood+punjabi+hindi+2025&limit=30`, CACHE_TTL.TRENDING),
+          fetchWithCache(`${apiUrl}/api/search/songs?query=latest+party+anthems+bollywood+hollywood+mashup+2025&limit=50`, CACHE_TTL.SEARCH),
+          fetchWithCache(`${apiUrl}/api/search/songs?query=billboard+hot+100+western+hits+2025&limit=40`, CACHE_TTL.SEARCH),
+          fetchWithCache(`${apiUrl}/api/search/songs?query=global+pop+superstars+2025&limit=40`, CACHE_TTL.SEARCH),
+          fetch(`${apiUrl}/api/history`).then(r => r.json()).catch(() => ({ success: false })), // History not cached (user-specific)
+          fetchWithCache(`${apiUrl}/api/search/songs?query=bollywood+top+romantic+dance+sad+hits+2025&limit=50`, CACHE_TTL.SEARCH),
+          // Iconic English songs - Using specific English artists to avoid Hindi songs
+          fetchWithCache(`${apiUrl}/api/search/songs?query=ed+sheeran+taylor+swift+imagine+dragons+coldplay+adele+dua+lipa+the+weeknd+bruno+mars&limit=30`, CACHE_TTL.SEARCH),
+          // Iconic Hindi songs (legendary Bollywood)
+          fetchWithCache(`${apiUrl}/api/search/songs?query=tum+hi+ho+kal+ho+naa+ho+kabhi+khushi+kabhie+gham+channa+mereya+gerua+tujhe+dekha+to&limit=30`, CACHE_TTL.SEARCH),
+          // Top Artists (combined Hindi + English)
+          fetchWithCache(`${apiUrl}/api/search/artists?query=Arijit+Singh+Ed+Sheeran+Taylor+Swift+Atif+Aslam+The+Weeknd+Shreya+Ghoshal+Imagine+Dragons+Pritam+Dua+Lipa+Neha+Kakkar&limit=20`, CACHE_TTL.SEARCH),
+          // Punjabi Hits - Simple effective query
+          fetchWithCache(`${apiUrl}/api/search/songs?query=punjabi+hits+2024&limit=40`, CACHE_TTL.SEARCH)
         ]);
 
-        const data = await Promise.all(responses.map(async (r, i) => {
+        const data = responses.map((r) => {
           if (r.status === 'fulfilled') {
-            try {
-              return await r.value.json();
-            } catch (err) {
-              return { success: false };
-            }
+            return r.value;
           }
           return { success: false };
-        }));
+        });
 
         const modules = data[0]?.success ? data[0].data : null;
 
@@ -101,35 +129,55 @@ export default function Home() {
         const getDiverse = (songs: any[], limitCount = 12) => {
           const unique = getUnique(songs);
           const diverse: any[] = [];
-          const imgCounts = new Map<string, number>();
+          const seenImages = new Set<string>();
 
           for (const s of unique) {
             const img = getImg(s);
-            const count = imgCounts.get(img) || 0;
-            if (count < 2) { // Allow max 2 songs with same image to keep diversity
+            // Strictly allow only 1 song per image for true diversity
+            if (!seenImages.has(img)) {
               diverse.push(s);
-              imgCounts.set(img, count + 1);
+              seenImages.add(img);
             }
             if (diverse.length >= limitCount) break;
           }
           return diverse;
         };
 
+        // Get daily seed for consistent shuffling throughout the day
+        const dailySeed = getDailySeed();
+
+        // Helper to shuffle sections for fresh daily content
+        const shuffleDaily = <T,>(arr: T[]): T[] => shuffleWithSeed(arr, dailySeed);
+
         const results = {
-          trending: getDiverse([...(data[2]?.success ? data[2].data.results : []), ...(modules?.trending?.songs || [])], 12),
-          newReleases: modules ? getUnique(modules.albums).slice(0, 10) : [],
-          featuredArtists: data[1]?.success ? getUnique(data[1].data.results).slice(0, 10) : [],
-          bollywoodHits: data[7]?.success && data[7].data.results.length > 0
-            ? getDiverse(data[7].data.results, 12)
-            : (modules ? getDiverse(modules.charts?.[0]?.songs || [], 12) : []),
+          trending: shuffleDaily(getDiverse([...(data[2]?.success ? data[2].data.results : []), ...(modules?.trending?.songs || [])], 15)),
+          newReleases: shuffleDaily(modules ? getUnique(modules.albums).slice(0, 12) : []),
+          featuredArtists: shuffleDaily(data[1]?.success ? getUnique(data[1].data.results).slice(0, 12) : []),
+          bollywoodHits: shuffleDaily(data[7]?.success && data[7].data.results.length > 0
+            ? getDiverse(data[7].data.results, 30) // Increased for Romantic moods section
+            : (modules ? getDiverse(modules.charts?.[0]?.songs || [], 30) : [])),
           topCharts: modules ? modules.charts : [],
-          partyMix: data[3]?.success ? getDiverse(data[3].data.results, 12) : [],
-          internationalHits: data[4]?.success && data[4].data.results.length > 0 ? getDiverse(data[4].data.results, 12) : [],
-          globalPop: data[5]?.success ? getDiverse(data[5].data.results, 12) : [],
-          lastPlayed: data[6]?.success ? getUnique(data[6].data) : [],
-          iconicEnglish: data[8]?.success ? getDiverse(data[8].data.results, 15) : [],
-          iconicHindi: data[9]?.success ? getDiverse(data[9].data.results, 15) : [],
-          topArtists: data[10]?.success ? getUnique(data[10].data.results).slice(0, 15) : [],
+          partyMix: shuffleDaily(data[3]?.success ? getDiverse(data[3].data.results, 15) : []),
+          internationalHits: shuffleDaily(data[4]?.success && data[4].data.results.length > 0 ? getDiverse(data[4].data.results, 30) : []), // Increased for Throwback classics
+          globalPop: shuffleDaily(data[5]?.success ? getDiverse(data[5].data.results, 15) : []),
+          lastPlayed: data[6]?.success ? getUnique(data[6].data) : [], // Don't shuffle recently played - keep in order
+          iconicEnglish: shuffleDaily(data[8]?.success ? getDiverse(data[8].data.results, 18) : []),
+          iconicHindi: shuffleDaily(data[9]?.success ? getDiverse(data[9].data.results, 18) : []),
+          topArtists: shuffleDaily(data[10]?.success ? getUnique(data[10].data.results).slice(0, 15) : []),
+          // Punjabi hits with fallback - if primary search fails, try combining with Bollywood data
+          punjabiHits: (() => {
+            const primary = data[11]?.success ? getDiverse(data[11].data.results, 18) : [];
+            if (primary.length >= 5) return shuffleDaily(primary);
+            // Fallback: Try to extract Punjabi songs from party mix and other sources
+            const fallbackSongs = [...(data[3]?.success ? data[3].data.results : []), ...(data[2]?.success ? data[2].data.results : [])]
+              .filter((song: any) => {
+                const name = (song.name || song.title || '').toLowerCase();
+                const artist = (song.artists?.primary?.[0]?.name || song.artist || '').toLowerCase();
+                return /diljit|sidhu|ap dhillon|karan aujla|guru randhawa|hardy|harrdy|punjabi|kudiye|nachdi/i.test(name + ' ' + artist);
+              });
+            return shuffleDaily(getDiverse([...primary, ...fallbackSongs], 18));
+          })(),
+          madeForYou: [], // Will be populated based on listening history
           lastFetchedAt: Date.now()
         };
 
@@ -144,10 +192,83 @@ export default function Home() {
         setLastPlayed(results.lastPlayed);
         setIconicEnglish(results.iconicEnglish);
         setIconicHindi(results.iconicHindi);
+        setPunjabiHits(results.punjabiHits);
         setTopArtists(results.topArtists);
 
         setHomeData(results);
         setHasLoadedHome(true);
+
+        // Fetch "Made for You" based on listening history - Smarter algorithm
+        if (results.lastPlayed.length > 0) {
+          try {
+            // Extract top artists from play history
+            const artistCounts: Record<string, number> = {};
+            results.lastPlayed.forEach((s: any) => {
+              const artistName = s.artists?.primary?.[0]?.name || (typeof s.artist === 'string' ? s.artist : '');
+              if (artistName) {
+                artistCounts[artistName] = (artistCounts[artistName] || 0) + 1;
+              }
+            });
+
+            // Get top 5 most played artists
+            const topArtistsFromHistory = Object.entries(artistCounts)
+              .sort((a, b) => b[1] - a[1])
+              .slice(0, 5)
+              .map(([name]) => name);
+
+            // Extract possible genres/moods from song names
+            const songNames = results.lastPlayed.slice(0, 10).map((s: any) => s.name || s.title || '').join(' ').toLowerCase();
+            const hasHindi = /hindi|bollywood|pyar|ishq|dil|tu|tum|main|tere|mera/i.test(songNames);
+            const hasPunjabi = /punjabi|desi|bhangra|nachdi|gaana|kudiye/i.test(songNames);
+            const hasEnglish = /love|heart|night|dance|party|summer|feel/i.test(songNames);
+            const hasSad = /sad|broken|alone|pain|miss|cry/i.test(songNames);
+
+            // Build smarter queries
+            const queries: string[] = [];
+
+            // Primary: Top artists
+            if (topArtistsFromHistory.length > 0) {
+              queries.push(topArtistsFromHistory.slice(0, 2).join(' '));
+            }
+
+            // Secondary: Genre/mood based
+            if (hasHindi) queries.push('latest hindi bollywood hits 2025');
+            if (hasPunjabi) queries.push('punjabi trending songs');
+            if (hasEnglish) queries.push('top english pop songs');
+            if (hasSad) queries.push('emotional hindi songs');
+
+            // Fallback: Add remaining artists
+            if (topArtistsFromHistory.length > 2) {
+              queries.push(topArtistsFromHistory.slice(2, 4).join(' '));
+            }
+
+            // Fetch from multiple queries and combine results
+            const allSuggestions: any[] = [];
+            const playedIds = new Set(results.lastPlayed.map((s: any) => String(s.id || s.songId)));
+
+            for (const query of queries.slice(0, 3)) {
+              try {
+                const mfyRes = await fetch(`${apiUrl}/api/search/songs?query=${encodeURIComponent(query)}&limit=15`);
+                const mfyData = await mfyRes.json();
+                if (mfyData.success && mfyData.data?.results) {
+                  mfyData.data.results.forEach((song: any) => {
+                    if (!playedIds.has(String(song.id)) && !allSuggestions.find(s => s.id === song.id)) {
+                      allSuggestions.push(song);
+                    }
+                  });
+                }
+              } catch (e) {
+                // Continue with other queries
+              }
+            }
+
+            // Shuffle using daily seed for fresh but consistent content
+            const shuffled = shuffleWithSeed(allSuggestions, dailySeed);
+            setMadeForYou(getDiverse(shuffled, 15));
+          } catch (err) {
+            console.log('Could not fetch made for you:', err);
+          }
+        }
       } catch (e) {
         console.error(e);
       } finally {
@@ -174,6 +295,22 @@ export default function Home() {
 
     if (user) fetchPlaylists();
   }, [hasLoadedHome, homeData, setHomeData, setHasLoadedHome, user, getUserPlaylists]);
+
+  // Hero slider auto-rotation for PC only
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const isMobile = window.innerWidth < 768;
+    if (isMobile) return;
+
+    // Auto-rotate hero slides every 5 seconds
+    heroIntervalRef.current = setInterval(() => {
+      setHeroSlide(prev => (prev + 1) % Math.max(1, trending.length > 0 ? Math.min(5, trending.length) : 1));
+    }, 5000);
+
+    return () => {
+      if (heroIntervalRef.current) clearInterval(heroIntervalRef.current);
+    };
+  }, [trending.length]);
 
   // Helpers
   const getImg = useCallback((t: any): string => {
@@ -228,14 +365,50 @@ export default function Home() {
     ].filter(m => m.songs.length >= 3);
   }, [user, lastPlayed, bollywoodHits, internationalHits, partyMix, globalPop]);
 
+
   if (loading) {
+    // Use skeleton loader for better perceived performance
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen gap-4 bg-[var(--background)]">
-        <div className="relative">
-          <div className="w-12 h-12 border-2 border-cyan-400/30 rounded-full animate-spin border-t-cyan-400"></div>
-          <Zap className="absolute inset-0 m-auto w-5 h-5 text-cyan-400 animate-pulse" />
+      <div className="min-h-screen bg-[var(--background)] pb-32">
+        <div className="px-4 md:px-6 lg:px-8 pt-4 md:pt-6 max-w-[1600px] mx-auto space-y-6 md:space-y-8">
+          {/* Greeting skeleton */}
+          <div className="flex items-center justify-between">
+            <div className="h-8 w-48 rounded bg-[var(--card)] animate-pulse" />
+            <div className="h-4 w-24 rounded bg-[var(--card)] animate-pulse" />
+          </div>
+
+          {/* Quick Access skeleton */}
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-2 md:gap-3">
+            {[...Array(6)].map((_, i) => (
+              <div key={i} className="flex items-center gap-2 p-2 bg-[var(--card)] rounded-xl h-14 md:h-16 border border-[var(--border)]">
+                <div className="w-10 h-10 md:w-11 md:h-11 rounded-lg bg-[var(--background)] animate-pulse" />
+                <div className="h-2.5 w-16 rounded bg-[var(--background)] animate-pulse" />
+              </div>
+            ))}
+          </div>
+
+          {/* Hero skeleton - Desktop only */}
+          <div className="hidden md:block w-full h-[280px] lg:h-[340px] rounded-3xl bg-[var(--card)] border border-[var(--border)] animate-pulse" />
+
+          {/* Song sections skeleton */}
+          {[...Array(3)].map((_, sectionIdx) => (
+            <section key={sectionIdx}>
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-4 h-4 rounded bg-[var(--card)] animate-pulse" />
+                <div className="h-5 w-32 rounded bg-[var(--card)] animate-pulse" />
+              </div>
+              <div className="flex gap-3 md:gap-4 overflow-x-auto pb-2 no-scrollbar -mx-4 px-4 md:mx-0 md:px-0">
+                {[...Array(8)].map((_, i) => (
+                  <div key={i} className="w-[115px] md:w-[140px] flex-shrink-0">
+                    <div className="aspect-square rounded-lg bg-[var(--card)] animate-pulse" />
+                    <div className="h-3 mt-2 rounded bg-[var(--card)] animate-pulse" />
+                    <div className="h-2 mt-1 w-2/3 rounded bg-[var(--card)] animate-pulse" />
+                  </div>
+                ))}
+              </div>
+            </section>
+          ))}
         </div>
-        <p className="text-[var(--foreground-muted)] text-sm font-medium">Loading your music...</p>
       </div>
     );
   }
@@ -299,13 +472,130 @@ export default function Home() {
         {/* Feature Discovery Cards - For New Users */}
         <FeatureDiscoveryCards />
 
-        {/* Nitro Mixes - Unique to our app */}
+        {/* Hero Slider - Desktop Only */}
+        {trending.length >= 3 && (
+          <div className="hidden md:block relative w-full h-[280px] lg:h-[340px] rounded-3xl overflow-hidden bg-[var(--card)] border border-[var(--border)]">
+            {/* Background Image */}
+            <div className="absolute inset-0">
+              <img
+                src={getImg(trending[heroSlide])}
+                className="w-full h-full object-cover transition-all duration-700"
+                alt=""
+              />
+              <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/50 to-transparent" />
+            </div>
+
+            {/* Content */}
+            <div className="relative z-10 flex items-center h-full px-10 lg:px-16">
+              <div className="max-w-[50%]">
+                <div className="text-[10px] font-bold uppercase tracking-widest text-cyan-400 mb-2">🔥 Trending Now</div>
+                <h2 className="text-3xl lg:text-4xl font-bold text-white mb-2 uppercase tracking-tight leading-tight line-clamp-2">
+                  {getName(trending[heroSlide])}
+                </h2>
+                <p className="text-sm text-white/70 mb-4 uppercase tracking-wider">{getArtist(trending[heroSlide])}</p>
+                <button
+                  onClick={() => playTrack(trending[heroSlide], trending)}
+                  className="px-8 py-3 bg-cyan-400 hover:bg-cyan-300 text-black font-bold rounded-full flex items-center gap-2 transition-all hover:scale-105 shadow-lg shadow-cyan-400/30"
+                >
+                  <Play size={18} fill="currentColor" className="ml-0.5" />
+                  Play Now
+                </button>
+              </div>
+            </div>
+
+            {/* Navigation Dots */}
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
+              {trending.slice(0, 5).map((_, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => setHeroSlide(idx)}
+                  className={`w-2 h-2 rounded-full transition-all ${heroSlide === idx ? 'bg-cyan-400 w-6' : 'bg-white/40 hover:bg-white/60'}`}
+                />
+              ))}
+            </div>
+
+            {/* Arrows */}
+            <button
+              onClick={() => setHeroSlide(prev => prev === 0 ? Math.min(4, trending.length - 1) : prev - 1)}
+              className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-black/50 hover:bg-black/70 rounded-full flex items-center justify-center text-white transition-all"
+            >
+              <ChevronLeft size={20} />
+            </button>
+            <button
+              onClick={() => setHeroSlide(prev => (prev + 1) % Math.min(5, trending.length))}
+              className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-black/50 hover:bg-black/70 rounded-full flex items-center justify-center text-white transition-all"
+            >
+              <ChevronRight size={20} />
+            </button>
+          </div>
+        )}
+
+        {/* Made for You - Premium Personalized Section */}
+        {user && madeForYou.length > 0 && (
+          <section className="relative">
+            {/* Premium gradient background */}
+            <div className="absolute inset-0 -mx-4 md:-mx-12 bg-gradient-to-br from-purple-500/5 via-cyan-500/5 to-pink-500/5 rounded-3xl blur-xl -z-10" />
+
+            <div className="flex items-center justify-between mb-4 md:mb-6">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-cyan-500 flex items-center justify-center shadow-lg shadow-purple-500/20">
+                  <Sparkles size={20} className="text-white" />
+                </div>
+                <div>
+                  <h2 className="text-lg md:text-xl font-bold text-[var(--foreground)]">
+                    Made for {userName || 'You'}
+                  </h2>
+                  <p className="text-[10px] md:text-xs text-[var(--foreground-muted)]">
+                    Fresh picks just for you • Updated daily ✨
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Premium song cards with larger images */}
+            <div className="flex gap-3 md:gap-4 overflow-x-auto pb-3 no-scrollbar -mx-4 px-4 md:mx-0 md:px-0 snap-x snap-mandatory">
+              {madeForYou.slice(0, 15).map((song: any, idx: number) => (
+                <div
+                  key={`mfy-${song.id || idx}`}
+                  onClick={() => playTrack(song, madeForYou)}
+                  className="group cursor-pointer w-[130px] md:w-[160px] flex-shrink-0 snap-start"
+                >
+                  <div className="relative aspect-square rounded-2xl overflow-hidden shadow-xl mb-2.5 ring-1 ring-white/5">
+                    <img
+                      src={getImg(song)}
+                      alt={getName(song)}
+                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                    />
+                    {/* Gradient overlay */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                    {/* Play button on hover */}
+                    <button className="absolute bottom-3 right-3 w-10 h-10 bg-cyan-400 rounded-full flex items-center justify-center shadow-lg shadow-cyan-500/30 opacity-0 scale-90 group-hover:opacity-100 group-hover:scale-100 transition-all">
+                      <Play size={18} fill="black" className="ml-0.5 text-black" />
+                    </button>
+                    {/* Recommendation reason badge */}
+                    {idx < 6 && (
+                      <div className="absolute top-2 left-2 px-2 py-0.5 bg-black/60 backdrop-blur-sm rounded-full">
+                        <span className="text-[8px] font-bold text-cyan-400 uppercase tracking-wider">
+                          {idx < 2 ? '🔥 Hot Pick' : idx < 4 ? '✨ For You' : '🎵 Similar'}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                  <h3 className="text-xs md:text-sm font-bold text-[var(--foreground)] truncate group-hover:text-cyan-400 transition-colors">{getName(song)}</h3>
+                  <p className="text-[10px] md:text-xs text-[var(--foreground-muted)] truncate">{getArtist(song)}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Nitro Mixes - Unique to our app (curated playlists) */}
         {user && nitroMixes.length > 0 && (
           <section>
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
-                <Sparkles size={18} className="text-cyan-400" />
-                <h2 className="text-lg md:text-xl font-bold text-[var(--foreground)]">Made for {userName || 'You'}</h2>
+                <Zap size={18} className="text-purple-400" />
+                <h2 className="text-lg md:text-xl font-bold text-[var(--foreground)]">Nitro Mixes</h2>
               </div>
               <button onClick={() => router.push('/playlists')} className="text-xs font-medium text-cyan-400 hover:underline">See all</button>
             </div>
@@ -602,6 +892,24 @@ export default function Home() {
             <div className="flex gap-3 md:gap-4 overflow-x-auto pb-2 no-scrollbar -mx-4 px-4 md:mx-0 md:px-0">
               {iconicHindi.slice(0, 15).map((song: any, idx: number) => (
                 <SongCard key={`hl-${song.id || song.songId || idx}`} song={song} queue={iconicHindi} getImg={getImg} getName={getName} getArtist={getArtist} playTrack={playTrack} />
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Punjabi Hits - Trending Punjabi Songs */}
+        {punjabiHits.length > 0 && (
+          <section className="bg-gradient-to-r from-yellow-500/5 via-amber-500/5 to-orange-500/5 -mx-4 md:-mx-6 lg:-mx-8 px-4 md:px-6 lg:px-8 py-6 rounded-none">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <span className="text-amber-400">🎤</span>
+                <h2 className="text-lg md:text-xl font-bold text-[var(--foreground)]">Punjabi hits</h2>
+              </div>
+              <button onClick={() => router.push('/section?title=punjabi+hits&q=diljit+dosanjh+sidhu+moose+wala+ap+dhillon+karan+aujla+guru+randhawa')} className="text-xs font-medium text-amber-400 hover:underline">See all</button>
+            </div>
+            <div className="flex gap-3 md:gap-4 overflow-x-auto pb-2 no-scrollbar">
+              {punjabiHits.slice(0, 15).map((song: any, idx: number) => (
+                <SongCard key={`pj-${song.id || song.songId || idx}`} song={song} queue={punjabiHits} getImg={getImg} getName={getName} getArtist={getArtist} playTrack={playTrack} />
               ))}
             </div>
           </section>

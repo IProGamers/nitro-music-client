@@ -55,6 +55,9 @@ interface PlayerContextType {
     // Smart Shuffle
     isSmartShuffle: boolean;
     toggleSmartShuffle: () => void;
+    // Listen Together - blocks listener controls
+    isListenerMode: boolean;
+    setListenerMode: (isListener: boolean) => void;
 }
 
 const PlayerContext = createContext<PlayerContextType | undefined>(undefined);
@@ -88,6 +91,7 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
     const [isShuffleOn, setIsShuffleOn] = useState(false);
     const [repeatMode, setRepeatMode] = useState<'off' | 'all' | 'one'>('off');
     const [isSmartShuffle, setIsSmartShuffle] = useState(false);
+    const [isListenerMode, setListenerMode] = useState(false);
     const recentlyPlayedRef = useRef<string[]>([]);
 
     // A-B Loop state
@@ -442,15 +446,29 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
         }
 
         if (newQueue) {
-            setQueue(newQueue);
-            setCurrentIndex(newQueue.findIndex(s => String(s.songId || s.id) === trackId));
+            // Check if this is the same queue (navigating within existing queue via next/prev)
+            // If same queue, don't reset the index - it's already set by next() or prev()
+            const isSameQueue = newQueue === queue || (
+                newQueue.length === queue.length &&
+                newQueue.length > 0 &&
+                String(newQueue[0]?.songId || newQueue[0]?.id) === String(queue[0]?.songId || queue[0]?.id)
+            );
+
+            if (!isSameQueue) {
+                // This is a genuinely new queue - update both queue and index
+                setQueue(newQueue);
+                const foundIndex = newQueue.findIndex(s => String(s.songId || s.id) === trackId);
+                setCurrentIndex(foundIndex >= 0 ? foundIndex : 0);
+            }
+            // If same queue, the queue and index are already correct - do nothing
         } else {
             // When playing a single song without a queue, auto-fetch similar songs
-            if (queue.length === 0 || queue[0]?.id !== song.id) {
+            // This only happens when directly clicking on a song (not from next/prev which pass queue)
+            if (queue.length === 0 || (queue.length === 1 && String(queue[0]?.songId || queue[0]?.id) !== trackId)) {
                 setQueue([song]);
                 setCurrentIndex(0);
 
-                // Fetch similar songs in the background and add to queue
+                // Fetch similar songs in the background and add to queue ONCE
                 const fetchSimilarSongs = async () => {
                     try {
                         const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
@@ -468,10 +486,13 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
                             );
 
                             if (similarSongs.length > 0) {
-                                // Add similar songs to queue after the current song
+                                // Only add similar songs if queue is still just the current song
+                                // This prevents duplicate additions
                                 setQueue(prev => {
-                                    const newQueue = [...prev, ...similarSongs];
-                                    return newQueue;
+                                    if (prev.length === 1) {
+                                        return [...prev, ...similarSongs];
+                                    }
+                                    return prev; // Don't modify if queue already populated
                                 });
                             }
                         }
@@ -532,9 +553,9 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
                     audioUrl: String(existingAudioUrl)
                 })
             }).then(res => {
-                if (!res.ok) console.error("Failed to save history:", res.statusText);
-                else console.log("Saved to history");
-            }).catch(e => console.error("History save error:", e));
+                // Server history is optional - Firebase is primary storage
+                if (res.ok) console.log("Saved to history");
+            }).catch(() => { /* Ignore - Firebase is primary storage */ });
 
             // Also save to Firebase for signed-in users
             if (user) {
@@ -587,9 +608,9 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
                             audioUrl: String(fullAudioUrl)
                         })
                     }).then(res => {
-                        if (!res.ok) console.error("Failed to save history:", res.statusText);
-                        else console.log("Saved to history");
-                    }).catch(e => console.error("History save error:", e));
+                        // Server history is optional - Firebase is primary storage
+                        if (res.ok) console.log("Saved to history");
+                    }).catch(() => { /* Ignore - Firebase is primary storage */ });
 
                     // Also save to Firebase for signed-in users
                     if (user) {
@@ -612,6 +633,11 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
     };
 
     const togglePlay = () => {
+        // Block listener controls in Listen Together rooms
+        if (isListenerMode) {
+            console.log('Playback controlled by room host');
+            return;
+        }
         setIsPlaying(!isPlaying);
     };
 
@@ -771,14 +797,24 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
         }
 
         setCurrentIndex(nextIdx);
-        playTrack(queue[nextIdx]);
+        // Pass the existing queue to prevent fetchSimilarSongs from modifying the queue
+        playTrack(queue[nextIdx], queue);
     };
 
     const prev = () => {
         if (queue.length === 0) return;
+
+        // If more than 3 seconds into the song, restart it instead of going to previous
+        if (audioRef.current && audioRef.current.currentTime > 3) {
+            audioRef.current.currentTime = 0;
+            return;
+        }
+
+        // Otherwise, go to previous track
         const prevIdx = (currentIndex - 1 + queue.length) % queue.length;
         setCurrentIndex(prevIdx);
-        playTrack(queue[prevIdx]);
+        // Pass the existing queue to prevent fetchSimilarSongs from modifying the queue
+        playTrack(queue[prevIdx], queue);
     };
 
     const seek = (time: number) => {
@@ -960,7 +996,9 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
             clearLoop,
             isLooping,
             isSmartShuffle,
-            toggleSmartShuffle
+            toggleSmartShuffle,
+            isListenerMode,
+            setListenerMode
         }}>
             {children}
             <audio

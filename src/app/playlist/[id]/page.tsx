@@ -6,20 +6,23 @@ import { usePlayer } from '@/context/PlayerContext';
 import {
     Play, Pause, Heart, Clock, MoreHorizontal,
     Trash2, Globe, Lock, Share2, ArrowLeft,
-    Edit2, Plus, Loader2, Music, Shuffle
+    Edit2, Plus, Loader2, Music, Shuffle, Download
 } from 'lucide-react';
+import { useOffline } from '@/context/OfflineContext';
 
 export default function PlaylistDetailPage() {
     const { id } = useParams();
     const router = useRouter();
     const { user, getPlaylist, updatePlaylist, removeSongFromPlaylist } = useAuth();
     const { playTrack, currentSong, isPlaying } = usePlayer();
+    const { downloadPlaylist, playlistDownloadProgress, isDownloaded } = useOffline();
     const [playlist, setPlaylist] = useState<Playlist | null>(null);
     const [loading, setLoading] = useState(true);
     const [isEditing, setIsEditing] = useState(false);
     const [editName, setEditName] = useState('');
     const [editDesc, setEditDesc] = useState('');
     const [editPublic, setEditPublic] = useState(false);
+    const [isDownloadingPlaylist, setIsDownloadingPlaylist] = useState(false);
 
     useEffect(() => {
         loadPlaylist();
@@ -82,6 +85,24 @@ export default function PlaylistDetailPage() {
         const shuffled = [...playlist.songs].sort(() => Math.random() - 0.5);
         playTrack(shuffled[0], shuffled);
     };
+
+    const handleDownloadPlaylist = async () => {
+        if (!playlist || playlist.songs.length === 0) return;
+
+        setIsDownloadingPlaylist(true);
+        try {
+            await downloadPlaylist(playlist.songs, playlist.name);
+        } catch (err) {
+            console.error('Failed to download playlist:', err);
+            alert('Failed to download some songs. Check your storage limit.');
+        } finally {
+            setIsDownloadingPlaylist(false);
+        }
+    };
+
+    // Check how many songs are already downloaded
+    const downloadedCount = playlist?.songs.filter(s => isDownloaded(s.id)).length || 0;
+    const allDownloaded = playlist && downloadedCount === playlist.songs.length;
 
     if (loading) {
         return (
@@ -178,6 +199,28 @@ export default function PlaylistDetailPage() {
                             title="Shuffle Play"
                         >
                             <Shuffle size={18} className="md:w-6 md:h-6" />
+                        </button>
+                        <button
+                            onClick={handleDownloadPlaylist}
+                            disabled={isDownloadingPlaylist || allDownloaded || playlist.songs.length === 0}
+                            className={`p-3.5 md:p-5 rounded-xl md:rounded-[2rem] transition-all hover:scale-110 active:scale-90 border border-[var(--border)] relative ${allDownloaded
+                                    ? 'bg-green-500/20 text-green-400 border-green-500/30'
+                                    : isDownloadingPlaylist
+                                        ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30'
+                                        : 'bg-[var(--card-hover)] hover:bg-[var(--border)] text-[var(--foreground)]'
+                                } ${isDownloadingPlaylist ? 'cursor-wait' : ''}`}
+                            title={allDownloaded ? 'All songs downloaded' : isDownloadingPlaylist ? `Downloading ${playlistDownloadProgress?.current || 0}/${playlistDownloadProgress?.total || 0}` : 'Download playlist for offline'}
+                        >
+                            {isDownloadingPlaylist ? (
+                                <div className="relative">
+                                    <Loader2 size={18} className="md:w-6 md:h-6 animate-spin" />
+                                    <span className="absolute -bottom-5 left-1/2 -translate-x-1/2 text-[10px] font-bold whitespace-nowrap">
+                                        {playlistDownloadProgress?.current}/{playlistDownloadProgress?.total}
+                                    </span>
+                                </div>
+                            ) : (
+                                <Download size={18} className="md:w-6 md:h-6" />
+                            )}
                         </button>
                         {isOwner && (
                             <button

@@ -58,7 +58,14 @@ export default function AuthPage() {
     // Redirect if already logged in
     useEffect(() => {
         if (user && !loading) {
-            router.push('/profile');
+            // Check if there's a pending room to join
+            const pendingRoom = localStorage.getItem('pendingRoomJoin');
+            if (pendingRoom) {
+                localStorage.removeItem('pendingRoomJoin');
+                router.push(`/join/${pendingRoom}`);
+            } else {
+                router.push('/profile');
+            }
         }
     }, [user, loading, router]);
 
@@ -80,7 +87,14 @@ export default function AuthPage() {
             } else {
                 await signIn(email, password);
             }
-            router.push('/profile');
+            // Check for pending room
+            const pendingRoom = localStorage.getItem('pendingRoomJoin');
+            if (pendingRoom) {
+                localStorage.removeItem('pendingRoomJoin');
+                router.push(`/join/${pendingRoom}`);
+            } else {
+                router.push('/profile');
+            }
         } catch (err: any) {
             setLocalError(err.message || 'Authentication failed');
         } finally {
@@ -92,7 +106,14 @@ export default function AuthPage() {
         setLocalError(null);
         try {
             await signInWithGoogle();
-            router.push('/profile');
+            // Check for pending room
+            const pendingRoom = localStorage.getItem('pendingRoomJoin');
+            if (pendingRoom) {
+                localStorage.removeItem('pendingRoomJoin');
+                router.push(`/join/${pendingRoom}`);
+            } else {
+                router.push('/profile');
+            }
         } catch (err: any) {
             setLocalError(err.message || 'Google sign-in failed');
         }

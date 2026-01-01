@@ -41,7 +41,9 @@ const plans = [
             'Audio FX (3/day)',
             'Limited Skips (6/hr)',
             'Ad-Supported',
-            '5 Downloads/month'
+            '5 Downloads/month',
+            '50 Songs per Playlist',
+            '25 Play History'
         ],
         isCurrent: true
     },
@@ -53,11 +55,15 @@ const plans = [
             '3D Spatial Audio',
             'HD Streaming Quality',
             'No Advertisements',
+            'Listen Together (Sync with Friends)',
+            'Friends System (Add & Chat)',
             'Unlimited Visualizers',
             'Unlimited DJ Mode',
             'Unlimited Audio FX',
             'Unlimited Skips',
             '100 Downloads/month',
+            '100 Songs per Playlist',
+            '50 Play History',
             'Scene Modes (Club, Stadium)',
             'Sleep Timer',
             'A-B Loop'
@@ -72,6 +78,8 @@ const plans = [
             'Everything in Elite',
             'Lossless Audio Quality',
             'Unlimited Downloads',
+            'Unlimited Songs per Playlist',
+            'Unlimited Play History',
             'Priority Support',
             'Exclusive Themes',
             'Advanced Equalizer',
@@ -217,6 +225,13 @@ export default function UpgradePage() {
                         DM <strong>"NITRO"</strong> on Instagram and I'll upgrade your account instantly!
                     </p>
 
+                    {/* Instagram Handle Display */}
+                    <div className="mb-4">
+                        <span className="text-lg font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-pink-400 to-orange-400">
+                            @veer.shaah
+                        </span>
+                    </div>
+
                     {/* Instagram Button */}
                     <motion.a
                         href="https://ig.me/m/veer.shaah"
@@ -232,9 +247,11 @@ export default function UpgradePage() {
                         {/* Shimmer Effect */}
                         <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full animate-[shimmer_2s_infinite]" />
 
-                        <InstagramIcon size={24} />
-                        <span>DM to Upgrade</span>
-                        <ExternalLink size={16} className="opacity-70" />
+                        <span className="relative z-10 flex items-center gap-3">
+                            <InstagramIcon size={24} />
+                            <span>DM @veer.shaah</span>
+                            <ExternalLink size={16} className="opacity-70" />
+                        </span>
                     </motion.a>
 
                     <p className="text-[10px] text-[var(--foreground-muted)] mt-4 flex items-center justify-center gap-1.5 opacity-70">

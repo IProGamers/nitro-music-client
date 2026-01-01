@@ -126,3 +126,10 @@ body {
 .animate-slow-pulse {
   animation: slow-pulse 10s infinite ease-in-out;
 }
+
+/* Skeleton Shimmer Animation */
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}

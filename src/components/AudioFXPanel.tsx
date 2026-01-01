@@ -5,7 +5,8 @@ import { useSettings } from '@/context/SettingsContext';
 import {
     X, Waves, Mic, MicOff, Vibrate, Moon, Timer, Shuffle, Eye,
     BarChart3, Radio, Music2, CloudRain, Mountain, Sparkles,
-    Volume2, Disc, CircleDot, PartyPopper, Droplets, Circle, Lock, Crown, Gauge
+    Volume2, Disc, CircleDot, PartyPopper, Droplets, Circle, Lock, Crown, Gauge,
+    Car, Home, TreePine, Theater, Music
 } from 'lucide-react';
 
 interface AudioFXPanelProps {
@@ -21,6 +22,11 @@ const SCENE_MODES: { id: SceneMode; name: string; icon: React.ReactNode; descrip
     { id: 'concert', name: 'Concert', icon: <Sparkles size={20} />, description: 'Live acoustics', color: 'text-cyan-400' },
     { id: 'underwater', name: 'Underwater', icon: <Droplets size={20} />, description: 'Submerged sound', color: 'text-blue-400' },
     { id: 'cave', name: 'Cave', icon: <Mountain size={20} />, description: 'Echo chamber', color: 'text-emerald-400' },
+    { id: 'jazz_club', name: 'Jazz Club', icon: <Music size={20} />, description: 'Intimate jazz mood', color: 'text-yellow-400' },
+    { id: 'bedroom', name: 'Bedroom', icon: <Home size={20} />, description: 'Cozy late night', color: 'text-pink-400' },
+    { id: 'car', name: 'Car Audio', icon: <Car size={20} />, description: 'Punchy bass', color: 'text-red-400' },
+    { id: 'forest', name: 'Forest', icon: <TreePine size={20} />, description: 'Natural ambience', color: 'text-green-400' },
+    { id: 'theater', name: 'Theater', icon: <Theater size={20} />, description: 'Surround sound', color: 'text-teal-400' },
 ];
 
 const VOCAL_MODES: { id: VocalMode; name: string; icon: React.ReactNode; description: string }[] = [
@@ -31,11 +37,13 @@ const VOCAL_MODES: { id: VocalMode; name: string; icon: React.ReactNode; descrip
 ];
 
 const SLEEP_OPTIONS = [
+    { minutes: 5, label: '5 min' },
     { minutes: 15, label: '15 min' },
     { minutes: 30, label: '30 min' },
     { minutes: 45, label: '45 min' },
     { minutes: 60, label: '1 hour' },
     { minutes: 90, label: '1.5 hours' },
+    { minutes: -1, label: 'Custom' }, // -1 indicates custom input
 ];
 
 const VISUALIZER_STYLES = [
@@ -56,11 +64,13 @@ export default function AudioFXPanel({ isOpen, onClose }: AudioFXPanelProps) {
         visualizerEnabled, setVisualizerEnabled,
         visualizerStyle, setVisualizerStyle, visualizerIntensity, setVisualizerIntensity,
         vocalSettings, setVocalSettings,
-        normalizerEnabled, setNormalizerEnabled
+        normalizerEnabled, setNormalizerEnabled,
+        equalizerSettings, setEqualizerSettings
     } = useAudioFX();
 
     const { tier } = useSettings();
     const [activeTab, setActiveTab] = useState<'scene' | 'vocal' | 'effects' | 'visualizer' | 'timer'>('scene');
+    const [customTimerMinutes, setCustomTimerMinutes] = useState<string>('10'); // For custom timer input
 
     // Feature access by tier
     const isEliteOrAbove = tier === 'NITRO_ELITE' || tier === 'NITRO_SUPREME';
@@ -88,7 +98,7 @@ export default function AudioFXPanel({ isOpen, onClose }: AudioFXPanelProps) {
     return (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-2xl z-[150] flex items-stretch md:items-center justify-center">
             <div
-                className="bg-[var(--background)] w-full md:w-[480px] md:h-auto md:max-h-[85vh] h-screen md:rounded-3xl rounded-none border border-[var(--border)] overflow-hidden animate-in fade-in zoom-in slide-in-from-top-4 duration-500 shadow-2xl"
+                className="bg-[var(--background)] w-full md:w-[480px] md:h-auto md:max-h-[85vh] h-screen md:rounded-3xl rounded-none border border-[var(--border)] flex flex-col animate-in fade-in zoom-in slide-in-from-top-4 duration-500 shadow-2xl"
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* Header */}
@@ -152,7 +162,7 @@ export default function AudioFXPanel({ isOpen, onClose }: AudioFXPanelProps) {
                 </div>
 
                 {/* Content */}
-                <div className="p-6 h-full overflow-y-auto pb-32">
+                <div className="p-6 flex-1 overflow-y-auto pb-32">
                     {/* Scene Modes */}
                     {activeTab === 'scene' && (
                         <div className="space-y-4">
@@ -443,6 +453,94 @@ export default function AudioFXPanel({ isOpen, onClose }: AudioFXPanelProps) {
                                     </div>
                                 )}
                             </div>
+
+                            {/* Manual Equalizer - Supreme Only */}
+                            <div className={`p-4 rounded-2xl relative ${isSupreme ? 'bg-[var(--card)]' : 'bg-[var(--card)] opacity-60'}`}>
+                                {!isSupreme && (
+                                    <div className="absolute top-2 right-2 flex items-center gap-1.5 px-2 py-1 bg-purple-500/20 rounded-full">
+                                        <Lock size={10} className="text-purple-400" />
+                                        <span className="text-[9px] font-bold text-purple-400">SUPREME</span>
+                                    </div>
+                                )}
+                                <div className="flex items-center gap-3 mb-4">
+                                    <div className="p-2 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-xl">
+                                        <Waves size={18} className="text-white" />
+                                    </div>
+                                    <div>
+                                        <p className="font-bold text-[var(--foreground)] text-sm">Manual Equalizer</p>
+                                        <p className="text-[10px] text-[var(--foreground-muted)]">Adjust bass, mid and treble in real-time</p>
+                                    </div>
+                                </div>
+
+                                {isSupreme ? (
+                                    <div className="space-y-4">
+                                        {/* Bass */}
+                                        <div>
+                                            <div className="flex justify-between text-xs text-[var(--foreground-muted)] mb-2 font-bold uppercase tracking-wider">
+                                                <span className="flex items-center gap-1">Bass</span>
+                                                <span className={equalizerSettings.bass > 0 ? 'text-cyan-400' : equalizerSettings.bass < 0 ? 'text-red-400' : 'text-[var(--foreground-muted)]'}>
+                                                    {equalizerSettings.bass > 0 ? '+' : ''}{equalizerSettings.bass} dB
+                                                </span>
+                                            </div>
+                                            <input
+                                                type="range"
+                                                min="-12" max="12" step="1"
+                                                value={equalizerSettings.bass}
+                                                onChange={(e) => setEqualizerSettings({ ...equalizerSettings, bass: Number(e.target.value) })}
+                                                className="w-full h-2 bg-[var(--background)] rounded-lg appearance-none cursor-pointer accent-cyan-400"
+                                            />
+                                        </div>
+
+                                        {/* Mid */}
+                                        <div>
+                                            <div className="flex justify-between text-xs text-[var(--foreground-muted)] mb-2 font-bold uppercase tracking-wider">
+                                                <span className="flex items-center gap-1">Mid</span>
+                                                <span className={equalizerSettings.mid > 0 ? 'text-green-400' : equalizerSettings.mid < 0 ? 'text-red-400' : 'text-[var(--foreground-muted)]'}>
+                                                    {equalizerSettings.mid > 0 ? '+' : ''}{equalizerSettings.mid} dB
+                                                </span>
+                                            </div>
+                                            <input
+                                                type="range"
+                                                min="-12" max="12" step="1"
+                                                value={equalizerSettings.mid}
+                                                onChange={(e) => setEqualizerSettings({ ...equalizerSettings, mid: Number(e.target.value) })}
+                                                className="w-full h-2 bg-[var(--background)] rounded-lg appearance-none cursor-pointer accent-green-400"
+                                            />
+                                        </div>
+
+                                        {/* Treble */}
+                                        <div>
+                                            <div className="flex justify-between text-xs text-[var(--foreground-muted)] mb-2 font-bold uppercase tracking-wider">
+                                                <span className="flex items-center gap-1">Treble</span>
+                                                <span className={equalizerSettings.treble > 0 ? 'text-purple-400' : equalizerSettings.treble < 0 ? 'text-red-400' : 'text-[var(--foreground-muted)]'}>
+                                                    {equalizerSettings.treble > 0 ? '+' : ''}{equalizerSettings.treble} dB
+                                                </span>
+                                            </div>
+                                            <input
+                                                type="range"
+                                                min="-12" max="12" step="1"
+                                                value={equalizerSettings.treble}
+                                                onChange={(e) => setEqualizerSettings({ ...equalizerSettings, treble: Number(e.target.value) })}
+                                                className="w-full h-2 bg-[var(--background)] rounded-lg appearance-none cursor-pointer accent-purple-400"
+                                            />
+                                        </div>
+
+                                        {/* Reset button */}
+                                        <button
+                                            onClick={() => setEqualizerSettings({ bass: 0, mid: 0, treble: 0 })}
+                                            className="w-full mt-2 py-2 text-xs text-[var(--foreground-muted)] hover:text-[var(--foreground)] transition-colors"
+                                        >
+                                            Reset to flat
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div className="text-center py-4">
+                                        <a href="/upgrade" className="px-4 py-2 bg-gradient-to-r from-cyan-500 to-purple-500 text-white text-sm font-bold rounded-full inline-flex items-center gap-2">
+                                            <Crown size={14} /> Unlock Equalizer
+                                        </a>
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     )}
 
@@ -583,16 +681,43 @@ export default function AudioFXPanel({ isOpen, onClose }: AudioFXPanelProps) {
                                             </button>
                                         </div>
                                     ) : (
-                                        <div className="grid grid-cols-2 gap-3">
+                                        <div className="grid grid-cols-3 gap-3">
                                             {SLEEP_OPTIONS.map(option => (
-                                                <button
-                                                    key={option.minutes}
-                                                    onClick={() => setSleepTimer(option.minutes)}
-                                                    className="p-4 bg-[var(--card)] hover:bg-[var(--card-hover)] rounded-2xl border border-[var(--border)] transition-colors"
-                                                >
-                                                    <Timer size={20} className="text-indigo-400 mb-2" />
-                                                    <p className="font-bold text-[var(--foreground)]">{option.label}</p>
-                                                </button>
+                                                option.minutes === -1 ? (
+                                                    // Custom timer input
+                                                    <div key="custom" className="p-3 bg-[var(--card)] rounded-2xl border border-[var(--border)]">
+                                                        <Timer size={18} className="text-indigo-400 mb-2" />
+                                                        <div className="flex items-center gap-1">
+                                                            <input
+                                                                type="number"
+                                                                min="1"
+                                                                max="480"
+                                                                value={customTimerMinutes}
+                                                                onChange={(e) => setCustomTimerMinutes(e.target.value)}
+                                                                className="w-12 h-8 bg-[var(--background)] border border-[var(--border)] rounded-lg text-center text-sm font-bold text-[var(--foreground)] outline-none focus:border-indigo-400"
+                                                            />
+                                                            <span className="text-xs text-[var(--foreground-muted)]">min</span>
+                                                        </div>
+                                                        <button
+                                                            onClick={() => {
+                                                                const mins = parseInt(customTimerMinutes);
+                                                                if (mins >= 1) setSleepTimer(mins);
+                                                            }}
+                                                            className="mt-2 w-full py-1.5 bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-400 rounded-lg text-xs font-bold transition-colors"
+                                                        >
+                                                            Set
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <button
+                                                        key={option.minutes}
+                                                        onClick={() => setSleepTimer(option.minutes)}
+                                                        className="p-3 bg-[var(--card)] hover:bg-[var(--card-hover)] rounded-2xl border border-[var(--border)] transition-colors"
+                                                    >
+                                                        <Timer size={18} className="text-indigo-400 mb-1" />
+                                                        <p className="font-bold text-[var(--foreground)] text-sm">{option.label}</p>
+                                                    </button>
+                                                )
                                             ))}
                                         </div>
                                     )}

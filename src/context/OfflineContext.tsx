@@ -29,12 +29,14 @@ interface OfflineContextType {
     downloadedIds: Set<string>;
     isDownloaded: (id: string) => boolean;
     downloadSong: (song: any) => Promise<void>;
+    downloadPlaylist: (songs: any[], playlistName: string) => Promise<void>;
     removeSong: (id: string) => Promise<void>;
     clearAllDownloads: () => Promise<void>;
     getOfflineAudioUrl: (id: string) => Promise<string | null>;
     downloadProgress: number; // 0-100
     isDownloading: boolean;
     currentDownloadId: string | null;
+    playlistDownloadProgress: { current: number; total: number; name: string } | null;
     storageUsed: number; // bytes
     storageLimit: number; // bytes
     refreshDownloads: () => Promise<void>;
@@ -50,6 +52,7 @@ export function OfflineProvider({ children }: { children: ReactNode }) {
     const [isDownloading, setIsDownloading] = useState(false);
     const [currentDownloadId, setCurrentDownloadId] = useState<string | null>(null);
     const [storageUsed, setStorageUsed] = useState(0);
+    const [playlistDownloadProgress, setPlaylistDownloadProgress] = useState<{ current: number; total: number; name: string } | null>(null);
 
     // Get storage limit based on tier
     const storageLimit = DOWNLOAD_STORAGE_LIMITS[tier as keyof typeof DOWNLOAD_STORAGE_LIMITS] || DOWNLOAD_STORAGE_LIMITS.NITRO_CORE;
@@ -209,18 +212,63 @@ export function OfflineProvider({ children }: { children: ReactNode }) {
         }
     }, []);
 
+    // Download entire playlist
+    const downloadPlaylist = useCallback(async (songs: any[], playlistName: string) => {
+        if (!songs || songs.length === 0) {
+            throw new Error('No songs to download');
+        }
+
+        // Filter out already downloaded songs
+        const songsToDownload = songs.filter(song => !downloadedIds.has(String(song.id)));
+
+        if (songsToDownload.length === 0) {
+            console.log('All songs already downloaded');
+            return;
+        }
+
+        setPlaylistDownloadProgress({ current: 0, total: songsToDownload.length, name: playlistName });
+
+        let successCount = 0;
+        let failCount = 0;
+
+        for (let i = 0; i < songsToDownload.length; i++) {
+            const song = songsToDownload[i];
+            setPlaylistDownloadProgress({ current: i + 1, total: songsToDownload.length, name: playlistName });
+
+            try {
+                // Check storage before each download
+                if (storageLimit !== -1 && storageUsed >= storageLimit) {
+                    console.warn('Storage limit reached, stopping playlist download');
+                    break;
+                }
+
+                await downloadSong(song);
+                successCount++;
+            } catch (err) {
+                console.error(`Failed to download song ${song.name}:`, err);
+                failCount++;
+                // Continue with next song instead of stopping
+            }
+        }
+
+        setPlaylistDownloadProgress(null);
+        console.log(`Playlist download complete: ${successCount} succeeded, ${failCount} failed`);
+    }, [downloadedIds, downloadSong, storageLimit, storageUsed]);
+
     return (
         <OfflineContext.Provider value={{
             downloads,
             downloadedIds,
             isDownloaded,
             downloadSong,
+            downloadPlaylist,
             removeSong: removeSongHandler,
             clearAllDownloads: clearAllHandler,
             getOfflineAudioUrl,
             downloadProgress,
             isDownloading,
             currentDownloadId,
+            playlistDownloadProgress,
             storageUsed,
             storageLimit: storageLimit,
             refreshDownloads

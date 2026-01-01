@@ -2,7 +2,7 @@
 import React, { createContext, useContext, useState, useRef, useEffect, useCallback } from 'react';
 
 // Audio Effect Types
-export type SceneMode = 'none' | 'stadium' | 'lofi' | 'club' | 'concert' | 'underwater' | 'cave';
+export type SceneMode = 'none' | 'stadium' | 'lofi' | 'club' | 'concert' | 'underwater' | 'cave' | 'jazz_club' | 'bedroom' | 'car' | 'forest' | 'theater';
 export type VocalMode = 'normal' | 'reduced' | 'karaoke' | 'bass_boost';
 
 interface AudioFXContextType {
@@ -50,6 +50,10 @@ interface AudioFXContextType {
     normalizerEnabled: boolean;
     setNormalizerEnabled: (enabled: boolean) => void;
 
+    // Manual Equalizer
+    equalizerSettings: { bass: number; mid: number; treble: number };
+    setEqualizerSettings: (settings: { bass: number; mid: number; treble: number }) => void;
+
     // Audio Analysis
     frequencyData: Uint8Array | null;
     analyserNode: AnalyserNode | null;
@@ -89,7 +93,7 @@ export const AudioFXProvider = ({ children }: { children: React.ReactNode }) => 
     const [sleepTimerRemaining, setSleepTimerRemaining] = useState<number | null>(null);
     const [crossfadeEnabled, setCrossfadeEnabled] = useState(false);
     const [crossfadeDuration, setCrossfadeDuration] = useState(5);
-    const [visualizerEnabled, setVisualizerEnabled] = useState(true);
+    const [visualizerEnabled, setVisualizerEnabled] = useState(false);
     const [visualizerStyle, setVisualizerStyle] = useState<'bars' | 'wave' | 'circle' | 'particles' | 'spectrum'>('wave');
     const [visualizerIntensity, setVisualizerIntensity] = useState(1);
     const [analyserNode, setAnalyserNode] = useState<AnalyserNode | null>(null);
@@ -104,6 +108,13 @@ export const AudioFXProvider = ({ children }: { children: React.ReactNode }) => 
         presence: 1
     });
 
+    // Manual Equalizer Settings (bass/mid/treble in dB)
+    const [equalizerSettings, setEqualizerSettingsState] = useState({
+        bass: 0,
+        mid: 0,
+        treble: 0
+    });
+
     // Refs for audio nodes
     const audioContextRef = useRef<AudioContext | null>(null);
     const analyserRef = useRef<AnalyserNode | null>(null);
@@ -113,6 +124,18 @@ export const AudioFXProvider = ({ children }: { children: React.ReactNode }) => 
     const compressorRef = useRef<DynamicsCompressorNode | null>(null);
     const sleepIntervalRef = useRef<NodeJS.Timeout | null>(null);
     const hapticIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+    // Equalizer setter - applies to biquad filters in real-time
+    const setEqualizerSettings = useCallback((settings: { bass: number; mid: number; treble: number }) => {
+        setEqualizerSettingsState(settings);
+        if (biquadFiltersRef.current.length >= 3) {
+            const [lowFilter, midFilter, highFilter] = biquadFiltersRef.current;
+            lowFilter.gain.value = settings.bass;
+            midFilter.gain.value = settings.mid;
+            highFilter.gain.value = settings.treble;
+        }
+    }, []);
+
 
     // Load settings from localStorage
     useEffect(() => {
@@ -393,6 +416,36 @@ export const AudioFXProvider = ({ children }: { children: React.ReactNode }) => 
                 midFilter.gain.value = 6;
                 convolver.buffer = createImpulseResponse(ctx, 4.0, 0.8);
                 break;
+            case 'jazz_club':
+                lowFilter.gain.value = 4;
+                midFilter.gain.value = 3;
+                highFilter.gain.value = 2;
+                convolver.buffer = createImpulseResponse(ctx, 1.2, 3.5);
+                break;
+            case 'bedroom':
+                lowFilter.gain.value = 2;
+                midFilter.gain.value = -2;
+                highFilter.gain.value = -3;
+                convolver.buffer = createImpulseResponse(ctx, 0.3, 6);
+                break;
+            case 'car':
+                lowFilter.gain.value = 8;
+                midFilter.gain.value = 4;
+                highFilter.gain.value = 5;
+                convolver.buffer = createImpulseResponse(ctx, 0.15, 8);
+                break;
+            case 'forest':
+                lowFilter.gain.value = 3;
+                midFilter.gain.value = 1;
+                highFilter.gain.value = 4;
+                convolver.buffer = createImpulseResponse(ctx, 2.5, 1.8);
+                break;
+            case 'theater':
+                lowFilter.gain.value = 4;
+                midFilter.gain.value = 2;
+                highFilter.gain.value = 3;
+                convolver.buffer = createImpulseResponse(ctx, 3.0, 1.5);
+                break;
             case 'none':
             default:
                 // Just dry signal (already handled by gains above)
@@ -489,7 +542,9 @@ export const AudioFXProvider = ({ children }: { children: React.ReactNode }) => 
             analyserNode,
             connectAudioSource,
             normalizerEnabled,
-            setNormalizerEnabled
+            setNormalizerEnabled,
+            equalizerSettings,
+            setEqualizerSettings
         }}>
             {children}
         </AudioFXContext.Provider>

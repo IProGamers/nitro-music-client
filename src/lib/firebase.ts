@@ -3,6 +3,22 @@ import { getAuth, GoogleAuthProvider, GithubAuthProvider } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getAnalytics, isSupported } from "firebase/analytics";
 
+// Suppress Firestore quota exceeded errors from console
+// These errors spam the console when quota is exceeded but users can't do anything about them
+if (typeof window !== 'undefined') {
+    const originalConsoleError = console.error;
+    console.error = (...args: any[]) => {
+        // Filter out Firebase quota exceeded errors
+        const message = args.join(' ');
+        if (message.includes('resource-exhausted') ||
+            message.includes('Quota exceeded') ||
+            message.includes('maximum backoff delay')) {
+            return; // Silently ignore
+        }
+        originalConsoleError.apply(console, args);
+    };
+}
+
 // Your web app's Firebase configuration
 // Uses environment variables for security, falls back to hardcoded values for development
 const firebaseConfig = {

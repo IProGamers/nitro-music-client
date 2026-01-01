@@ -1,16 +1,26 @@
 "use client"
 import Link from 'next/link';
-import { Home, Search, User, Menu, X, Shield, LogIn, LogOut, Clock, ListMusic } from 'lucide-react';
+import { Home, Search, User, Menu, X, Shield, LogIn, LogOut, Clock, ListMusic, Users, Headphones, Zap } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { useSettings } from '@/context/SettingsContext';
 import { useAuth } from '@/context/AuthContext';
+import { useFriends } from '@/context/FriendsContext';
+import { useRoom } from '@/context/RoomContext';
+import FriendsPanel from './FriendsPanel';
+import ListenTogetherPanel from './ListenTogetherPanel';
 
 export default function Sidebar() {
     const pathname = usePathname();
     const [isOpen, setIsOpen] = useState(false);
     const { isAdmin } = useSettings();
     const { user, userProfile, signOut, loading } = useAuth();
+    const { pendingRequests, canUseListenTogether } = useFriends();
+    const { activeRoom, isInRoom } = useRoom();
+
+    // Panel state
+    const [showFriendsPanel, setShowFriendsPanel] = useState(false);
+    const [showListenTogether, setShowListenTogether] = useState(false);
 
     // Use state for hydration-safe client-side values
     const [mounted, setMounted] = useState(false);
@@ -45,6 +55,9 @@ export default function Sidebar() {
             console.error('Sign out error:', err);
         }
     };
+
+    // Has notifications for friends (requests)
+    const hasNotifications = pendingRequests.length > 0;
 
     return (
         <>
@@ -88,6 +101,49 @@ export default function Sidebar() {
                             </Link>
                         )
                     })}
+
+                    {/* Divider */}
+                    {user && (
+                        <>
+                            <div className="my-3 border-t border-[var(--border)]" />
+                            <p className="px-4 text-[10px] font-bold uppercase tracking-widest text-[var(--foreground-muted)] mb-2">
+                                Social
+                            </p>
+
+                            {/* Friends Button */}
+                            <button
+                                onClick={() => setShowFriendsPanel(true)}
+                                className="flex items-center gap-3.5 px-4 py-2.5 rounded-lg transition-all duration-200 group relative text-[var(--foreground-secondary)] hover:text-[var(--foreground)] hover:bg-[var(--card)] font-medium w-full text-left"
+                            >
+                                <Users size={18} className="text-[var(--foreground-muted)] group-hover:text-[var(--foreground)] transition-colors" />
+                                <span className="text-sm tracking-wide">Friends</span>
+                                {hasNotifications && (
+                                    <span className="ml-auto w-2 h-2 bg-cyan-500 rounded-full animate-pulse" />
+                                )}
+                            </button>
+
+                            {/* Listen Together Button */}
+                            <button
+                                onClick={() => setShowListenTogether(true)}
+                                className={`flex items-center gap-3.5 px-4 py-2.5 rounded-lg transition-all duration-200 group relative font-medium w-full text-left ${activeRoom
+                                    ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20'
+                                    : 'text-[var(--foreground-secondary)] hover:text-[var(--foreground)] hover:bg-[var(--card)]'
+                                    }`}
+                            >
+                                <Headphones size={18} className={`transition-colors ${activeRoom ? 'text-purple-400' : 'text-[var(--foreground-muted)] group-hover:text-[var(--foreground)]'
+                                    }`} />
+                                <span className="text-sm tracking-wide">Listen Together</span>
+                                {!canUseListenTogether && (
+                                    <span className="ml-auto text-[10px] px-1.5 py-0.5 bg-purple-500/20 text-purple-400 rounded flex items-center gap-0.5">
+                                        <Zap size={10} /> Elite
+                                    </span>
+                                )}
+                                {activeRoom && (
+                                    <span className="ml-auto w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                                )}
+                            </button>
+                        </>
+                    )}
                 </nav>
 
                 {/* User Section at Bottom */}
@@ -152,6 +208,13 @@ export default function Sidebar() {
                     )
                 })}
             </div>
+
+            {/* Friends Panel Modal */}
+            <FriendsPanel isOpen={showFriendsPanel} onClose={() => setShowFriendsPanel(false)} />
+
+            {/* Listen Together Panel Modal */}
+            <ListenTogetherPanel isOpen={showListenTogether} onClose={() => setShowListenTogether(false)} />
         </>
     )
 }
+

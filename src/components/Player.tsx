@@ -6,7 +6,7 @@ import { useAuth } from '@/context/AuthContext';
 import {
     Play, Pause, SkipBack, SkipForward, Download, Heart,
     ChevronDown, Headphones, Volume2, VolumeX, ListMusic,
-    Maximize2, Share2, Repeat, Shuffle, Sparkles, Wand2, Moon, ListPlus, Repeat1, Radio, Eye, Mic2, Check, Trash2, Loader
+    Maximize2, Share2, Repeat, Shuffle, Sparkles, Wand2, Moon, ListPlus, Repeat1, Radio, Eye, Check, Trash2, Loader
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import AudioFXPanel from './AudioFXPanel';
@@ -58,7 +58,6 @@ export default function Player() {
     const [showVisualizer, setShowVisualizer] = useState(false);
     const [isMuted, setIsMuted] = useState(false);
     const [lastVolume, setLastVolume] = useState(1);
-    const [showLyrics, setShowLyrics] = useState(false); // Added missing state
 
     const toggleMute = () => {
         if (isMuted) {
@@ -255,27 +254,44 @@ export default function Player() {
                 onClick={() => setIsExpanded(true)}
                 className={`fixed bottom-16 md:bottom-0 left-0 md:left-64 w-full md:w-[calc(100%-256px)] h-16 md:h-24 bg-[var(--background)]/95 backdrop-blur-2xl border-t border-[var(--border)] flex items-center px-4 md:px-8 z-[60] cursor-pointer transition-all duration-500 hover:bg-[var(--card-hover)] group ${(isExpanded || showFXPanel) ? 'translate-y-[200%] opacity-0' : 'translate-y-0 opacity-100'}`}
             >
-                {/* Audio Visualizer Bar */}
-                <div className="absolute bottom-full left-0 w-full h-8 overflow-hidden pointer-events-none opacity-50">
-                    <AudioVisualizer height={32} className="opacity-70" />
-                </div>
-
-                {/* Global Seek Bar on top for total continuity */}
-                <div className="absolute top-0 left-0 w-full h-[3px] bg-[var(--border)] group-hover:h-1 transition-all">
+                {/* Global Seek Bar on top - Touch Interactive */}
+                <div
+                    className="absolute top-0 left-0 w-full h-2 md:h-[3px] bg-[var(--border)] group-hover:h-2 transition-all cursor-pointer touch-none"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        const percent = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+                        seek(percent * (duration || 0));
+                    }}
+                    onTouchStart={(e) => {
+                        e.stopPropagation();
+                        const touch = e.touches[0];
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        const percent = Math.max(0, Math.min(1, (touch.clientX - rect.left) / rect.width));
+                        seek(percent * (duration || 0));
+                    }}
+                    onTouchMove={(e) => {
+                        e.stopPropagation();
+                        const touch = e.touches[0];
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        const percent = Math.max(0, Math.min(1, (touch.clientX - rect.left) / rect.width));
+                        seek(percent * (duration || 0));
+                    }}
+                >
                     <div
-                        className="h-full bg-cyan-400 relative"
+                        className="h-full bg-gradient-to-r from-cyan-400 to-cyan-500 relative transition-all duration-100"
                         style={{ width: `${(progress / (duration || 1)) * 100}%` }}
                     >
-                        <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-[var(--foreground)] rounded-full opacity-0 group-hover:opacity-100 shadow-[0_0_10px_white]" />
+                        <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 md:w-2 md:h-2 bg-[var(--foreground)] rounded-full opacity-100 md:opacity-0 group-hover:opacity-100 shadow-[0_0_10px_white] transition-opacity" />
                     </div>
                 </div>
 
-                {/* Left Side: Track Info */}
-                <div className="flex items-center gap-3 md:gap-4 flex-1 md:flex-initial md:w-[320px] min-w-0">
+                {/* Left Side: Track Info - Hidden on mobile for centered layout */}
+                <div className="hidden md:flex items-center gap-4 flex-initial w-[320px] min-w-0">
                     <div className="relative group/art shrink-0">
                         <img
                             src={getImg(currentSong)}
-                            className="w-10 h-10 md:w-16 md:h-16 rounded-xl object-cover shadow-2xl border border-[var(--border)] group-hover/art:scale-105 transition-transform duration-500"
+                            className="w-16 h-16 rounded-xl object-cover shadow-2xl border border-[var(--border)] group-hover/art:scale-105 transition-transform duration-500"
                         />
                         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/art:opacity-100 flex items-center justify-center rounded-xl transition-opacity">
                             <Maximize2 size={16} className="text-white" />
@@ -288,68 +304,90 @@ export default function Player() {
                         )}
                     </div>
                     <div className="flex-1 overflow-hidden min-w-0">
-                        <h3 className="font-bold text-xs md:text-lg text-[var(--foreground)] truncate leading-tight group-hover:text-cyan-400 transition-colors uppercase tracking-tighter">
+                        <h3 className="font-bold text-lg text-[var(--foreground)] truncate leading-tight group-hover:text-cyan-400 transition-colors uppercase tracking-tighter">
                             {decodeHtml(currentSong.name)}
                         </h3>
                         <div className="flex items-center gap-2">
-                            <p className="text-[9px] md:text-xs text-[var(--foreground-secondary)] font-bold uppercase tracking-widest truncate mt-0.5">
+                            <p className="text-xs text-[var(--foreground-secondary)] font-bold uppercase tracking-widest truncate mt-0.5">
                                 {getArtist(currentSong)}
                             </p>
                             {/* Sleep Timer Indicator */}
                             {sleepTimerRemaining !== null && sleepTimerRemaining > 0 && (
                                 <div className="flex items-center gap-1 text-indigo-400">
-                                    <Moon size={8} className="md:w-2.5 md:h-2.5" />
-                                    <span className="text-[8px] md:text-[9px] font-mono">{Math.ceil(sleepTimerRemaining / 60)}m</span>
+                                    <Moon size={10} />
+                                    <span className="text-[9px] font-mono">{Math.ceil(sleepTimerRemaining / 60)}m</span>
                                 </div>
                             )}
                         </div>
                     </div>
                 </div>
 
-                {/* Center: Mobile Playback Controls (prev, play/pause, next) */}
-                <div className="flex items-center gap-3 md:hidden shrink-0" onClick={e => e.stopPropagation()}>
-                    <button onClick={prev} className="p-1.5 text-[var(--foreground-secondary)] active:scale-90 active:text-[var(--foreground)] transition-all">
-                        <SkipBack size={20} fill="currentColor" />
-                    </button>
-                    <button
-                        onClick={(e) => { e.stopPropagation(); togglePlay(); }}
-                        className="w-10 h-10 rounded-full bg-[var(--foreground)] text-[var(--background)] flex items-center justify-center active:scale-90 shadow-lg"
-                    >
-                        {isPlaying ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" className="ml-0.5" />}
-                    </button>
-                    <button onClick={next} className="p-1.5 text-[var(--foreground-secondary)] active:scale-90 active:text-[var(--foreground)] transition-all">
-                        <SkipForward size={20} fill="currentColor" />
-                    </button>
+                {/* Mobile Layout: Compact like reference image */}
+                <div className="flex md:hidden items-center w-full gap-2">
+                    {/* Left: Small Album Art + Truncated Title */}
+                    <div className="flex items-center gap-2 w-[90px] min-w-[90px]" onClick={e => e.stopPropagation()}>
+                        <img
+                            src={getImg(currentSong)}
+                            className="w-10 h-10 rounded-lg object-cover shadow-md flex-shrink-0"
+                        />
+                        <div className="flex-1 overflow-hidden min-w-0">
+                            <h3 className="font-bold text-[11px] text-[var(--foreground)] truncate leading-tight uppercase tracking-tight max-w-[50px]">
+                                {decodeHtml(currentSong.name).substring(0, 8)}...
+                            </h3>
+                            <p className="text-[9px] text-[var(--foreground-secondary)] font-medium uppercase tracking-tight truncate max-w-[50px]">
+                                {getArtist(currentSong).substring(0, 8)}...
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Center: Large Playback Controls */}
+                    <div className="flex items-center justify-center gap-1 flex-1" onClick={e => e.stopPropagation()}>
+                        <button onClick={prev} className="p-2 text-[var(--foreground-secondary)] active:scale-90 transition-all">
+                            <SkipBack size={20} fill="currentColor" />
+                        </button>
+                        <button
+                            onClick={(e) => { e.stopPropagation(); togglePlay(); }}
+                            className="w-12 h-12 rounded-full bg-transparent flex items-center justify-center active:scale-90"
+                        >
+                            {isPlaying ? (
+                                <Pause size={36} fill="var(--foreground)" className="text-[var(--foreground)]" />
+                            ) : (
+                                <Play size={36} fill="var(--foreground)" className="text-[var(--foreground)] ml-1" />
+                            )}
+                        </button>
+                        <button onClick={next} className="p-2 text-[var(--foreground-secondary)] active:scale-90 transition-all">
+                            <SkipForward size={20} fill="currentColor" />
+                        </button>
+                    </div>
+
+                    {/* Right: Utility Icons - Compact */}
+                    <div className="flex items-center gap-0.5" onClick={e => e.stopPropagation()}>
+                        <button onClick={toggleFav} className="p-1.5 transition-all active:scale-95">
+                            <Heart size={16} className={isFav ? "fill-rose-500 text-rose-500" : "text-zinc-500"} />
+                        </button>
+                        <button
+                            onClick={(e) => { e.stopPropagation(); setShowQueue(true); }}
+                            className="p-1.5 text-zinc-500 active:text-cyan-400 transition-all"
+                        >
+                            <ListMusic size={16} />
+                        </button>
+                        {user && (
+                            <button
+                                onClick={(e) => { e.stopPropagation(); setShowPlaylistModal(true); }}
+                                className="p-1.5 text-zinc-500 active:text-cyan-400 transition-all"
+                            >
+                                <ListPlus size={16} />
+                            </button>
+                        )}
+                        <button
+                            onClick={(e) => { e.stopPropagation(); setShowFXPanel(true); }}
+                            className={`p-1.5 transition-all ${sceneMode !== 'none' ? 'text-cyan-400' : 'text-zinc-500'}`}
+                        >
+                            <Wand2 size={16} />
+                        </button>
+                    </div>
                 </div>
 
-                {/* Right: Mobile Utility Controls (heart, playlist, queue, fx) */}
-                <div className="flex items-center gap-1 md:hidden shrink-0" onClick={e => e.stopPropagation()}>
-                    <button onClick={toggleFav} className="p-1.5 transition-all active:scale-95">
-                        <Heart size={18} className={isFav ? "fill-rose-500 text-rose-500 drop-shadow-[0_0_15px_rgba(244,63,94,1)]" : "text-zinc-500 active:text-rose-400"} />
-                    </button>
-                    <button
-                        onClick={(e) => { e.stopPropagation(); setShowQueue(true); }}
-                        className="p-1.5 text-zinc-500 active:text-cyan-400 transition-all"
-                        title="Queue"
-                    >
-                        <ListMusic size={18} />
-                    </button>
-                    {user && (
-                        <button
-                            onClick={(e) => { e.stopPropagation(); setShowPlaylistModal(true); }}
-                            className="p-1.5 text-zinc-500 active:text-cyan-400 active:drop-shadow-[0_0_12px_rgba(34,211,238,0.9)] transition-all"
-                            title="Add to Playlist"
-                        >
-                            <ListPlus size={18} />
-                        </button>
-                    )}
-                    <button
-                        onClick={(e) => { e.stopPropagation(); setShowFXPanel(true); }}
-                        className={`p-1.5 transition-all duration-300 active:drop-shadow-[0_0_15px_rgba(34,211,238,1)] ${sceneMode !== 'none' ? 'text-cyan-400 drop-shadow-[0_0_12px_rgba(34,211,238,0.9)] scale-110' : 'text-zinc-500 active:text-cyan-400'}`}
-                    >
-                        <Wand2 size={18} />
-                    </button>
-                </div>
 
                 {/* Center: Desktop Playback Controls */}
                 <div className="hidden md:flex flex-col items-center flex-1 px-4 gap-2" onClick={e => e.stopPropagation()}>
@@ -398,46 +436,56 @@ export default function Player() {
 
                 {/* Right Side: Desktop Utility Controls with Custom Glowing Colors */}
                 <div className="hidden md:flex items-center justify-end gap-5 w-1/3" onClick={e => e.stopPropagation()}>
-                    {/* Heart/Favorite */}
+                    {/* Heart/Favorite - Pink Glow */}
                     <button
                         onClick={toggleFav}
-                        className={`transition-all hover:scale-105 active:scale-95 p-2 rounded-full hover:bg-[var(--card-hover)] ${isFav ? "text-[var(--accent-pink)]" : "text-[var(--foreground-muted)] hover:text-[var(--foreground)]"}`}
+                        className={`transition-all hover:scale-110 active:scale-95 p-2 rounded-full ${isFav
+                            ? "text-pink-500 drop-shadow-[0_0_12px_rgba(236,72,153,0.9)] bg-pink-500/10"
+                            : "text-[var(--foreground-muted)] hover:text-pink-400 hover:drop-shadow-[0_0_12px_rgba(236,72,153,0.7)] hover:bg-pink-500/10"}`}
                         title="Add to Favorites"
                     >
                         <Heart size={18} className={isFav ? "fill-current" : ""} />
                     </button>
 
-                    {/* Lyrics */}
-                    <button
-                        onClick={(e) => { e.stopPropagation(); setShowLyrics(true); }}
-                        className="text-[var(--foreground-muted)] hover:text-[var(--foreground)] p-2 rounded-full hover:bg-[var(--card-hover)] transition-all"
-                        title="Lyrics"
-                    >
-                        <Mic2 size={18} />
-                    </button>
-
-                    {/* Audio FX */}
+                    {/* Audio FX - Cyan Glow */}
                     <button
                         onClick={(e) => { e.stopPropagation(); handleFXClick(); }}
-                        className={`p-2 rounded-full transition-all ${sceneMode !== 'none' || showFXPanel ? 'text-[var(--accent-cyan)] bg-[var(--card)]' : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:bg-[var(--card-hover)]'}`}
+                        className={`p-2 rounded-full transition-all hover:scale-110 ${sceneMode !== 'none' || showFXPanel
+                            ? 'text-cyan-400 drop-shadow-[0_0_12px_rgba(34,211,238,0.9)] bg-cyan-500/10'
+                            : 'text-[var(--foreground-muted)] hover:text-cyan-400 hover:drop-shadow-[0_0_12px_rgba(34,211,238,0.7)] hover:bg-cyan-500/10'}`}
                         title="Audio Effects"
                     >
                         <Wand2 size={18} />
                     </button>
 
-                    {/* Visualizer */}
+                    {/* 3D Audio - Purple Glow */}
                     <button
-                        onClick={(e) => { e.stopPropagation(); setShowVisualizer(!showVisualizer); }}
-                        className={`p-2 rounded-full transition-all ${showVisualizer ? 'text-[var(--accent-purple)] bg-[var(--card)]' : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:bg-[var(--card-hover)]'}`}
-                        title="Visualizer"
+                        onClick={(e) => { e.stopPropagation(); toggle3D(); }}
+                        className={`p-2 rounded-full transition-all hover:scale-110 ${is3DActive
+                            ? 'text-purple-400 drop-shadow-[0_0_12px_rgba(168,85,247,0.9)] bg-purple-500/10'
+                            : 'text-[var(--foreground-muted)] hover:text-purple-400 hover:drop-shadow-[0_0_12px_rgba(168,85,247,0.7)] hover:bg-purple-500/10'}`}
+                        title="3D Spatial Audio"
                     >
-                        <Eye size={18} />
+                        <Headphones size={18} />
                     </button>
 
-                    {/* Queue */}
+                    {/* Add to Playlist - Emerald Glow */}
+                    {user && (
+                        <button
+                            onClick={(e) => { e.stopPropagation(); setShowPlaylistModal(true); }}
+                            className="p-2 rounded-full transition-all hover:scale-110 text-[var(--foreground-muted)] hover:text-emerald-400 hover:drop-shadow-[0_0_12px_rgba(52,211,153,0.7)] hover:bg-emerald-500/10"
+                            title="Add to Playlist"
+                        >
+                            <ListPlus size={18} />
+                        </button>
+                    )}
+
+                    {/* Queue - Orange Glow */}
                     <button
                         onClick={(e) => { e.stopPropagation(); setShowQueue(!showQueue); }}
-                        className={`p-2 rounded-full transition-all ${showQueue ? 'text-[var(--foreground)] bg-[var(--card)]' : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:bg-[var(--card-hover)]'}`}
+                        className={`p-2 rounded-full transition-all hover:scale-110 ${showQueue
+                            ? 'text-orange-400 drop-shadow-[0_0_12px_rgba(251,146,60,0.9)] bg-orange-500/10'
+                            : 'text-[var(--foreground-muted)] hover:text-orange-400 hover:drop-shadow-[0_0_12px_rgba(251,146,60,0.7)] hover:bg-orange-500/10'}`}
                         title="Queue"
                     >
                         <ListMusic size={18} />
@@ -513,11 +561,6 @@ export default function Player() {
                         <Wand2 size={18} className="md:w-5 md:h-5" />
                     </button>
                 </header>
-
-                {/* Epic Background Visualizer - Positioned at Bottom */}
-                <div className="absolute bottom-0 left-0 right-0 h-48 md:h-72 opacity-40 pointer-events-none z-0">
-                    <AudioVisualizer height={288} />
-                </div>
 
                 {/* Main Content: Split in Desktop, Centered in Mobile */}
                 <div className="relative z-10 flex-1 flex flex-col md:flex-row items-center justify-center p-6 md:px-24 gap-8 md:gap-24 overflow-y-auto overflow-x-hidden">

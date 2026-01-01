@@ -12,6 +12,7 @@ import {
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc, collection, addDoc, deleteDoc, query, where, getDocs, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import { auth, db, googleProvider, githubProvider } from '@/lib/firebase';
+import { PLAYLIST_SONG_LIMITS, PLAY_HISTORY_LIMITS } from '@/lib/features';
 
 export type SubscriptionTier = 'NITRO_CORE' | 'NITRO_ELITE' | 'NITRO_SUPREME';
 export type UserStatus = 'online' | 'idle' | 'dnd' | 'invisible';
@@ -95,6 +96,13 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// Helper to check if an error is a quota exceeded error (should be silenced)
+const isQuotaError = (err: any): boolean => {
+    return err?.code === 'resource-exhausted' ||
+        err?.message?.includes('Quota exceeded') ||
+        err?.message?.includes('resource-exhausted');
+};
+
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const [user, setUser] = useState<User | null>(null);
     const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
@@ -159,7 +167,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                     setUserProfile(null);
                 }
             } catch (err) {
-                console.error('Auth state change error:', err);
+                if (!isQuotaError(err)) console.error('Auth state change error:', err);
                 setError('Failed to load user profile');
             } finally {
                 setLoading(false);
@@ -182,7 +190,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                 const ids = new Set(snap.docs.map(doc => doc.id));
                 setLikedSongsCache(ids);
             } catch (err) {
-                console.error('Failed to preload liked songs:', err);
+                if (!isQuotaError(err)) console.error('Failed to preload liked songs:', err);
             }
         };
         loadLikedSongs();
@@ -241,8 +249,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
             // Update local profile state
             setUserProfile(newData);
-        }, (error) => {
-            console.error('Error listening to user document:', error);
+        }, (error: any) => {
+            // Silently handle quota errors
+            if (error?.code !== 'resource-exhausted') {
+                console.error('Error listening to user document:', error);
+            }
         });
 
         return () => unsubscribe();
@@ -405,9 +416,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         }
     }, [user]);
 
-    // Save song to user's play history
+    // Save song to user's play history with tier-based limits
+    // Elite: 50 max, Supreme: unlimited
     const saveToPlayHistory = useCallback(async (song: { id: string; name: string; artist: string; image: string }) => {
-        if (!user) return;
+        if (!user || !userProfile) return;
 
         try {
             // Use song.id as doc ID to prevent duplicates (upsert behavior)
@@ -419,10 +431,31 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                 image: song.image,
                 playedAt: new Date()
             });
-        } catch (err) {
-            console.error('Failed to save play history:', err);
+
+            // Enforce tier-based history limits (Supreme = unlimited)
+            const maxHistory = PLAY_HISTORY_LIMITS[userProfile.tier as keyof typeof PLAY_HISTORY_LIMITS] ?? 25;
+
+            // Only enforce limits if not unlimited (-1)
+            if (maxHistory !== -1) {
+                const historyRef = collection(db, 'users', user.uid, 'playHistory');
+                const historyQuery = query(historyRef, orderBy('playedAt', 'desc'));
+                const historySnap = await getDocs(historyQuery);
+
+                // Delete entries beyond the limit
+                if (historySnap.docs.length > maxHistory) {
+                    const toDelete = historySnap.docs.slice(maxHistory);
+                    for (const docSnap of toDelete) {
+                        await deleteDoc(docSnap.ref);
+                    }
+                }
+            }
+        } catch (err: any) {
+            // Silently ignore quota errors
+            if (err?.code !== 'resource-exhausted') {
+                console.error('Failed to save play history:', err);
+            }
         }
-    }, [user]);
+    }, [user, userProfile]);
 
     // Add song to liked songs
     const addLikedSong = useCallback(async (song: { id: string; name: string; artist: string; image: string }) => {
@@ -447,7 +480,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                 next.delete(song.id);
                 return next;
             });
-            console.error('Failed to add liked song:', err);
+            if (!isQuotaError(err)) console.error('Failed to add liked song:', err);
         }
     }, [user]);
 
@@ -468,7 +501,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         } catch (err) {
             // Rollback cache on error
             setLikedSongsCache(prev => new Set(prev).add(songId));
-            console.error('Failed to remove liked song:', err);
+            if (!isQuotaError(err)) console.error('Failed to remove liked song:', err);
         }
     }, [user]);
 
@@ -509,20 +542,34 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         await deleteDoc(doc(db, 'playlists', playlistId));
     }, []);
 
+    // Add song to playlist with tier-based limits
+    // Elite: 100 max songs, Supreme: unlimited
     const addSongToPlaylist = useCallback(async (playlistId: string, song: any) => {
+        if (!userProfile) return;
+
         const playlistRef = doc(db, 'playlists', playlistId);
         const snap = await getDoc(playlistRef);
         if (snap.exists()) {
             const currentSongs = snap.data().songs || [];
+
             // Avoid duplicates
             if (currentSongs.find((s: any) => s.id === song.id)) return;
+
+            // Enforce tier-based playlist song limits (Supreme = unlimited)
+            const maxSongs = PLAYLIST_SONG_LIMITS[userProfile.tier as keyof typeof PLAYLIST_SONG_LIMITS] ?? 50;
+
+            // Only enforce limits if not unlimited (-1)
+            if (maxSongs !== -1 && currentSongs.length >= maxSongs) {
+                const tierName = userProfile.tier === 'NITRO_ELITE' ? 'Elite' : 'Core';
+                throw new Error(`Playlist limit reached! ${tierName} users can have max ${maxSongs} songs per playlist. Upgrade to Supreme for unlimited!`);
+            }
 
             await updateDoc(playlistRef, {
                 songs: [...currentSongs, song],
                 updatedAt: new Date()
             });
         }
-    }, []);
+    }, [userProfile]);
 
     const removeSongFromPlaylist = useCallback(async (playlistId: string, songId: string) => {
         const playlistRef = doc(db, 'playlists', playlistId);
@@ -584,7 +631,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                 } : null
             });
         } catch (err) {
-            console.error('Failed to update nowPlaying:', err);
+            if (!isQuotaError(err)) console.error('Failed to update nowPlaying:', err);
         }
     }, [user]);
 
@@ -645,7 +692,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
             return results.slice(0, 10); // Limit to 10 results
         } catch (err) {
-            console.error('Failed to search users:', err);
+            if (!isQuotaError(err)) console.error('Failed to search users:', err);
             return [];
         }
     }, [user]);
@@ -660,7 +707,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                 lastActive: new Date()
             });
         } catch (err) {
-            console.error('Failed to update status:', err);
+            if (!isQuotaError(err)) console.error('Failed to update status:', err);
         }
     }, [user]);
 

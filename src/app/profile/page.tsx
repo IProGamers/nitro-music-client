@@ -25,6 +25,9 @@ import LeaderboardsPanel from '@/components/LeaderboardsPanel';
 import PlaylistImportExport from '@/components/PlaylistImportExport';
 import ListeningRoom from '@/components/ListeningRoom';
 import FriendSearch from '@/components/FriendSearch';
+import AvatarPicker from '@/components/AvatarPicker';
+import ProfileCustomization from '@/components/ProfileCustomization';
+import { PREMIUM_PROFILE_FEATURES } from '@/lib/avatarLibrary';
 
 // Tier configurations with unique badges
 const TIER_CONFIG: Record<SubscriptionTier, {
@@ -133,6 +136,34 @@ function ProfileContent() {
     const [showImportExport, setShowImportExport] = useState(false);
     const [showListeningRoom, setShowListeningRoom] = useState(false);
     const [showFriendSheet, setShowFriendSheet] = useState(false);
+    const [showAvatarPicker, setShowAvatarPicker] = useState(false);
+    const [showProfileCustomization, setShowProfileCustomization] = useState(false);
+
+    // Profile customization settings (loaded from userProfile or localStorage)
+    const [profileCustomSettings, setProfileCustomSettings] = useState<{
+        bannerGradient?: string;
+        borderEffect?: string;
+        badge?: string;
+        avatarEffect?: string;
+    }>({});
+
+    // Load profile customization from localStorage on mount
+    useEffect(() => {
+        try {
+            const saved = localStorage.getItem('nitro_profile_custom');
+            if (saved) {
+                setProfileCustomSettings(JSON.parse(saved));
+            }
+        } catch (e) {
+            // Ignore
+        }
+    }, []);
+
+    // Save profile customization settings
+    const handleSaveCustomization = (settings: typeof profileCustomSettings) => {
+        setProfileCustomSettings(settings);
+        localStorage.setItem('nitro_profile_custom', JSON.stringify(settings));
+    };
 
     // Handle legacy NITRO_ULTRA tier by mapping to NITRO_SUPREME config
     const effectiveTier = (tier as string) === 'NITRO_ULTRA' ? 'NITRO_SUPREME' : tier;
@@ -270,9 +301,9 @@ function ProfileContent() {
 
                 {/* Profile Header Card */}
                 <div className="bg-[var(--card)]/50 backdrop-blur-2xl border border-[var(--border)] rounded-2xl md:rounded-[2.5rem] shadow-2xl relative overflow-hidden">
-                    {/* Banner Image */}
+                    {/* Banner Image (if user has set one) */}
                     {(userProfile.bannerURL || editForm.bannerURL) && (
-                        <div className="h-16 md:h-40 w-full relative">
+                        <div className="h-16 md:h-32 w-full relative">
                             <img
                                 src={isEditing ? (editForm.bannerURL || userProfile.bannerURL || '') : (userProfile.bannerURL || '')}
                                 className="w-full h-full object-cover"
@@ -282,7 +313,7 @@ function ProfileContent() {
                         </div>
                     )}
 
-                    <div className={`p-3 md:p-12 ${(userProfile.bannerURL || editForm.bannerURL) ? 'pt-2 md:pt-0 md:-mt-16' : 'pt-4'}`}>
+                    <div className={`p-3 md:p-12 ${(userProfile.bannerURL || editForm.bannerURL) ? 'pt-2 md:pt-0 md:-mt-12' : 'pt-4'}`}>
                         {/* Action Buttons */}
                         <div className="flex justify-end gap-1.5 mb-1 md:mb-6">
                             {isAdmin && (
@@ -318,33 +349,73 @@ function ProfileContent() {
                         </div>
 
                         <div className="flex flex-col md:flex-row items-center md:items-start gap-4 md:gap-10">
-                            {/* Avatar */}
+                            {/* Avatar - Clickable to change */}
                             <div className="relative shrink-0">
-                                <div className="w-14 h-14 md:w-36 md:h-36 rounded-full bg-[var(--card)] border-2 md:border-4 border-[var(--border)] flex items-center justify-center shadow-2xl relative z-10 overflow-hidden group/avatar">
-                                    {userProfile.photoURL ? (
-                                        <img src={userProfile.photoURL} className="w-full h-full object-cover" alt="Avatar" />
-                                    ) : (
-                                        <div className="w-full h-full bg-gradient-to-br from-cyan-500 to-purple-600 flex items-center justify-center">
-                                            <span className="text-2xl md:text-4xl font-bold text-white">
-                                                {userProfile.displayName?.[0]?.toUpperCase() || 'U'}
-                                            </span>
-                                        </div>
+                                {/* Get border effect class */}
+                                {(() => {
+                                    const borderEffect = profileCustomSettings.borderEffect
+                                        ? PREMIUM_PROFILE_FEATURES.borderEffects.find(b => b.id === profileCustomSettings.borderEffect)?.class
+                                        : '';
+                                    const avatarEffect = profileCustomSettings.avatarEffect
+                                        ? PREMIUM_PROFILE_FEATURES.avatarEffects.find(e => e.id === profileCustomSettings.avatarEffect)?.class
+                                        : '';
+                                    const badge = profileCustomSettings.badge
+                                        ? PREMIUM_PROFILE_FEATURES.badges.find(b => b.id === profileCustomSettings.badge)
+                                        : null;
+
+                                    return (
+                                        <>
+                                            <div
+                                                className={`w-14 h-14 md:w-36 md:h-36 rounded-full bg-[var(--card)] border-2 md:border-4 border-[var(--border)] flex items-center justify-center shadow-2xl relative z-10 overflow-hidden group/avatar cursor-pointer ${borderEffect} ${avatarEffect}`}
+                                                onClick={() => setShowAvatarPicker(true)}
+                                            >
+                                                {userProfile.photoURL ? (
+                                                    <img src={userProfile.photoURL} className="w-full h-full object-cover" alt="Avatar" />
+                                                ) : (
+                                                    <div className="w-full h-full bg-gradient-to-br from-cyan-500 to-purple-600 flex items-center justify-center">
+                                                        <span className="text-2xl md:text-4xl font-bold text-white">
+                                                            {userProfile.displayName?.[0]?.toUpperCase() || 'U'}
+                                                        </span>
+                                                    </div>
+                                                )}
+                                                {/* Hover overlay */}
+                                                <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center opacity-0 group-hover/avatar:opacity-100 transition-opacity">
+                                                    <Camera size={16} className="text-white mb-0.5 md:w-5 md:h-5" />
+                                                    <span className="text-[8px] md:text-[10px] uppercase font-bold text-white">Change</span>
+                                                </div>
+                                            </div>
+
+                                            {/* Badge display - top right to avoid button interference */}
+                                            {badge && (
+                                                <div className={`absolute -top-1 -right-1 md:top-0 md:right-0 w-5 h-5 md:w-7 md:h-7 ${badge.color} rounded-full flex items-center justify-center text-xs md:text-sm shadow-lg z-30 border-2 border-[var(--background)]`}>
+                                                    {badge.emoji}
+                                                </div>
+                                            )}
+                                        </>
+                                    );
+                                })()}
+
+                                {/* Edit/Customize buttons */}
+                                <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 flex gap-1 z-20">
+                                    {!isEditing && (
+                                        <button
+                                            onClick={() => setIsEditing(true)}
+                                            className="p-1.5 md:p-2 bg-cyan-400 rounded-full text-black hover:bg-cyan-300 transition-colors shadow-lg"
+                                            title="Edit Profile"
+                                        >
+                                            <Edit2 size={10} className="md:w-3 md:h-3" />
+                                        </button>
                                     )}
-                                    {isEditing && (
-                                        <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center opacity-0 group-hover/avatar:opacity-100 transition-opacity cursor-pointer">
-                                            <Camera size={20} className="text-white mb-1" />
-                                            <span className="text-[10px] uppercase font-bold">Upload</span>
-                                        </div>
+                                    {(tier === 'NITRO_ELITE' || tier === 'NITRO_SUPREME' || (tier as string) === 'NITRO_ULTRA') && (
+                                        <button
+                                            onClick={() => setShowProfileCustomization(true)}
+                                            className="p-1.5 md:p-2 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full text-white hover:opacity-90 transition-opacity shadow-lg"
+                                            title="Customize Profile"
+                                        >
+                                            <Sparkles size={10} className="md:w-3 md:h-3" />
+                                        </button>
                                     )}
                                 </div>
-                                {!isEditing && (
-                                    <button
-                                        onClick={() => setIsEditing(true)}
-                                        className="absolute bottom-0 right-0 p-2.5 bg-cyan-400 rounded-full text-black hover:bg-cyan-300 transition-colors shadow-lg z-20"
-                                    >
-                                        <Edit2 size={14} />
-                                    </button>
-                                )}
                             </div>
 
                             {/* User Info */}
@@ -365,13 +436,25 @@ function ProfileContent() {
                                             rows={2}
                                             className="w-full bg-[var(--card)] border border-[var(--border)] rounded-xl px-4 py-2.5 text-[var(--foreground-muted)] text-sm focus:outline-none focus:border-cyan-400 transition-colors resize-none"
                                         />
-                                        <input
-                                            type="text"
-                                            value={editForm.photoURL}
-                                            onChange={(e) => setEditForm(p => ({ ...p, photoURL: e.target.value }))}
-                                            placeholder="Profile Image URL"
-                                            className="w-full bg-[var(--card)] border border-[var(--border)] rounded-xl px-4 py-2.5 text-xs text-[var(--foreground-muted)] focus:outline-none focus:border-cyan-400 transition-colors"
-                                        />
+
+                                        {/* Avatar Selection */}
+                                        <div className="space-y-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowAvatarPicker(true)}
+                                                className="w-full flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-cyan-500/20 to-purple-500/20 border border-cyan-500/30 rounded-xl text-cyan-400 font-bold text-sm hover:from-cyan-500/30 hover:to-purple-500/30 transition-all active:scale-[0.98]"
+                                            >
+                                                <User size={16} />
+                                                Choose Avatar
+                                            </button>
+                                            {editForm.photoURL && (
+                                                <div className="flex items-center gap-2 text-xs text-[var(--foreground-muted)]">
+                                                    <Check size={12} className="text-green-400" />
+                                                    <span className="truncate">Avatar selected</span>
+                                                </div>
+                                            )}
+                                        </div>
+
                                         <div className="flex items-center gap-2">
                                             <ImagePlus size={14} className="text-purple-400 shrink-0" />
                                             <input
@@ -1168,6 +1251,25 @@ function ProfileContent() {
                     </div>
                 )}
             </AnimatePresence>
+
+            {/* Avatar Picker Modal */}
+            <AvatarPicker
+                isOpen={showAvatarPicker}
+                onClose={() => setShowAvatarPicker(false)}
+                onSelect={(url) => {
+                    setEditForm(p => ({ ...p, photoURL: url }));
+                    setShowAvatarPicker(false);
+                }}
+                selectedAvatar={editForm.photoURL}
+            />
+
+            {/* Profile Customization Modal (Elite/Supreme) */}
+            <ProfileCustomization
+                isOpen={showProfileCustomization}
+                onClose={() => setShowProfileCustomization(false)}
+                currentSettings={profileCustomSettings}
+                onSave={handleSaveCustomization}
+            />
         </div >
     )
 }

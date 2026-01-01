@@ -1,21 +1,57 @@
 {
     "name": "Nitro Music",
     "short_name": "Nitro",
-    "description": "Premium Music Streaming App",
+    "description": "Premium Music Streaming App - Listen offline with downloaded music",
     "start_url": "/",
+    "scope": "/",
     "display": "standalone",
+    "orientation": "portrait-primary",
     "background_color": "#000000",
-    "theme_color": "#000000",
+    "theme_color": "#8B5CF6",
+    "categories": [
+        "music",
+        "entertainment"
+    ],
     "icons": [
         {
             "src": "/logo.png",
             "sizes": "192x192",
-            "type": "image/png"
+            "type": "image/png",
+            "purpose": "any maskable"
         },
         {
             "src": "/logo.png",
             "sizes": "512x512",
-            "type": "image/png"
+            "type": "image/png",
+            "purpose": "any maskable"
         }
-    ]
+    ],
+    "shortcuts": [
+        {
+            "name": "My Downloads",
+            "short_name": "Downloads",
+            "description": "Listen to downloaded music offline",
+            "url": "/downloads",
+            "icons": [
+                {
+                    "src": "/logo.png",
+                    "sizes": "192x192"
+                }
+            ]
+        },
+        {
+            "name": "Search Music",
+            "short_name": "Search",
+            "description": "Search for your favorite songs",
+            "url": "/search",
+            "icons": [
+                {
+                    "src": "/logo.png",
+                    "sizes": "192x192"
+                }
+            ]
+        }
+    ],
+    "related_applications": [],
+    "prefer_related_applications": false
 }

@@ -1,11 +1,12 @@
 "use client"
 import { useState, useEffect, useRef } from 'react';
 import { usePlayer } from '@/context/PlayerContext';
-import { Search, Clock, X, Music, User, Disc, ListMusic, ChevronRight, Trash2 } from 'lucide-react';
+import { Search, Clock, X, Music, User, Disc, ListMusic, ChevronRight, Trash2, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import SongContextMenu from '@/components/SongContextMenu';
 import { useMusicData } from '@/context/MusicDataContext';
+import { preprocessQuery, getDidYouMeanSuggestions, areResultsPoor } from '@/lib/fuzzySearch';
 
 type SearchResults = {
     songs: { results: any[] };
@@ -41,6 +42,11 @@ export default function SearchPage() {
     const categoryAbortControllerRef = useRef<AbortController | null>(null);
     const { searchCache } = useMusicData();
 
+    // Smart search state
+    const [searchSuggestion, setSearchSuggestion] = useState<{ query: string; artist: string } | null>(null);
+    const [didYouMeanOptions, setDidYouMeanOptions] = useState<{ query: string; artist: string; confidence: number }[]>([]);
+    const [usedCorrectedQuery, setUsedCorrectedQuery] = useState(false);
+
     // Debounce query
     useEffect(() => {
         const timer = setTimeout(() => {
@@ -58,12 +64,32 @@ export default function SearchPage() {
         if (q === '') {
             setResults(null);
             setLoading(false);
+            setSearchSuggestion(null);
+            setDidYouMeanOptions([]);
+            setUsedCorrectedQuery(false);
             return;
         }
 
-        // Check cache first
-        if (searchCache.has(q)) {
-            setResults(searchCache.get(q)!);
+        // Smart search: preprocess query for corrections
+        const { corrected, wasCorrected, suggestion } = preprocessQuery(q);
+        const searchQuery = corrected;
+
+        // Show suggestion if query was corrected
+        if (wasCorrected && suggestion) {
+            const parts = suggestion.split(' by ');
+            setSearchSuggestion({
+                query: parts[0],
+                artist: parts[1] || ''
+            });
+            setUsedCorrectedQuery(true);
+        } else {
+            setSearchSuggestion(null);
+            setUsedCorrectedQuery(false);
+        }
+
+        // Check cache first (for both original and corrected)
+        if (searchCache.has(searchQuery)) {
+            setResults(searchCache.get(searchQuery)!);
             setLoading(false);
             return;
         }
@@ -80,7 +106,7 @@ export default function SearchPage() {
 
             try {
                 const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
-                const res = await fetch(`${apiUrl}/api/search?query=${encodeURIComponent(q)}`, {
+                const res = await fetch(`${apiUrl}/api/search?query=${encodeURIComponent(searchQuery)}`, {
                     signal: controller.signal
                 });
                 const data = await res.json();
@@ -88,10 +114,23 @@ export default function SearchPage() {
                 if (data.success) {
                     setResults(data.data);
                     // Save to cache
-                    searchCache.set(q, data.data);
+                    searchCache.set(searchQuery, data.data);
 
                     // Default to 'all' tab so users see the summary first
                     setActiveTab('all');
+
+                    // Check if results are poor and generate "Did you mean?" suggestions
+                    const totalResults =
+                        (data.data.songs?.results?.length || 0) +
+                        (data.data.albums?.results?.length || 0) +
+                        (data.data.artists?.results?.length || 0);
+
+                    if (areResultsPoor(totalResults, q) && !wasCorrected) {
+                        const suggestions = getDidYouMeanSuggestions(q, 3);
+                        setDidYouMeanOptions(suggestions);
+                    } else {
+                        setDidYouMeanOptions([]);
+                    }
                 }
             } catch (e: any) {
                 if (e.name !== 'AbortError') {
@@ -448,6 +487,42 @@ export default function SearchPage() {
             {
                 !loading && query && results && (
                     <div className="mt-8 space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                        {/* Smart Search: Show correction banner */}
+                        {usedCorrectedQuery && searchSuggestion && (
+                            <div className="flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-cyan-500/10 to-purple-500/10 border border-cyan-500/20 rounded-xl animate-in fade-in slide-in-from-top-2 duration-300">
+                                <Sparkles className="text-cyan-400 flex-shrink-0" size={18} />
+                                <p className="text-sm text-[var(--foreground-muted)]">
+                                    Showing results for{' '}
+                                    <span className="font-bold text-[var(--foreground)]">"{searchSuggestion.query}"</span>
+                                    {searchSuggestion.artist && (
+                                        <span className="text-cyan-400"> by {searchSuggestion.artist}</span>
+                                    )}
+                                </p>
+                            </div>
+                        )}
+
+                        {/* Did you mean? suggestions when results are poor */}
+                        {didYouMeanOptions.length > 0 && (
+                            <div className="px-4 py-3 bg-[var(--card)] border border-[var(--border)] rounded-xl animate-in fade-in slide-in-from-top-2 duration-300">
+                                <p className="text-sm text-[var(--foreground-muted)] mb-2 flex items-center gap-2">
+                                    <Search size={14} className="text-cyan-400" />
+                                    Did you mean:
+                                </p>
+                                <div className="flex flex-wrap gap-2">
+                                    {didYouMeanOptions.map((option, idx) => (
+                                        <button
+                                            key={idx}
+                                            onClick={() => setQuery(option.query)}
+                                            className="px-3 py-1.5 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 rounded-full text-sm font-medium text-cyan-400 hover:text-cyan-300 transition-all hover:scale-105"
+                                        >
+                                            {option.query}
+                                            {option.artist && <span className="text-[var(--foreground-muted)] ml-1">• {option.artist}</span>}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
                         {activeTab !== 'all' && (
                             <button
                                 onClick={() => setActiveTab('all')}

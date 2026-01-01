@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import UsernameRequestsAdmin from '@/components/UsernameRequestsAdmin';
+import AdminRoomsPanel from '@/components/AdminRoomsPanel';
 
 const TIER_INFO: Record<string, { name: string; icon: React.ReactNode; color: string; bgColor: string; gradient: string }> = {
     NITRO_CORE: { name: 'Nitro Core', icon: <Star size={16} />, color: 'text-zinc-400', bgColor: 'bg-zinc-500/20', gradient: 'from-zinc-600 to-zinc-800' },
@@ -756,6 +757,14 @@ export default function AdminPage() {
 
                         {/* Username Change Requests */}
                         <UsernameRequestsAdmin />
+
+                        {/* Quick Actions */}
+                        <div className="p-6 bg-[var(--card)] border border-[var(--border)] rounded-2xl">
+                            <h3 className="text-lg font-bold text-[var(--foreground)] mb-4">Quick Actions</h3>
+                            <div className="flex flex-wrap gap-3">
+                                <AdminRoomsPanel />
+                            </div>
+                        </div>
                     </div>
                 )}
 

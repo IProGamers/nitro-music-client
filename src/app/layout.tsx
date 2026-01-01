@@ -12,6 +12,8 @@ import { StatsProvider } from "@/context/StatsContext";
 import { DJProvider } from "@/context/DJContext";
 import { UsageProvider } from "@/context/UsageContext";
 import { OfflineProvider } from "@/context/OfflineContext";
+import { FriendsProvider } from "@/context/FriendsContext";
+import { RoomProvider } from "@/context/RoomContext";
 import Sidebar from "@/components/Sidebar";
 import Player from "@/components/Player";
 import LoginPromptModal from "@/components/LoginPromptModal";
@@ -57,20 +59,24 @@ export default function RootLayout({
                         <DJProvider>
                           <DeviceProvider>
                             <OfflineProvider>
-                              <Sidebar />
-                              <main className="flex-1 overflow-y-auto pb-32 md:pb-28 relative">
-                                <MobileHeader />
-                                <UsernameGuard>
-                                  <ArihantGuard>
-                                    {children}
-                                  </ArihantGuard>
-                                </UsernameGuard>
-                              </main>
-                              <Player />
-                              <LimitReachedModal />
-                              <LoginPromptModal />
-                              <AccountNotificationModal />
-                              <PWAInstallPrompt />
+                              <FriendsProvider>
+                                <RoomProvider>
+                                  <Sidebar />
+                                  <main className="flex-1 overflow-y-auto pb-32 md:pb-28 relative">
+                                    <MobileHeader />
+                                    <UsernameGuard>
+                                      <ArihantGuard>
+                                        {children}
+                                      </ArihantGuard>
+                                    </UsernameGuard>
+                                  </main>
+                                  <Player />
+                                  <LimitReachedModal />
+                                  <LoginPromptModal />
+                                  <AccountNotificationModal />
+                                  <PWAInstallPrompt />
+                                </RoomProvider>
+                              </FriendsProvider>
                             </OfflineProvider>
                           </DeviceProvider>
                         </DJProvider>
