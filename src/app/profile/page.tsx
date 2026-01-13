@@ -238,9 +238,9 @@ function ProfileContent() {
                 setLoading(false);
             }
 
-            // Background refresh if stale (5 minutes) or first load
-            const fiveMinutes = 5 * 60 * 1000;
-            const isStale = profileData && (Date.now() - profileData.lastFetchedAt > fiveMinutes);
+            // Background refresh if stale (30 seconds for near-realtime sync) or first load
+            const thirtySeconds = 30 * 1000;
+            const isStale = profileData && (Date.now() - profileData.lastFetchedAt > thirtySeconds);
 
             if (!hasLoadedProfile || isStale || !profileData) {
                 fetchData();
@@ -742,76 +742,6 @@ function ProfileContent() {
                         </div>
                     )}
 
-
-                    {activeTab === 'downloads' && (
-                        <div className="space-y-6">
-                            {downloads.length === 0 ? (
-                                <div className="text-center py-20 md:py-32 bg-[var(--card)]/50 rounded-2xl md:rounded-[3rem] border border-[var(--border)] mx-2 md:mx-0">
-                                    <DownloadCloud size={40} className="text-[var(--foreground-muted)]/20 mx-auto mb-4 md:mb-6 md:w-12 md:h-12" />
-                                    <h2 className="text-xl md:text-2xl font-bold text-[var(--foreground)] mb-2 px-4">No downloads</h2>
-                                    <p className="text-[var(--foreground-muted)] font-medium text-xs md:text-base px-6">Save songs for offline listening.</p>
-                                </div>
-                            ) : (
-                                <div className="space-y-6">
-                                    {/* Storage Stats */}
-                                    <div className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-4 md:p-6">
-                                        <div className="flex items-center justify-between mb-3">
-                                            <h3 className="font-bold text-[var(--foreground)] flex items-center gap-2">
-                                                <Save size={18} className="text-cyan-400" /> Offline Storage
-                                            </h3>
-                                            <button
-                                                onClick={() => {
-                                                    if (confirm('Delete all downloads?')) clearAllDownloads();
-                                                }}
-                                                className="text-xs font-bold text-red-400 hover:text-red-300 flex items-center gap-1 bg-red-500/10 px-3 py-1.5 rounded-lg border border-red-500/20"
-                                            >
-                                                <Trash2 size={12} /> Clear All
-                                            </button>
-                                        </div>
-                                        <div className="w-full h-2 bg-[var(--border)] rounded-full overflow-hidden">
-                                            <div
-                                                className="h-full bg-cyan-400 transition-all duration-500"
-                                                style={{ width: `${Math.min((storageUsed / storageLimit) * 100, 100)}%` }}
-                                            />
-                                        </div>
-                                        <div className="flex justify-between mt-2 text-[10px] font-bold text-[var(--foreground-muted)] uppercase tracking-wider">
-                                            <span>{(storageUsed / 1024 / 1024).toFixed(1)} MB Used</span>
-                                            <span>{(storageLimit / 1024 / 1024).toFixed(0)} MB Limit</span>
-                                        </div>
-                                    </div>
-
-                                    {/* Downloads Grid */}
-                                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4 md:gap-6 px-2 md:px-0">
-                                        {downloads.map((t: any) => (
-                                            <div key={t.id} onClick={() => playTrack(t, downloads)} className="min-w-[160px] md:min-w-[200px] group cursor-pointer">
-                                                <div className="relative aspect-square mb-3 md:mb-4 overflow-hidden rounded-2xl md:rounded-[2.5rem] bg-[var(--card)] border border-[var(--border)] shadow-xl md:shadow-2xl group-hover:border-green-400/50 transition-all duration-500">
-                                                    <img src={t.image} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
-                                                    <div className="absolute top-2 right-2 bg-green-500 text-black text-[9px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 shadow-lg">
-                                                        <Check size={8} strokeWidth={4} /> Saved
-                                                    </div>
-                                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                                        <Play size={24} fill="white" className="text-white scale-125 transition-transform group-hover:scale-100 md:w-8 md:h-8" />
-                                                    </div>
-                                                </div>
-                                                <div className="flex justify-between items-start gap-2">
-                                                    <div className="overflow-hidden">
-                                                        <h3 className="font-bold truncate text-xs md:text-sm text-[var(--foreground)] group-hover:text-green-400 transition-colors uppercase tracking-tight">{t.name}</h3>
-                                                        <p className="text-[9px] md:text-[10px] text-[var(--foreground-muted)] font-bold uppercase tracking-widest mt-1 opacity-60">{t.artist}</p>
-                                                    </div>
-                                                    <button
-                                                        onClick={(e) => { e.stopPropagation(); removeSong(t.id); }}
-                                                        className="text-[var(--foreground-muted)] hover:text-red-400 transition-colors p-1"
-                                                    >
-                                                        <Trash2 size={14} />
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    )}
 
                     {activeTab === 'plans' && (
                         <div className="space-y-6 md:space-y-8">

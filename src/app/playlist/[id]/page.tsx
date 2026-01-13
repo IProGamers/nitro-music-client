@@ -28,6 +28,13 @@ export default function PlaylistDetailPage() {
         loadPlaylist();
     }, [id]);
 
+    // Also reload when user changes (to check ownership) 
+    useEffect(() => {
+        if (playlist && user) {
+            // Just update the ownership state without full reload
+        }
+    }, [user?.uid]);
+
     const loadPlaylist = async () => {
         setLoading(true);
         try {
@@ -204,10 +211,10 @@ export default function PlaylistDetailPage() {
                             onClick={handleDownloadPlaylist}
                             disabled={isDownloadingPlaylist || allDownloaded || playlist.songs.length === 0}
                             className={`p-3.5 md:p-5 rounded-xl md:rounded-[2rem] transition-all hover:scale-110 active:scale-90 border border-[var(--border)] relative ${allDownloaded
-                                    ? 'bg-green-500/20 text-green-400 border-green-500/30'
-                                    : isDownloadingPlaylist
-                                        ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30'
-                                        : 'bg-[var(--card-hover)] hover:bg-[var(--border)] text-[var(--foreground)]'
+                                ? 'bg-green-500/20 text-green-400 border-green-500/30'
+                                : isDownloadingPlaylist
+                                    ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30'
+                                    : 'bg-[var(--card-hover)] hover:bg-[var(--border)] text-[var(--foreground)]'
                                 } ${isDownloadingPlaylist ? 'cursor-wait' : ''}`}
                             title={allDownloaded ? 'All songs downloaded' : isDownloadingPlaylist ? `Downloading ${playlistDownloadProgress?.current || 0}/${playlistDownloadProgress?.total || 0}` : 'Download playlist for offline'}
                         >

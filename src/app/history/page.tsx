@@ -2,10 +2,12 @@
 import { useEffect, useState } from 'react';
 import { usePlayer } from '@/context/PlayerContext';
 import { useMusicData } from '@/context/MusicDataContext';
+import { useAuth } from '@/context/AuthContext';
 import { Clock, Play, Trash2, Calendar, Music } from 'lucide-react';
 
 export default function HistoryPage() {
     const { playTrack } = usePlayer();
+    const { user, getRecentPlays } = useAuth();
     const {
         historyPageData, setHistoryPageData,
         hasLoadedHistoryPage, setHasLoadedHistoryPage
@@ -20,20 +22,31 @@ export default function HistoryPage() {
             if (!hasLoadedHistoryPage && !historyPageData) setLoading(true);
 
             try {
-                const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
-                const res = await fetch(`${apiUrl}/api/history`);
-                const data = await res.json();
-                if (data.success) {
-                    setHistory(data.data);
+                // Use Firebase for history - works in production!
+                if (user) {
+                    const firebaseHistory = await getRecentPlays(100);
+                    // Map Firebase format to display format
+                    const mappedHistory = firebaseHistory.map((h: any) => ({
+                        id: h.songId || h.id,
+                        songId: h.songId || h.id,
+                        name: h.name,
+                        artist: h.artist,
+                        image: h.image,
+                        playedAt: h.playedAt?.toDate ? h.playedAt.toDate() : new Date(h.playedAt)
+                    }));
+                    setHistory(mappedHistory);
                     // Update cache
                     setHistoryPageData({
-                        history: data.data,
+                        history: mappedHistory,
                         lastFetchedAt: Date.now()
                     });
                     setHasLoadedHistoryPage(true);
+                } else {
+                    // Not logged in - show empty
+                    setHistory([]);
                 }
             } catch (e) {
-                console.error(e);
+                console.error('Failed to fetch history:', e);
             } finally {
                 setLoading(false);
             }
@@ -48,25 +61,14 @@ export default function HistoryPage() {
         } else {
             setLoading(false);
         }
-    }, [hasLoadedHistoryPage]);
+    }, [hasLoadedHistoryPage, user, getRecentPlays]);
 
     const clearHistory = async () => {
-        if (!confirm('Are you sure you want to clear your listening history?')) return;
+        if (!confirm('Are you sure you want to clear your listening history view? (Your full history remains in your account)')) return;
 
-        try {
-            const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
-            const res = await fetch(`${apiUrl}/api/history`, {
-                method: 'DELETE'
-            });
-            const data = await res.json();
-            if (data.success) {
-                setHistory([]);
-                // Clear cache too
-                setHistoryPageData({ history: [], lastFetchedAt: Date.now() });
-            }
-        } catch (e) {
-            console.error('Failed to clear history:', e);
-        }
+        // Clear local cache (Firebase history not implemented yet for deletion)
+        setHistory([]);
+        setHistoryPageData({ history: [], lastFetchedAt: Date.now() });
     };
 
     if (loading) {

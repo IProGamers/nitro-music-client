@@ -14,16 +14,30 @@ export default function AlbumPage() {
     useEffect(() => {
         if (!id) return;
 
-        const fetchAlbum = async () => {
+        const fetchAlbum = async (retries = 2) => {
             try {
                 const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
-                const res = await fetch(`${apiUrl}/api/albums?id=${id}`);
+                const res = await fetch(`${apiUrl}/api/albums?id=${id}`, {
+                    headers: { 'Accept': 'application/json' }
+                });
+
+                if (!res.ok) {
+                    throw new Error(`HTTP ${res.status}`);
+                }
+
                 const data = await res.json();
-                if (data.success) {
+                if (data.success && data.data) {
                     setAlbum(data.data);
+                } else {
+                    console.warn('Album API returned:', data);
                 }
             } catch (e) {
-                console.error(e);
+                console.error('Album fetch error:', e);
+                // Retry on failure
+                if (retries > 0) {
+                    setTimeout(() => fetchAlbum(retries - 1), 1000);
+                    return;
+                }
             } finally {
                 setLoading(false);
             }

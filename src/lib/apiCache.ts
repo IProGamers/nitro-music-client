@@ -9,15 +9,22 @@ const CACHE_DB_NAME = 'nitro_api_cache';
 const CACHE_STORE_NAME = 'responses';
 const CACHE_VERSION = 1;
 
+// Get today's date string for cache invalidation (changes daily)
+export const getTodayKey = (): string => {
+    const today = new Date();
+    return `${today.getFullYear()}${(today.getMonth() + 1).toString().padStart(2, '0')}${today.getDate().toString().padStart(2, '0')}`;
+};
+
 // Cache TTL configurations (in milliseconds)
+// Shorter TTLs ensure fresh content; daily key ensures variety
 export const CACHE_TTL = {
-    TRENDING: 10 * 60 * 1000,        // 10 minutes for trending
-    SEARCH: 30 * 60 * 1000,           // 30 minutes for search results
-    ARTIST: 60 * 60 * 1000,           // 1 hour for artist data
-    ALBUM: 60 * 60 * 1000,            // 1 hour for album data
-    HOME_DATA: 30 * 60 * 1000,        // 30 minutes for home page
+    TRENDING: 5 * 60 * 1000,          // 5 minutes for trending
+    SEARCH: 15 * 60 * 1000,           // 15 minutes for search results  
+    ARTIST: 30 * 60 * 1000,           // 30 minutes for artist data
+    ALBUM: 30 * 60 * 1000,            // 30 minutes for album data
+    HOME_DATA: 10 * 60 * 1000,        // 10 minutes for home page
     PROFILE: 5 * 60 * 1000,           // 5 minutes for profile
-    MODULES: 60 * 60 * 1000,          // 1 hour for modules
+    MODULES: 15 * 60 * 1000,          // 15 minutes for modules
     HISTORY: 2 * 60 * 1000,           // 2 minutes for history
 };
 
@@ -106,9 +113,11 @@ const getDB = (): Promise<IDBDatabase> => {
 };
 
 // Generate cache key from URL (safe version)
-export const getCacheKey = (url: string): string => {
+// If dailyKey is true, includes today's date so cache automatically refreshes daily
+export const getCacheKey = (url: string, dailyKey = false): string => {
     try {
-        return url.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 150);
+        const baseKey = url.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 140);
+        return dailyKey ? `${getTodayKey()}_${baseKey}` : baseKey;
     } catch {
         return 'unknown_' + Date.now();
     }
@@ -208,10 +217,11 @@ export const fetchWithCache = async <T = any>(
     options?: {
         forceRefresh?: boolean;
         staleWhileRevalidate?: boolean;
+        dailyKey?: boolean; // If true, cache refreshes automatically each day
     }
 ): Promise<T> => {
-    const cacheKey = getCacheKey(url);
-    const { forceRefresh = false, staleWhileRevalidate = true } = options || {};
+    const { forceRefresh = false, staleWhileRevalidate = true, dailyKey = false } = options || {};
+    const cacheKey = getCacheKey(url, dailyKey);
 
     // Try to get from cache first (unless forcing refresh)
     if (!forceRefresh) {

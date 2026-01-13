@@ -30,7 +30,7 @@ const decodeHtml = (html: string): string => {
 
 export default function Player() {
     const {
-        currentSong, isPlaying, togglePlay, next, prev,
+        currentSong, isPlaying, isLoadingSong, togglePlay, next, prev,
         progress, duration, seek, is3DActive, toggle3D,
         volume, setVolume,
         isShuffleOn, toggleShuffle, repeatMode, toggleRepeat,
@@ -177,6 +177,7 @@ export default function Player() {
         setIsFav(changingToFav);
 
         try {
+            // Firebase is the primary storage - this is the important one
             if (!changingToFav) {
                 await removeLikedSong(String(currentSong.id));
             } else {
@@ -188,12 +189,12 @@ export default function Player() {
                 });
             }
 
-            // Sync with Node server as well
+            // Optional: Sync with Node server (fire-and-forget, don't await)
             const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
             if (!changingToFav) {
-                await fetch(`${apiUrl}/api/favorites/${currentSong.id}`, { method: 'DELETE' });
+                fetch(`${apiUrl}/api/favorites/${currentSong.id}`, { method: 'DELETE' }).catch(() => { });
             } else {
-                await fetch(`${apiUrl}/api/favorites`, {
+                fetch(`${apiUrl}/api/favorites`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -203,11 +204,11 @@ export default function Player() {
                         image: getImg(currentSong),
                         audioUrl: currentSong.audioUrl || ''
                     })
-                });
+                }).catch(() => { });
             }
         } catch (e) {
-            console.warn("Favorite sync error:", e);
-            // Revert on error
+            console.warn("Firebase favorite error:", e);
+            // Only revert on Firebase error (the primary storage)
             setIsFav(!changingToFav);
         }
     }
@@ -278,12 +279,20 @@ export default function Player() {
                         seek(percent * (duration || 0));
                     }}
                 >
-                    <div
-                        className="h-full bg-gradient-to-r from-cyan-400 to-cyan-500 relative transition-all duration-100"
-                        style={{ width: `${(progress / (duration || 1)) * 100}%` }}
-                    >
-                        <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 md:w-2 md:h-2 bg-[var(--foreground)] rounded-full opacity-100 md:opacity-0 group-hover:opacity-100 shadow-[0_0_10px_white] transition-opacity" />
-                    </div>
+                    {isLoadingSong ? (
+                        /* Loading animation - Spotify-like animated gradient */
+                        <div className="h-full w-full relative overflow-hidden">
+                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-cyan-400 to-transparent animate-[shimmer_1.5s_infinite] bg-[length:200%_100%]"
+                                style={{ animation: 'shimmer 1.5s infinite' }} />
+                        </div>
+                    ) : (
+                        <div
+                            className="h-full bg-gradient-to-r from-cyan-400 to-cyan-500 relative transition-all duration-100"
+                            style={{ width: `${(progress / (duration || 1)) * 100}%` }}
+                        >
+                            <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 md:w-2 md:h-2 bg-[var(--foreground)] rounded-full opacity-100 md:opacity-0 group-hover:opacity-100 shadow-[0_0_10px_white] transition-opacity" />
+                        </div>
+                    )}
                 </div>
 
                 {/* Left Side: Track Info - Hidden on mobile for centered layout */}

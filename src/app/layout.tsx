@@ -23,6 +23,7 @@ import UsernameGuard from "@/components/UsernameGuard";
 import ArihantGuard from "@/components/ArihantGuard";
 import MobileHeader from "@/components/MobileHeader";
 import PWAInstallPrompt from "@/components/PWAInstallPrompt";
+import PWAInitializer from "@/components/PWAInitializer";
 
 const font = Outfit({ subsets: ["latin"] });
 
@@ -75,6 +76,7 @@ export default function RootLayout({
                                   <LoginPromptModal />
                                   <AccountNotificationModal />
                                   <PWAInstallPrompt />
+                                  <PWAInitializer />
                                 </RoomProvider>
                               </FriendsProvider>
                             </OfflineProvider>

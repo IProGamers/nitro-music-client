@@ -47,6 +47,9 @@ interface MusicDataContextType {
 
     // Clear all profile cache (for logout)
     clearProfileCache: () => void;
+
+    // Invalidate profile cache (mark as stale to force refresh)
+    invalidateProfileCache: () => void;
 }
 
 const MusicDataContext = createContext<MusicDataContextType | undefined>(undefined);
@@ -133,6 +136,20 @@ export function MusicDataProvider({ children }: { children: ReactNode }) {
         }
     };
 
+    // Invalidate profile cache (mark as stale to force refresh on next view)
+    const invalidateProfileCache = () => {
+        if (profileData) {
+            // Set lastFetchedAt to 0 to force a refresh
+            const invalidatedData = { ...profileData, lastFetchedAt: 0 };
+            setProfileDataState(invalidatedData);
+            try {
+                localStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify(invalidatedData));
+            } catch (e) {
+                console.error('Failed to invalidate profile cache:', e);
+            }
+        }
+    };
+
     return (
         <MusicDataContext.Provider value={{
             homeData, setHomeData: setHomeDataWithCache, hasLoadedHome, setHasLoadedHome,
@@ -140,7 +157,8 @@ export function MusicDataProvider({ children }: { children: ReactNode }) {
             historyPageData, setHistoryPageData, hasLoadedHistoryPage, setHasLoadedHistoryPage,
             searchCache,
             clearSearchCache,
-            clearProfileCache
+            clearProfileCache,
+            invalidateProfileCache
         }}>
             {children}
         </MusicDataContext.Provider>

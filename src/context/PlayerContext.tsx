@@ -12,6 +12,7 @@ const PLAY_COUNT_KEY = 'nitro_free_plays';
 interface PlayerContextType {
     currentSong: any | null;
     isPlaying: boolean;
+    isLoadingSong: boolean;
     queue: any[];
     playTrack: (song: any, queue?: any[]) => void;
     playNext: (song: any) => void;
@@ -65,13 +66,14 @@ const PlayerContext = createContext<PlayerContextType | undefined>(undefined);
 export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
     const [currentSong, setCurrentSong] = useState<any | null>(null);
     const [isPlaying, setIsPlaying] = useState(false);
+    const [isLoadingSong, setIsLoadingSong] = useState(false);
     const [queue, setQueue] = useState<any[]>([]);
     const [currentIndex, setCurrentIndex] = useState(0);
     const [progress, setProgress] = useState(0);
     const [duration, setDuration] = useState(0);
     const [volume, setVolumeState] = useState(1);
     const audioRef = useRef<HTMLAudioElement>(null);
-    const { enable3DAudio, audioQuality } = useSettings();
+    const { enable3DAudio, audioQuality, autoPlay } = useSettings();
     const [is3DActive, setIs3DActive] = useState(false);
     const [threeDMode, setThreeDModeInternal] = useState<'off' | 'simple' | 'extreme'>('off');
 
@@ -445,6 +447,9 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
             return;
         }
 
+        // Show loading indicator immediately
+        setIsLoadingSong(true);
+
         if (newQueue) {
             // Check if this is the same queue (navigating within existing queue via next/prev)
             // If same queue, don't reset the index - it's already set by next() or prev()
@@ -519,6 +524,7 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
                 : song;
             setCurrentSong(songToPlay);
             setIsPlaying(true);
+            setIsLoadingSong(false);
 
             // Immediately set audio source and play (don't wait for useEffect)
             if (audioRef.current) {
@@ -567,7 +573,7 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
                 });
             }
         } else {
-            // Need to fetch full song data
+            // Need to fetch full song data - keep loading indicator on
             setCurrentSong(song);
             try {
                 const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
@@ -579,6 +585,7 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
 
                     setCurrentSong(fullSong);
                     setIsPlaying(true);
+                    setIsLoadingSong(false);
 
                     // Immediately set audio source and play
                     if (audioRef.current && fullAudioUrl) {
@@ -624,10 +631,12 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
                 } else {
                     console.error("Could not fetch song details, trying to play with existing data");
                     setIsPlaying(true);
+                    setIsLoadingSong(false);
                 }
             } catch (e) {
                 console.error("Failed to fetch song, trying to play with existing data", e);
                 setIsPlaying(true);
+                setIsLoadingSong(false);
             }
         }
     };
@@ -752,6 +761,39 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
         return scoredIndices[0].idx;
     };
 
+    // Fetch more related songs for autoplay
+    const fetchMoreSongsForAutoplay = async (seedSong: any): Promise<any[]> => {
+        try {
+            const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+            const songName = seedSong.name || seedSong.title || '';
+            const artistName = seedSong.artists?.primary?.[0]?.name || seedSong.artist || '';
+
+            // Try multiple search strategies for variety
+            const queries = [
+                `${artistName}`, // Same artist songs
+                `${songName}`, // Similar title songs
+                `${artistName} ${songName}`.trim(), // Exact match
+            ];
+
+            const randomQuery = queries[Math.floor(Math.random() * queries.length)];
+            const res = await fetch(`${apiUrl}/api/search/songs?query=${encodeURIComponent(randomQuery)}&limit=10`);
+            const data = await res.json();
+
+            if (data.success && data.data?.results) {
+                // Filter out songs already in queue
+                const seedId = String(seedSong.id || seedSong.songId);
+                const queueIds = new Set(queue.map(s => String(s.id || s.songId)));
+
+                return data.data.results.filter((s: any) =>
+                    String(s.id) !== seedId && !queueIds.has(String(s.id))
+                );
+            }
+        } catch (e) {
+            console.log('Could not fetch more songs for autoplay:', e);
+        }
+        return [];
+    };
+
     const next = () => {
         if (queue.length === 0) return;
 
@@ -784,10 +826,26 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
             }
         } else {
             nextIdx = currentIndex + 1;
-            // If at end and repeat all, loop back
+            // If at end
             if (nextIdx >= queue.length) {
                 if (repeatMode === 'all') {
                     nextIdx = 0;
+                } else if (autoPlay && currentSong) {
+                    // Autoplay is ON - fetch more related songs and continue playing
+                    fetchMoreSongsForAutoplay(currentSong).then(moreSongs => {
+                        if (moreSongs.length > 0) {
+                            // Add new songs to queue and play the first new one
+                            const newQueue = [...queue, ...moreSongs];
+                            setQueue(newQueue);
+                            const newIdx = queue.length; // First new song index
+                            setCurrentIndex(newIdx);
+                            playTrack(moreSongs[0], newQueue);
+                        } else {
+                            // No more songs found, stop playback
+                            setIsPlaying(false);
+                        }
+                    });
+                    return; // Exit early, playTrack will be called in the Promise
                 } else {
                     // Stop at end
                     setIsPlaying(false);
@@ -958,6 +1016,7 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
         <PlayerContext.Provider value={{
             currentSong,
             isPlaying,
+            isLoadingSong,
             queue,
             playTrack,
             playNext,

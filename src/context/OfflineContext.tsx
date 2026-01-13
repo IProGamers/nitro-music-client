@@ -109,8 +109,19 @@ export function OfflineProvider({ children }: { children: ReactNode }) {
                 throw new Error('No audio URL available for this song');
             }
 
+            // In production, use our audio proxy to bypass CORS
+            // The proxy is at: /api/audio/proxy?url=<encoded_url>
+            const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
+            const isProduction = typeof window !== 'undefined' && !window.location.hostname.includes('localhost');
+
+            let fetchUrl = audioUrl;
+            if (isProduction || apiUrl.includes('vercel') || apiUrl.includes('netlify')) {
+                // Use proxy for production
+                fetchUrl = `${apiUrl}/api/audio/proxy?url=${encodeURIComponent(audioUrl)}`;
+            }
+
             // Fetch audio with progress tracking
-            const response = await fetch(audioUrl);
+            const response = await fetch(fetchUrl);
             if (!response.ok) throw new Error('Failed to fetch audio');
 
             const contentLength = response.headers.get('content-length');

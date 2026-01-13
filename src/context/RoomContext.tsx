@@ -52,7 +52,8 @@ interface RoomContextType {
 
 const RoomContext = createContext<RoomContextType | undefined>(undefined);
 
-const SOCKET_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+// Use separate socket server URL (for Render deployment) or fall back to API URL (local dev)
+const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 
 export const RoomProvider = ({ children }: { children: React.ReactNode }) => {
     const { user, userProfile } = useAuth();

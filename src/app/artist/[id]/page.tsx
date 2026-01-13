@@ -14,16 +14,30 @@ export default function ArtistPage() {
     useEffect(() => {
         if (!id) return;
 
-        const fetchArtist = async () => {
+        const fetchArtist = async (retries = 2) => {
             try {
                 const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
-                const res = await fetch(`${apiUrl}/api/artists/${id}?songCount=20&albumCount=20`);
+                const res = await fetch(`${apiUrl}/api/artists/${id}?songCount=20&albumCount=20`, {
+                    headers: { 'Accept': 'application/json' }
+                });
+
+                if (!res.ok) {
+                    throw new Error(`HTTP ${res.status}`);
+                }
+
                 const data = await res.json();
-                if (data.success) {
+                if (data.success && data.data) {
                     setArtist(data.data);
+                } else {
+                    console.warn('Artist API returned:', data);
                 }
             } catch (e) {
-                console.error(e);
+                console.error('Artist fetch error:', e);
+                // Retry on failure
+                if (retries > 0) {
+                    setTimeout(() => fetchArtist(retries - 1), 1000);
+                    return;
+                }
             } finally {
                 setLoading(false);
             }

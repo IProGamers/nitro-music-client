@@ -52,7 +52,7 @@ const shuffleWithSeed = <T,>(array: T[], seed: number): T[] => {
 
 export default function Home() {
   const { playTrack } = usePlayer();
-  const { user, userProfile, getUserPlaylists } = useAuth();
+  const { user, userProfile, getUserPlaylists, getRecentPlays } = useAuth();
   const { tier } = useSettings();
   const router = useRouter();
   const { homeData, setHomeData, hasLoadedHome, setHasLoadedHome } = useMusicData();
@@ -86,24 +86,87 @@ export default function Home() {
       try {
         const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 
-        // Use cached fetch for all API calls - massively improves load times
+        // Fetch listening history from Firebase (user-specific, not server)
+        let firebaseHistory: any[] = [];
+        if (user) {
+          try {
+            firebaseHistory = await getRecentPlays(50);
+          } catch (err) {
+            console.log('Could not fetch Firebase history:', err);
+          }
+        }
+
+        // Daily rotating keywords for fresh content every day
+        const dayOfWeek = new Date().getDay(); // 0-6
+        const trendingKeywords = [
+          'trending india new 2025',
+          'viral hits india bollywood',
+          'top chartbusters 2025 hindi',
+          'latest bollywood punjabi hits',
+          'new release songs india',
+          'hot trending music 2025',
+          'popular songs india today'
+        ][dayOfWeek];
+
+        const partyKeywords = [
+          'party anthems bollywood dance',
+          'club hits indian remix',
+          'dance floor bangers 2025',
+          'dj mix bollywood party',
+          'bass boosted hindi songs',
+          'night party songs indian',
+          'groove hits bollywood mashup'
+        ][dayOfWeek];
+
+        const englishArtists = [
+          'ed sheeran taylor swift dua lipa',
+          'imagine dragons coldplay maroon 5',
+          'the weeknd bruno mars justin bieber',
+          'adele billie eilish ariana grande',
+          'post malone drake travis scott',
+          'harry styles olivia rodrigo doja cat',
+          'sia charlie puth shawn mendes'
+        ][dayOfWeek];
+
+        const hindiSongs = [
+          'tum hi ho channa mereya gerua',
+          'kal ho naa ho kabhi khushi',
+          'tujhe dekha to ye jaana sanam',
+          'pehla nasha chaiyya chaiyya',
+          'lag ja gale tere naam',
+          'kesariya brahmastra tu jhoothi',
+          'raataan lambiyan shershaah'
+        ][dayOfWeek];
+
+        const punjabiArtists = [
+          'diljit dosanjh ap dhillon',
+          'sidhu moose wala karan aujla',
+          'guru randhawa harrdy sandhu',
+          'jassi gill jass manak',
+          'garry sandhu amrit maan',
+          'parmish verma b praak',
+          'yo yo honey singh badshah'
+        ][dayOfWeek];
+
+        // Use cached fetch for all API calls - dailyKey ensures fresh content each day
         const responses = await Promise.allSettled([
           fetchWithCache(`${apiUrl}/api/modules`, CACHE_TTL.MODULES),
           fetchWithCache(`${apiUrl}/api/search/artists?query=Arijit+Singh+Ar+Rahman+Diljit+Dosanjh+Taylor+Swift+The+Weeknd&limit=15`, CACHE_TTL.SEARCH),
-          fetchWithCache(`${apiUrl}/api/search/songs?query=trending+india+bollywood+punjabi+hindi+2025&limit=30`, CACHE_TTL.TRENDING),
-          fetchWithCache(`${apiUrl}/api/search/songs?query=latest+party+anthems+bollywood+hollywood+mashup+2025&limit=50`, CACHE_TTL.SEARCH),
-          fetchWithCache(`${apiUrl}/api/search/songs?query=billboard+hot+100+western+hits+2025&limit=40`, CACHE_TTL.SEARCH),
-          fetchWithCache(`${apiUrl}/api/search/songs?query=global+pop+superstars+2025&limit=40`, CACHE_TTL.SEARCH),
-          fetch(`${apiUrl}/api/history`).then(r => r.json()).catch(() => ({ success: false })), // History not cached (user-specific)
-          fetchWithCache(`${apiUrl}/api/search/songs?query=bollywood+top+romantic+dance+sad+hits+2025&limit=50`, CACHE_TTL.SEARCH),
-          // Iconic English songs - Using specific English artists to avoid Hindi songs
-          fetchWithCache(`${apiUrl}/api/search/songs?query=ed+sheeran+taylor+swift+imagine+dragons+coldplay+adele+dua+lipa+the+weeknd+bruno+mars&limit=30`, CACHE_TTL.SEARCH),
-          // Iconic Hindi songs (legendary Bollywood)
-          fetchWithCache(`${apiUrl}/api/search/songs?query=tum+hi+ho+kal+ho+naa+ho+kabhi+khushi+kabhie+gham+channa+mereya+gerua+tujhe+dekha+to&limit=30`, CACHE_TTL.SEARCH),
+          // Rotating content with dailyKey for fresh songs every day
+          fetchWithCache(`${apiUrl}/api/search/songs?query=${encodeURIComponent(trendingKeywords)}&limit=40`, CACHE_TTL.TRENDING, { dailyKey: true }),
+          fetchWithCache(`${apiUrl}/api/search/songs?query=${encodeURIComponent(partyKeywords)}&limit=50`, CACHE_TTL.SEARCH, { dailyKey: true }),
+          fetchWithCache(`${apiUrl}/api/search/songs?query=billboard+hot+100+western+hits+2025&limit=40`, CACHE_TTL.SEARCH, { dailyKey: true }),
+          fetchWithCache(`${apiUrl}/api/search/songs?query=global+pop+superstars+2025&limit=40`, CACHE_TTL.SEARCH, { dailyKey: true }),
+          Promise.resolve({ success: true, data: firebaseHistory }), // Firebase history (already fetched)
+          fetchWithCache(`${apiUrl}/api/search/songs?query=bollywood+top+romantic+dance+sad+hits+2025&limit=50`, CACHE_TTL.SEARCH, { dailyKey: true }),
+          // Iconic English songs - Rotating artists each day
+          fetchWithCache(`${apiUrl}/api/search/songs?query=${encodeURIComponent(englishArtists)}&limit=30`, CACHE_TTL.SEARCH, { dailyKey: true }),
+          // Iconic Hindi songs - Rotating songs each day
+          fetchWithCache(`${apiUrl}/api/search/songs?query=${encodeURIComponent(hindiSongs)}&limit=30`, CACHE_TTL.SEARCH, { dailyKey: true }),
           // Top Artists (combined Hindi + English)
           fetchWithCache(`${apiUrl}/api/search/artists?query=Arijit+Singh+Ed+Sheeran+Taylor+Swift+Atif+Aslam+The+Weeknd+Shreya+Ghoshal+Imagine+Dragons+Pritam+Dua+Lipa+Neha+Kakkar&limit=20`, CACHE_TTL.SEARCH),
-          // Punjabi Hits - Simple effective query
-          fetchWithCache(`${apiUrl}/api/search/songs?query=punjabi+hits+2024&limit=40`, CACHE_TTL.SEARCH)
+          // Punjabi Hits - Rotating artists each day
+          fetchWithCache(`${apiUrl}/api/search/songs?query=${encodeURIComponent(punjabiArtists + ' punjabi hits')}&limit=40`, CACHE_TTL.SEARCH, { dailyKey: true })
         ]);
 
         const data = responses.map((r) => {
@@ -126,18 +189,36 @@ export default function Home() {
           });
         };
 
+
         const getDiverse = (songs: any[], limitCount = 12) => {
           const unique = getUnique(songs);
           const diverse: any[] = [];
           const seenImages = new Set<string>();
+          const seenNames = new Set<string>(); // Track song names to avoid same song different cover
+
+          // Normalize song name for comparison (lowercase, remove special chars)
+          const normalizeName = (name: string) => {
+            if (!name) return '';
+            return name.toLowerCase()
+              .replace(/[^a-z0-9\s]/g, '') // Remove special chars
+              .replace(/\s+/g, ' ')        // Normalize spaces
+              .trim()
+              .substring(0, 30);           // Compare first 30 chars only
+          };
 
           for (const s of unique) {
             const img = getImg(s);
-            // Strictly allow only 1 song per image for true diversity
-            if (!seenImages.has(img)) {
-              diverse.push(s);
-              seenImages.add(img);
+            const name = normalizeName(getName(s));
+
+            // Skip if we've seen this image OR this song name before
+            if (seenImages.has(img) || (name && seenNames.has(name))) {
+              continue;
             }
+
+            diverse.push(s);
+            seenImages.add(img);
+            if (name) seenNames.add(name);
+
             if (diverse.length >= limitCount) break;
           }
           return diverse;
@@ -160,7 +241,16 @@ export default function Home() {
           partyMix: shuffleDaily(data[3]?.success ? getDiverse(data[3].data.results, 15) : []),
           internationalHits: shuffleDaily(data[4]?.success && data[4].data.results.length > 0 ? getDiverse(data[4].data.results, 30) : []), // Increased for Throwback classics
           globalPop: shuffleDaily(data[5]?.success ? getDiverse(data[5].data.results, 15) : []),
-          lastPlayed: data[6]?.success ? getUnique(data[6].data) : [], // Don't shuffle recently played - keep in order
+          lastPlayed: data[6]?.success && Array.isArray(data[6].data)
+            ? data[6].data.map((h: any) => ({
+              id: h.songId || h.id,
+              name: h.name,
+              artist: h.artist,
+              image: h.image,
+              artists: { primary: [{ name: h.artist }] }, // For compatibility with getArtist helper
+              playedAt: h.playedAt
+            }))
+            : [], // Don't shuffle recently played - keep in order
           iconicEnglish: shuffleDaily(data[8]?.success ? getDiverse(data[8].data.results, 18) : []),
           iconicHindi: shuffleDaily(data[9]?.success ? getDiverse(data[9].data.results, 18) : []),
           topArtists: shuffleDaily(data[10]?.success ? getUnique(data[10].data.results).slice(0, 15) : []),
@@ -294,7 +384,7 @@ export default function Home() {
     }
 
     if (user) fetchPlaylists();
-  }, [hasLoadedHome, homeData, setHomeData, setHasLoadedHome, user, getUserPlaylists]);
+  }, [hasLoadedHome, homeData, setHomeData, setHasLoadedHome, user, getUserPlaylists, getRecentPlays]);
 
   // Hero slider auto-rotation for PC only
   useEffect(() => {
@@ -572,6 +662,10 @@ export default function Home() {
                     <button className="absolute bottom-3 right-3 w-10 h-10 bg-cyan-400 rounded-full flex items-center justify-center shadow-lg shadow-cyan-500/30 opacity-0 scale-90 group-hover:opacity-100 group-hover:scale-100 transition-all">
                       <Play size={18} fill="black" className="ml-0.5 text-black" />
                     </button>
+                    {/* 3-dots Context Menu */}
+                    <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10" onClick={e => e.stopPropagation()}>
+                      <SongContextMenu song={song} queue={madeForYou} />
+                    </div>
                     {/* Recommendation reason badge */}
                     {idx < 6 && (
                       <div className="absolute top-2 left-2 px-2 py-0.5 bg-black/60 backdrop-blur-sm rounded-full">
@@ -1162,6 +1256,11 @@ function RecentSongCard({ song, queue, getImg, getName, getArtist, playTrack }: 
         <h3 className="font-bold text-[9px] md:text-[10px] text-[var(--foreground)] truncate group-hover:text-cyan-400 transition-colors uppercase tracking-tight leading-tight">{getName(song)}</h3>
         <p className="text-[8px] md:text-[9px] text-[var(--foreground-muted)] truncate mt-0.5 uppercase tracking-wide opacity-80">{getArtist(song)}</p>
       </div>
+      {/* 3-dots Context Menu */}
+      <div className="opacity-0 group-hover:opacity-100 transition-opacity z-10" onClick={e => e.stopPropagation()}>
+        <SongContextMenu song={song} queue={queue} />
+      </div>
+      {/* Play button on hover */}
       <div className="w-6 h-6 rounded-full bg-cyan-400 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all shrink-0 shadow-lg shadow-cyan-500/20">
         <Play size={10} fill="black" className="ml-0.5 text-black" />
       </div>
