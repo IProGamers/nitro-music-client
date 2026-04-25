@@ -7,6 +7,18 @@ import { Shield, Check, Loader2, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 
 export default function SetAdminPage() {
+    // SECURITY: Disable this gateway in production
+    if (process.env.NODE_ENV === 'production') {
+        return (
+            <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-black text-center">
+                <Shield size={48} className="text-red-500 mb-4" />
+                <h1 className="text-2xl font-bold text-white mb-2">Access Denied</h1>
+                <p className="text-zinc-400">This configuration gateway is disabled in production.</p>
+                <p className="text-zinc-500 text-sm mt-2">Please set isAdmin: true directly in the Firestore database for the required username.</p>
+            </div>
+        );
+    }
+
     const { user, userProfile, refreshProfile, loading: authLoading } = useAuth();
     const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
     const [message, setMessage] = useState('');

@@ -26,6 +26,7 @@ import PWAInstallPrompt from "@/components/PWAInstallPrompt";
 import PWAInitializer from "@/components/PWAInitializer";
 
 const font = Outfit({ subsets: ["latin"] });
+import ApprovalGuard from "@/components/ApprovalGuard";
 
 export const metadata: Metadata = {
   title: "Nitro",
@@ -65,11 +66,13 @@ export default function RootLayout({
                                   <Sidebar />
                                   <main className="flex-1 overflow-y-auto pb-32 md:pb-28 relative">
                                     <MobileHeader />
-                                    <UsernameGuard>
-                                      <ArihantGuard>
-                                        {children}
-                                      </ArihantGuard>
-                                    </UsernameGuard>
+                                    <ApprovalGuard>
+                                      <UsernameGuard>
+                                        <ArihantGuard>
+                                          {children}
+                                        </ArihantGuard>
+                                      </UsernameGuard>
+                                    </ApprovalGuard>
                                   </main>
                                   <Player />
                                   <LimitReachedModal />
