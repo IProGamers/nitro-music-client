@@ -185,6 +185,12 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
     const pannerRef = useRef<PannerNode | null>(null);
     const fxGainRef = useRef<GainNode | null>(null);
 
+    // DJ crossfade refs (secondary audio element used only while DJ mode is ON)
+    const crossfadeAudioRef = useRef<HTMLAudioElement>(null);
+    const isCrossfadingRef = useRef(false);
+    const crossfadeRafRef = useRef<number | null>(null);
+    const crossfadePrevGainRef = useRef<number>(1);
+
     // Initialize Audio Context and Nodes
     useEffect(() => {
         if (!audioRef.current) return;
@@ -461,6 +467,8 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
     };
 
     const playTrack = async (song: any, newQueue?: any[]) => {
+        // Any explicit play cancels an in-flight DJ crossfade and restores volume.
+        cancelCrossfade();
         // Check free user play limit
         if (!user) {
             if (freePlayCount >= FREE_PLAY_LIMIT) {
@@ -841,7 +849,172 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
         return [];
     };
 
+    // ---- DJ Mode Crossfade Engine ----
+    // DJ mode + crossfade duration live in localStorage (written by DJContext, which
+    // is a child of this provider so we can't read it via context). Read lazily.
+    const getDJConfig = (): { enabled: boolean; duration: number } => {
+        try {
+            const enabled = localStorage.getItem('nitro_dj_mode') === 'true';
+            let duration = 8;
+            const raw = localStorage.getItem('nitro_dj_settings');
+            if (raw) {
+                const parsed = JSON.parse(raw);
+                if (typeof parsed?.crossfadeDuration === 'number') duration = parsed.crossfadeDuration;
+            }
+            duration = Math.max(3, Math.min(16, duration));
+            return { enabled, duration };
+        } catch {
+            return { enabled: false, duration: 8 };
+        }
+    };
+
+    // Abort an in-flight crossfade and restore the primary element to full volume.
+    // Called on manual next/prev/playTrack so a skip mid-mix never leaves audio muted.
+    const cancelCrossfade = () => {
+        if (crossfadeRafRef.current !== null) {
+            cancelAnimationFrame(crossfadeRafRef.current);
+            crossfadeRafRef.current = null;
+        }
+        if (!isCrossfadingRef.current) return;
+        // Restore primary gain / volume
+        if (fxGainRef.current) {
+            try { fxGainRef.current.gain.value = crossfadePrevGainRef.current; } catch { /* noop */ }
+        } else if (audioRef.current) {
+            audioRef.current.volume = volume;
+        }
+        const sec = crossfadeAudioRef.current;
+        if (sec) {
+            try { sec.pause(); sec.removeAttribute('src'); sec.volume = 0; } catch { /* noop */ }
+        }
+        isCrossfadingRef.current = false;
+    };
+
+    const finishCrossfade = (nextSong: any, nextIdx: number, nextUrl: string, origGain: number) => {
+        const primary = audioRef.current;
+        const sec = crossfadeAudioRef.current;
+        crossfadeRafRef.current = null;
+        if (!primary || !sec) { isCrossfadingRef.current = false; return; }
+
+        const pos = sec.currentTime;
+        // Hand the new track back to the PRIMARY element so the Web Audio graph
+        // (FX, 3D panner, visualizer analyser) keeps working on the new song.
+        try {
+            primary.src = nextUrl;
+            primary.crossOrigin = 'anonymous';
+            primary.currentTime = pos > 0 ? pos : 0;
+            if (fxGainRef.current) {
+                try { fxGainRef.current.gain.value = origGain; } catch { /* noop */ }
+            } else {
+                primary.volume = volume;
+            }
+            const p = primary.play();
+            if (p !== undefined) p.catch(() => { /* autoplay policy */ });
+        } catch { /* noop */ }
+
+        // Stop & reset the secondary element
+        try { sec.pause(); sec.removeAttribute('src'); sec.volume = 0; } catch { /* noop */ }
+
+        // Update player state to the new track (no restart: src already matches)
+        setCurrentIndex(nextIdx);
+        setCurrentSong(nextSong);
+        setIsPlaying(true);
+        isCrossfadingRef.current = false;
+
+        // Persist history for signed-in users
+        if (user) {
+            try {
+                saveToPlayHistory({
+                    id: String(nextSong.songId || nextSong.id),
+                    name: nextSong.name || nextSong.title || 'Unknown',
+                    artist: getArtist(nextSong),
+                    image: getImg(nextSong)
+                });
+            } catch { /* noop */ }
+        }
+    };
+
+    // Begin crossfading into nextSong over durationSec seconds.
+    // Returns false if it can't start (no playable URL) so the caller falls back to next().
+    const startCrossfade = (nextSong: any, nextIdx: number, durationSec: number): boolean => {
+        const primary = audioRef.current;
+        const sec = crossfadeAudioRef.current;
+        if (!primary || !sec) return false;
+
+        const nextUrl = getAudio(nextSong);
+        if (!nextUrl) return false; // next track has no ready stream — let onEnded handle it
+
+        isCrossfadingRef.current = true;
+
+        // Primary fades out via the FX gain node (reliable inside the Web Audio graph);
+        // fall back to element.volume if the graph isn't ready.
+        const useGain = !!fxGainRef.current;
+        const origGain = useGain ? fxGainRef.current!.gain.value : primary.volume;
+        crossfadePrevGainRef.current = origGain;
+
+        // Secondary plays the next track from 0, faded in via element.volume.
+        try {
+            sec.src = nextUrl;
+            sec.crossOrigin = 'anonymous';
+            sec.currentTime = 0;
+            sec.volume = 0;
+            const sp = sec.play();
+            if (sp !== undefined) sp.catch(() => { /* noop */ });
+        } catch {
+            isCrossfadingRef.current = false;
+            return false;
+        }
+
+        const startTs = performance.now();
+        const totalMs = Math.max(1000, durationSec * 1000);
+        const targetVol = volume;
+
+        const step = (nowTs: number) => {
+            const t = Math.min(1, (nowTs - startTs) / totalMs);
+            // Fade out primary
+            if (useGain && fxGainRef.current) {
+                try { fxGainRef.current.gain.value = origGain * (1 - t); } catch { /* noop */ }
+            } else {
+                try { primary.volume = targetVol * (1 - t); } catch { /* noop */ }
+            }
+            // Fade in secondary
+            try { sec.volume = targetVol * t; } catch { /* noop */ }
+
+            if (t < 1) {
+                crossfadeRafRef.current = requestAnimationFrame(step);
+            } else {
+                finishCrossfade(nextSong, nextIdx, nextUrl, origGain);
+            }
+        };
+        crossfadeRafRef.current = requestAnimationFrame(step);
+        return true;
+    };
+
+    // Decide whether to kick off a crossfade as the current track nears its end.
+    // Called from the primary element's onTimeUpdate. No-op unless DJ mode is enabled.
+    const maybeCrossfade = (currentTime: number, dur: number) => {
+        if (isCrossfadingRef.current || isListenerMode) return;
+        if (!dur || !isFinite(dur) || currentTime <= 0) return;
+        if (repeatMode === 'one') return;
+
+        const dj = getDJConfig();
+        if (!dj.enabled) return;
+        if (dur - currentTime > dj.duration) return;
+
+        // Determine the upcoming track (sequential; wraps when repeat-all)
+        let nextIdx = currentIndex + 1;
+        if (nextIdx >= queue.length) {
+            if (repeatMode === 'all') nextIdx = 0;
+            else return; // no next track to mix into — onEnded will handle autoplay
+        }
+        if (nextIdx === currentIndex) return;
+        const nextSong = queue[nextIdx];
+        if (!nextSong) return;
+
+        startCrossfade(nextSong, nextIdx, dj.duration);
+    };
+
     const next = () => {
+        cancelCrossfade();
         if (queue.length === 0) return;
 
         // Track current song artist for smart shuffle
@@ -907,6 +1080,7 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
     };
 
     const prev = () => {
+        cancelCrossfade();
         if (queue.length === 0) return;
 
         // If more than 3 seconds into the song, restart it instead of going to previous
@@ -1116,15 +1290,21 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
                 crossOrigin="anonymous"
                 onTimeUpdate={(e) => {
                     const currentTime = e.currentTarget.currentTime;
+                    const dur = e.currentTarget.duration;
                     setProgress(currentTime);
-                    setDuration(e.currentTarget.duration);
+                    setDuration(dur);
                     // A-B Loop: if we've passed point B, jump back to A
                     if (loopA !== null && loopB !== null && currentTime >= loopB) {
                         e.currentTarget.currentTime = loopA;
+                        return;
                     }
+                    // DJ Mode: blend into the next track as this one nears its end
+                    maybeCrossfade(currentTime, dur);
                 }}
                 onEnded={next}
             />
+            {/* Secondary element used only for DJ-mode crossfade (not wired to Web Audio) */}
+            <audio ref={crossfadeAudioRef} crossOrigin="anonymous" preload="auto" />
         </PlayerContext.Provider>
     );
 }
