@@ -578,14 +578,14 @@ export default function Home() {
             {/* Content */}
             <div className="relative z-10 flex items-center h-full px-10 lg:px-16">
               <div className="max-w-[50%]">
-                <div className="text-[10px] font-bold uppercase tracking-widest text-cyan-400 mb-2">🔥 Trending Now</div>
-                <h2 className="text-3xl lg:text-4xl font-bold text-white mb-2 uppercase tracking-tight leading-tight line-clamp-2">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-cyan-400 mb-3">Trending Now</div>
+                <h2 className="text-4xl lg:text-5xl font-bold text-white mb-3 tracking-tight leading-[1.05] line-clamp-2">
                   {getName(trending[heroSlide])}
                 </h2>
-                <p className="text-sm text-white/70 mb-4 uppercase tracking-wider">{getArtist(trending[heroSlide])}</p>
+                <p className="text-base text-white/60 mb-6">{getArtist(trending[heroSlide])}</p>
                 <button
                   onClick={() => playTrack(trending[heroSlide], trending)}
-                  className="px-8 py-3 bg-cyan-400 hover:bg-cyan-300 text-black font-bold rounded-full flex items-center gap-2 transition-all hover:scale-105 shadow-lg shadow-cyan-400/30"
+                  className="px-8 py-3.5 bg-cyan-400 hover:bg-cyan-300 text-black font-semibold rounded-full flex items-center gap-2 transition-all hover:scale-[1.03] active:scale-95"
                 >
                   <Play size={18} fill="currentColor" className="ml-0.5" />
                   Play Now
@@ -1231,8 +1231,8 @@ function SongCard({ song, queue, getImg, getName, getArtist, playTrack }: { song
           <SongContextMenu song={song} queue={queue} />
         </div>
       </div>
-      <h3 className="font-bold text-[10px] md:text-[11px] text-[var(--foreground)] truncate uppercase tracking-tight">{getName(song)}</h3>
-      <p className="text-[8px] md:text-[9px] text-[var(--foreground-muted)] truncate uppercase tracking-wider">{getArtist(song)}</p>
+      <h3 className="font-semibold text-xs md:text-[13px] text-[var(--foreground)] truncate leading-snug">{getName(song)}</h3>
+      <p className="text-[11px] md:text-xs text-[var(--foreground-muted)] truncate mt-0.5">{getArtist(song)}</p>
     </div>
   );
 }
@@ -1253,8 +1253,8 @@ function RecentSongCard({ song, queue, getImg, getName, getArtist, playTrack }: 
         )}
       </div>
       <div className="flex-1 min-w-0 pr-1">
-        <h3 className="font-bold text-[9px] md:text-[10px] text-[var(--foreground)] truncate group-hover:text-cyan-400 transition-colors uppercase tracking-tight leading-tight">{getName(song)}</h3>
-        <p className="text-[8px] md:text-[9px] text-[var(--foreground-muted)] truncate mt-0.5 uppercase tracking-wide opacity-80">{getArtist(song)}</p>
+        <h3 className="font-medium text-xs md:text-[13px] text-[var(--foreground)] truncate leading-snug">{getName(song)}</h3>
+        <p className="text-[10px] md:text-[11px] text-[var(--foreground-muted)] truncate mt-0.5">{getArtist(song)}</p>
       </div>
       {/* 3-dots Context Menu */}
       <div className="opacity-0 group-hover:opacity-100 transition-opacity z-10" onClick={e => e.stopPropagation()}>

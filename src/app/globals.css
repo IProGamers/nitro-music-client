@@ -1,38 +1,37 @@
 @import "tailwindcss";
 
-/* Dark Theme (Default) - Professional Tech */
+/* Dark Theme (Default) - Premium layered surfaces */
 :root,
 .dark-theme {
-  --background: #000000;
-  --background-secondary: #09090b;
-  --background-tertiary: #121215;
-  --foreground: #ffffff;
-  --foreground-secondary: #a1a1aa;
-  --foreground-muted: #71717a;
+  /* Layered near-black surfaces (depth without pure #000 flatness) */
+  --background: #0a0a0b;
+  --background-secondary: #111113;
+  --background-tertiary: #1a1a1d;
+  --foreground: #f4f4f5;
+  --foreground-secondary: #b4b4bb;
+  --foreground-muted: #80808a;
 
-  /* Glassmorphism Variables */
-  --border: rgba(255, 255, 255, 0.08);
-  --border-hover: rgba(255, 255, 255, 0.15);
-  --card: rgba(255, 255, 255, 0.03);
+  /* Solid elevated card surfaces (premium, not washed glassmorphism) */
+  --border: rgba(255, 255, 255, 0.07);
+  --border-hover: rgba(255, 255, 255, 0.14);
+  --card: rgba(255, 255, 255, 0.035);
   --card-hover: rgba(255, 255, 255, 0.07);
-  --overlay: rgba(0, 0, 0, 0.85);
-  --shadow: rgba(0, 0, 0, 0.3);
+  --surface: #161618;
+  --surface-hover: #1f1f23;
+  --overlay: rgba(0, 0, 0, 0.88);
+  --shadow: rgba(0, 0, 0, 0.45);
 
-  /* Refined Accent Colors - Less Neon, More Professional */
-  --accent-cyan: #06b6d4;
-  /* Cyan-500 -> Cyan-500 (Clean) */
-  --accent-purple: #9333ea;
-  /* Purple-600 */
+  /* Accent Colors */
+  --accent-cyan: #22d3ee;
+  --accent-purple: #a855f7;
   --accent-amber: #f59e0b;
-  /* Amber-500 */
-  --accent-pink: #db2777;
-  /* Pink-600 */
+  --accent-pink: #ec4899;
   --accent-emerald: #10b981;
-  /* Emerald-500 */
+  --accent: #22d3ee;
 
   /* Gradient Definitions */
-  --gradient-primary: linear-gradient(135deg, rgba(6, 182, 212, 0.15), rgba(0, 0, 0, 0));
-  --gradient-glass: linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.03) 100%);
+  --gradient-primary: linear-gradient(135deg, rgba(34, 211, 238, 0.14), rgba(0, 0, 0, 0));
+  --gradient-glass: linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.02) 100%);
 }
 
 /* Light Theme - Clean Modern */
@@ -48,14 +47,17 @@
   --border-hover: rgba(0, 0, 0, 0.12);
   --card: rgba(0, 0, 0, 0.02);
   --card-hover: rgba(0, 0, 0, 0.05);
+  --surface: #ffffff;
+  --surface-hover: #f4f4f5;
   --overlay: rgba(255, 255, 255, 0.9);
-  --shadow: rgba(0, 0, 0, 0.05);
+  --shadow: rgba(0, 0, 0, 0.08);
 
   --accent-cyan: #0891b2;
   --accent-purple: #7e22ce;
   --accent-amber: #d97706;
   --accent-pink: #be185d;
   --accent-emerald: #059669;
+  --accent: #0891b2;
 
   --gradient-primary: linear-gradient(135deg, rgba(8, 145, 178, 0.1), rgba(255, 255, 255, 0));
   --gradient-glass: linear-gradient(180deg, rgba(0, 0, 0, 0.02) 0%, rgba(0, 0, 0, 0.05) 100%);
@@ -72,10 +74,84 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  /* Switched to Inter for more professional look */
   transition: background-color 0.3s ease, color 0.3s ease;
   line-height: 1.5;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.011em;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Premium type scale — tighter, confident headings */
+h1, h2, h3, h4 {
+  letter-spacing: -0.025em;
+  font-weight: 700;
+}
+
+/* Thin, subtle scrollbar (premium feel vs hidden/default chunky bars) */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.14) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.22);
+  background-clip: content-box;
+}
+
+/* ---- Reusable premium primitives ---- */
+.surface-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  transition: background-color 0.25s ease, transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.surface-card:hover {
+  background: var(--surface-hover);
+  box-shadow: 0 8px 28px var(--shadow);
+}
+
+.lift-hover {
+  transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.25s ease;
+}
+
+.lift-hover:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 32px var(--shadow);
+}
+
+.btn-accent {
+  background: var(--accent);
+  color: #04161a;
+  border-radius: 999px;
+  font-weight: 600;
+  transition: transform 0.15s ease, filter 0.15s ease;
+}
+
+.btn-accent:hover {
+  filter: brightness(1.08);
+  transform: scale(1.04);
+}
+
+.btn-accent:active {
+  transform: scale(0.97);
 }
 
 /* Custom Scrollbar Hide Utility */
@@ -140,4 +216,35 @@ body {
 
 .animate-shimmer {
   animation: shimmer 1.5s infinite;
+}
+
+/* Premium content entrance */
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.4s ease both;
 }
