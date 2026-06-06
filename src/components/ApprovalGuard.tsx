@@ -8,7 +8,6 @@ const EXCLUDED_PATHS = [
     '/auth',
     '/auth/callback',
     '/login',
-    '/set-admin',
     '/setup-username',
 ];
 
