@@ -2,11 +2,12 @@
 import { useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import { ShieldAlert, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 
 const EXCLUDED_PATHS = [
     '/auth',
     '/auth/callback',
+    '/login',
     '/set-admin',
     '/setup-username',
 ];
@@ -46,34 +47,6 @@ export default function ApprovalGuard({ children }: { children: React.ReactNode 
         return null; // Will redirect via useEffect
     }
 
-    // Must be approved (tier > NITRO_CORE or admin)
-    if (userProfile && !userProfile.isAdmin && userProfile.tier === 'NITRO_CORE') {
-        // Let users set up their username first if they haven't so admins know who they are
-        const hasUsername = userProfile.username && userProfile.username.trim() !== '';
-        if (!hasUsername) {
-             return <>{children}</>;
-        }
-
-        return (
-            <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-black text-center relative z-[100]">
-                <div className="max-w-md w-full bg-[#121212] border border-cyan-500/20 p-8 rounded-3xl shadow-2xl">
-                    <div className="w-20 h-20 bg-gradient-to-br from-cyan-500/20 to-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
-                        <ShieldAlert size={40} className="text-cyan-400" />
-                    </div>
-                    <h1 className="text-2xl font-bold text-white mb-4">Approval Required</h1>
-                    <p className="text-zinc-400 mb-8 leading-relaxed">
-                        Nitro Music is currently a private platform. Your account has been created successfully, but requires administrator approval for full access.
-                    </p>
-                    <div className="p-4 bg-cyan-900/20 border border-cyan-500/30 rounded-xl mb-6">
-                        <p className="text-sm text-cyan-300">
-                            Please request access from the site administrator to unlock the premium music experience.
-                        </p>
-                    </div>
-                </div>
-            </div>
-        );
-    }
-
-    // Approved! Render the app.
+    // Logged in — render the app. Feature gating happens inside UsageContext per feature.
     return <>{children}</>;
 }

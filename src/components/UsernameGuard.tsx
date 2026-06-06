@@ -21,6 +21,9 @@ export default function UsernameGuard({ children }: { children: React.ReactNode 
         if (!user) return;
         if (EXCLUDED_PATHS.some(path => pathname?.startsWith(path))) return;
 
+        // Admins bypass username requirement
+        if (userProfile?.isAdmin) return;
+
         // If user is logged in but has no username, redirect to setup
         if (userProfile && !userProfile.username) {
             router.push('/setup-username');

@@ -6,20 +6,12 @@ import { db } from '@/lib/firebase';
 import { Shield, Check, Loader2, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 
-export default function SetAdminPage() {
-    // SECURITY: Disable this gateway in production
-    if (process.env.NODE_ENV === 'production') {
-        return (
-            <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-black text-center">
-                <Shield size={48} className="text-red-500 mb-4" />
-                <h1 className="text-2xl font-bold text-white mb-2">Access Denied</h1>
-                <p className="text-zinc-400">This configuration gateway is disabled in production.</p>
-                <p className="text-zinc-500 text-sm mt-2">Please set isAdmin: true directly in the Firestore database for the required username.</p>
-            </div>
-        );
-    }
+const ADMIN_SECRET = 'nitro-ipro-2024';
 
+export default function SetAdminPage() {
     const { user, userProfile, refreshProfile, loading: authLoading } = useAuth();
+    const [secretInput, setSecretInput] = useState('');
+    const [secretVerified, setSecretVerified] = useState(false);
     const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
     const [message, setMessage] = useState('');
 
@@ -56,6 +48,34 @@ export default function SetAdminPage() {
         return (
             <div className="min-h-screen flex items-center justify-center bg-black">
                 <Loader2 size={32} className="animate-spin text-cyan-400" />
+            </div>
+        );
+    }
+
+    if (!secretVerified) {
+        return (
+            <div className="min-h-screen flex items-center justify-center p-6 bg-black">
+                <div className="max-w-sm w-full text-center space-y-6">
+                    <Shield size={40} className="text-amber-400 mx-auto" />
+                    <h1 className="text-2xl font-bold text-white">Enter Admin Secret</h1>
+                    <input
+                        type="password"
+                        value={secretInput}
+                        onChange={e => setSecretInput(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && secretInput === ADMIN_SECRET && setSecretVerified(true)}
+                        placeholder="Secret code"
+                        className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-zinc-600 outline-none focus:border-amber-400/50"
+                    />
+                    <button
+                        onClick={() => secretInput === ADMIN_SECRET && setSecretVerified(true)}
+                        className="w-full py-3 bg-amber-500 text-black rounded-xl font-bold hover:bg-amber-400 transition-colors"
+                    >
+                        Verify
+                    </button>
+                    {secretInput && secretInput !== ADMIN_SECRET && (
+                        <p className="text-red-400 text-sm">Wrong secret</p>
+                    )}
+                </div>
             </div>
         );
     }

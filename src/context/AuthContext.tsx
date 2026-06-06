@@ -122,12 +122,37 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     // Fetch or create user profile in Firestore
     const fetchOrCreateProfile = async (firebaseUser: User): Promise<UserProfile> => {
         const userRef = doc(db, 'users', firebaseUser.uid);
-        const userSnap = await getDoc(userRef);
+        let userSnap;
+        try {
+            userSnap = await getDoc(userRef);
+        } catch (err) {
+            // Firestore read failed (permissions, network) — return a safe minimal profile
+            // without writing anything, so we don't overwrite existing admin data
+            console.warn('Firestore profile read failed, using minimal profile:', err);
+            return {
+                uid: firebaseUser.uid,
+                email: firebaseUser.email,
+                displayName: firebaseUser.displayName || 'Music Lover',
+                photoURL: firebaseUser.photoURL,
+                bannerURL: null,
+                bio: '',
+                tier: 'NITRO_CORE',
+                isAdmin: false,
+                arihantMode: false,
+                status: 'online',
+                lastActive: new Date(),
+                username: null,
+                usernameChangesLeft: 2,
+                pendingUsernameChange: null,
+                createdAt: new Date(),
+                updatedAt: new Date()
+            } as UserProfile;
+        }
 
         if (userSnap.exists()) {
             return userSnap.data() as UserProfile;
         } else {
-            // Create new profile
+            // Only create a new profile if the doc genuinely doesn't exist
             const newProfile: UserProfile = {
                 uid: firebaseUser.uid,
                 email: firebaseUser.email,
@@ -146,7 +171,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                 createdAt: new Date(),
                 updatedAt: new Date()
             };
-            await setDoc(userRef, newProfile);
+            try {
+                await setDoc(userRef, newProfile);
+            } catch (err) {
+                if (!isQuotaError(err)) console.warn('Could not create user profile doc:', err);
+            }
             return newProfile;
         }
     };
