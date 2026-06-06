@@ -5,6 +5,7 @@ import { useAuth } from './AuthContext';
 import { useAudioFX } from './AudioFXContext';
 import { useRouter } from 'next/navigation';
 import { getSong as getOfflineSong } from '@/lib/offlineDb';
+import { dedupeSongs, createSongKey } from '@/lib/searchUtils';
 
 const FREE_PLAY_LIMIT = 10;
 const PLAY_COUNT_KEY = 'nitro_free_plays';
@@ -279,6 +280,39 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
         }
     }, [isPlaying]);
 
+    // iOS / mobile background playback: when the tab returns to the foreground
+    // Safari often suspends the AudioContext and pauses the <audio> element.
+    // Resume both so playback continues seamlessly after backgrounding / lock screen.
+    useEffect(() => {
+        if (typeof document === 'undefined') return;
+
+        const resumePlayback = () => {
+            const ctx = audioContextRef.current;
+            if (ctx && ctx.state === 'suspended') {
+                ctx.resume().catch(() => { /* ignore */ });
+            }
+            // If we believe we should be playing but the element got paused while
+            // backgrounded, kick it back into playing state.
+            if (isPlaying && audioRef.current && audioRef.current.paused) {
+                audioRef.current.play().catch(() => { /* user-gesture / autoplay policy */ });
+            }
+        };
+
+        const onVisibility = () => {
+            if (document.visibilityState === 'visible') resumePlayback();
+        };
+
+        document.addEventListener('visibilitychange', onVisibility);
+        window.addEventListener('pageshow', resumePlayback);
+        window.addEventListener('focus', resumePlayback);
+
+        return () => {
+            document.removeEventListener('visibilitychange', onVisibility);
+            window.removeEventListener('pageshow', resumePlayback);
+            window.removeEventListener('focus', resumePlayback);
+        };
+    }, [isPlaying]);
+
     // Media Session API - Show song info on car displays, lock screens, Bluetooth devices
     useEffect(() => {
         if (typeof window === 'undefined' || !('mediaSession' in navigator)) return;
@@ -481,14 +515,18 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
                         const artistName = song.artists?.primary?.[0]?.name || song.artist || '';
                         const query = encodeURIComponent(`${artistName} ${songName}`.trim());
 
-                        const res = await fetch(`${apiUrl}/api/search/songs?query=${query}&limit=15`);
+                        const res = await fetch(`${apiUrl}/api/search/songs?query=${query}&limit=20`);
+                        if (!res.ok) return;
                         const data = await res.json();
 
                         if (data.success && data.data?.results) {
-                            // Filter out the current song
-                            const similarSongs = data.data.results.filter((s: any) =>
+                            // Filter out the current song (by exact ID)
+                            const byId = data.data.results.filter((s: any) =>
                                 String(s.id) !== trackId && String(s.songId) !== trackId
                             );
+                            // Dedupe by normalized title+artist so the queue isn't filled
+                            // with the same song's remixes/live/acoustic variants.
+                            const similarSongs = dedupeSongs(byId, new Set<string>([createSongKey(song)]));
 
                             if (similarSongs.length > 0) {
                                 // Only add similar songs if queue is still just the current song
@@ -776,17 +814,26 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
             ];
 
             const randomQuery = queries[Math.floor(Math.random() * queries.length)];
-            const res = await fetch(`${apiUrl}/api/search/songs?query=${encodeURIComponent(randomQuery)}&limit=10`);
+            const res = await fetch(`${apiUrl}/api/search/songs?query=${encodeURIComponent(randomQuery)}&limit=15`);
+            if (!res.ok) return [];
             const data = await res.json();
 
             if (data.success && data.data?.results) {
-                // Filter out songs already in queue
+                // Filter out songs already in queue (by exact ID)
                 const seedId = String(seedSong.id || seedSong.songId);
                 const queueIds = new Set(queue.map(s => String(s.id || s.songId)));
 
-                return data.data.results.filter((s: any) =>
+                const byId = data.data.results.filter((s: any) =>
                     String(s.id) !== seedId && !queueIds.has(String(s.id))
                 );
+
+                // Also dedupe by normalized title+artist so we never queue the SAME
+                // song in a different version/remix/live cut. Exclude the seed + queue keys.
+                const excludeKeys = new Set<string>([
+                    createSongKey(seedSong),
+                    ...queue.map(s => createSongKey(s)),
+                ]);
+                return dedupeSongs(byId, excludeKeys);
             }
         } catch (e) {
             console.log('Could not fetch more songs for autoplay:', e);
@@ -989,15 +1036,19 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
             // Search for similar songs
             const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
             const query = encodeURIComponent(`${artistName} ${songName}`.trim());
-            const res = await fetch(`${apiUrl}/api/search/songs?query=${query}&limit=20`);
+            const res = await fetch(`${apiUrl}/api/search/songs?query=${query}&limit=30`);
+            if (!res.ok) { setIsRadioMode(false); return; }
             const data = await res.json();
 
             if (data.success && data.data?.results) {
                 // Filter out the seed song and create new queue
                 const seedId = String(seedSong.id || seedSong.songId);
-                const radioSongs = data.data.results.filter((s: any) =>
+                const byId = data.data.results.filter((s: any) =>
                     String(s.id) !== seedId
                 );
+                // Dedupe by normalized title+artist (exclude the seed) so radio
+                // doesn't replay the same track in different versions.
+                const radioSongs = dedupeSongs(byId, new Set<string>([createSongKey(seedSong)]));
 
                 // Start with seed song, add similar songs
                 const newQueue = [seedSong, ...radioSongs];

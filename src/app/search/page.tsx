@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 import SongContextMenu from '@/components/SongContextMenu';
 import { useMusicData } from '@/context/MusicDataContext';
 import { getDidYouMeanSuggestions } from '@/lib/fuzzySearch';
-import { processSearchResults, type ProcessedSong, type GroupedSearchResults } from '@/lib/searchUtils';
+import { processSearchResults, rankByRelevance, type ProcessedSong, type GroupedSearchResults } from '@/lib/searchUtils';
 import { reRankByTrending, getTopResultConfidence, getTrendingSongForQuery } from '@/lib/trendingSongs';
 
 type SearchResults = {
@@ -134,8 +134,11 @@ export default function SearchPage() {
                         }
                     }
 
-                    // Apply standard re-ranking on top
+                    // Rank ALL results by relevance to the query first (Spotify-like:
+                    // the official/most-relevant track surfaces to the top), then apply
+                    // the curated trending boost on top for known viral songs.
                     if (songResults.length > 0) {
+                        songResults = rankByRelevance(songResults, q);
                         songResults = reRankByTrending(songResults, q);
                     }
 
@@ -729,15 +732,7 @@ export default function SearchPage() {
                                                     <h3 className="font-bold text-lg text-[var(--foreground)] truncate group-hover:text-cyan-400 transition-colors">
                                                         {processedSongs.topResult.song.title || processedSongs.topResult.song.name}
                                                     </h3>
-                                                    <p
-                                                        className="text-sm text-[var(--foreground-muted)] truncate hover:underline cursor-pointer"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            if (processedSongs.topResult?.artistId) {
-                                                                handleArtistClick(processedSongs.topResult.artistId);
-                                                            }
-                                                        }}
-                                                    >
+                                                    <p className="text-sm text-[var(--foreground-muted)] truncate">
                                                         {processedSongs.topResult.artistName}
                                                     </p>
                                                 </div>
@@ -786,13 +781,7 @@ export default function SearchPage() {
                                                 </div>
                                                 <div className="flex-1 overflow-hidden">
                                                     <h3 className="font-bold text-sm text-[var(--foreground)] truncate">{ps.song.title || ps.song.name}</h3>
-                                                    <p
-                                                        className="text-xs text-[var(--foreground-muted)] truncate mt-0.5 hover:underline"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            if (ps.artistId) handleArtistClick(ps.artistId);
-                                                        }}
-                                                    >
+                                                    <p className="text-xs text-[var(--foreground-muted)] truncate mt-0.5">
                                                         {ps.artistName}
                                                     </p>
                                                 </div>

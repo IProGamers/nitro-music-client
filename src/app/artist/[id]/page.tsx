@@ -10,6 +10,7 @@ export default function ArtistPage() {
     const router = useRouter();
     const [artist, setArtist] = useState<any>(null);
     const [loading, setLoading] = useState(true);
+    const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
     useEffect(() => {
         if (!id) return;
@@ -28,16 +29,19 @@ export default function ArtistPage() {
                 const data = await res.json();
                 if (data.success && data.data) {
                     setArtist(data.data);
+                    setErrorMsg(null);
                 } else {
                     console.warn('Artist API returned:', data);
+                    setErrorMsg(data?.message || 'This artist could not be loaded.');
                 }
-            } catch (e) {
+            } catch (e: any) {
                 console.error('Artist fetch error:', e);
                 // Retry on failure
                 if (retries > 0) {
                     setTimeout(() => fetchArtist(retries - 1), 1000);
                     return;
                 }
+                setErrorMsg(e?.message ? `Couldn't reach the music server (${e.message}).` : 'Couldn\'t reach the music server.');
             } finally {
                 setLoading(false);
             }
@@ -74,8 +78,8 @@ export default function ArtistPage() {
         return (
             <div className="flex flex-col items-center justify-center min-h-screen text-center p-6 bg-[var(--background)]">
                 <User size={48} className="text-[var(--foreground-muted)] mb-4" />
-                <h1 className="text-xl font-bold text-[var(--foreground)] mb-2">Artist not found</h1>
-                <p className="text-[var(--foreground-muted)] text-sm mb-6">The artist you're looking for doesn't exist.</p>
+                <h1 className="text-xl font-bold text-[var(--foreground)] mb-2">Artist not available</h1>
+                <p className="text-[var(--foreground-muted)] text-sm mb-6">{errorMsg || "The artist you're looking for doesn't exist."}</p>
                 <button onClick={() => router.back()} className="px-6 py-2.5 bg-[var(--card)] text-[var(--foreground)] border border-[var(--border)] rounded-full font-medium text-sm hover:bg-[var(--card-hover)] transition-colors">
                     Go Back
                 </button>
