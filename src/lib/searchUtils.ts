@@ -84,6 +84,31 @@ export const dedupeSongs = (songs: any[], excludeKeys?: Set<string>): any[] => {
  * Higher = more relevant. Rewards exact title match, prefix match, word coverage,
  * artist match, and popularity (playCount), and lightly penalises remix/version variants.
  */
+// Levenshtein edit distance (small strings) for typo-tolerant matching.
+const editDistance = (a: string, b: string): number => {
+    if (a === b) return 0;
+    if (!a.length) return b.length;
+    if (!b.length) return a.length;
+    let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+    for (let i = 1; i <= a.length; i++) {
+        const cur = [i];
+        for (let j = 1; j <= b.length; j++) {
+            const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+            cur[j] = Math.min(cur[j - 1] + 1, prev[j] + 1, prev[j - 1] + cost);
+        }
+        prev = cur;
+    }
+    return prev[b.length];
+};
+
+// 0..1 similarity (1 = identical). Used so a misspelling still ranks the
+// intended song high (e.g. "kesaria" ~ "kesariya").
+const similarityRatio = (a: string, b: string): number => {
+    if (!a || !b) return 0;
+    const maxLen = Math.max(a.length, b.length);
+    return maxLen === 0 ? 1 : 1 - editDistance(a, b) / maxLen;
+};
+
 export const getRelevanceScore = (song: any, query: string): number => {
     const q = normalizeSongTitle(query);
     if (!q) return 0;
@@ -100,6 +125,16 @@ export const getRelevanceScore = (song: any, query: string): number => {
     else if (title.startsWith(q)) score += 600;
     // Query appears somewhere in the title
     else if (title.includes(q)) score += 350;
+    else {
+        // TYPO TOLERANCE: reward titles that are a near-match to what was typed,
+        // so "kesaria" still surfaces "Kesariya". Compare against the title and its
+        // leading words (so "tum he ho" ~ "tum hi ho"). No dictionary needed.
+        const sim = similarityRatio(q, title);
+        const prefixSim = similarityRatio(q, title.split(' ').slice(0, q.split(' ').length).join(' '));
+        const best = Math.max(sim, prefixSim);
+        if (best >= 0.7) score += best * 500; // strong fuzzy match
+        else if (best >= 0.55) score += best * 200;
+    }
 
     // Artist match (e.g. searching "artist song")
     if (q.includes(artist) && artist !== 'unknown artist') score += 200;
