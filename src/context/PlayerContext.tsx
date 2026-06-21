@@ -5,7 +5,7 @@ import { useAuth } from './AuthContext';
 import { useAudioFX } from './AudioFXContext';
 import { useRouter } from 'next/navigation';
 import { getSong as getOfflineSong } from '@/lib/offlineDb';
-import { dedupeSongs, createSongKey } from '@/lib/searchUtils';
+import { dedupeSongs, createSongKey, normalizeSongTitle } from '@/lib/searchUtils';
 import { recordListen, recordSkip, buildAutoplayQueries, buildQueuePools, rankByTaste } from '@/lib/recommendations';
 
 const FREE_PLAY_LIMIT = 10;
@@ -553,37 +553,14 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
                 setQueue([song]);
                 setCurrentIndex(0);
 
-                // Fetch similar songs in the background and add to queue ONCE
+                // Fetch a diversified, taste-based "radio" for this song (same engine as
+                // end-of-queue autoplay): more from this artist, your favourites, same
+                // mood/language, a little discovery — and never name-twins of the seed.
                 const fetchSimilarSongs = async () => {
                     try {
-                        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
-                        const songName = song.name || song.title || '';
-                        const artistName = song.artists?.primary?.[0]?.name || song.artist || '';
-                        const query = encodeURIComponent(`${artistName} ${songName}`.trim());
-
-                        const res = await fetch(`${apiUrl}/api/search/songs?query=${query}&limit=20`);
-                        if (!res.ok) return;
-                        const data = await res.json();
-
-                        if (data.success && data.data?.results) {
-                            // Filter out the current song (by exact ID)
-                            const byId = data.data.results.filter((s: any) =>
-                                String(s.id) !== trackId && String(s.songId) !== trackId
-                            );
-                            // Dedupe by normalized title+artist so the queue isn't filled
-                            // with the same song's remixes/live/acoustic variants.
-                            const similarSongs = dedupeSongs(byId, new Set<string>([createSongKey(song)]));
-
-                            if (similarSongs.length > 0) {
-                                // Only add similar songs if queue is still just the current song
-                                // This prevents duplicate additions
-                                setQueue(prev => {
-                                    if (prev.length === 1) {
-                                        return [...prev, ...similarSongs];
-                                    }
-                                    return prev; // Don't modify if queue already populated
-                                });
-                            }
+                        const similarSongs = await fetchMoreSongsForAutoplay(song);
+                        if (similarSongs.length > 0) {
+                            setQueue(prev => (prev.length === 1 ? [...prev, ...similarSongs] : prev));
                         }
                     } catch (e) {
                         console.log('Could not fetch similar songs:', e);
@@ -869,6 +846,7 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
             );
 
             const seedId = String(seedSong.id || seedSong.songId);
+            const seedTitleNorm = normalizeSongTitle(seedSong.name || seedSong.title || '');
             const queueIds = new Set(queue.map(s => String(s.id || s.songId)));
             const excludeKeys = new Set<string>([
                 createSongKey(seedSong),
@@ -886,7 +864,10 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
                     if (added >= pool.max) break;
                     const id = String(s.id || s.songId);
                     const key = createSongKey(s);
+                    // Skip the seed, anything already queued, dupes, AND name-twins
+                    // (other songs that share the seed's title — e.g. a dozen "Perfect"s).
                     if (id === seedId || queueIds.has(id) || seenKeys.has(key)) continue;
+                    if (seedTitleNorm && normalizeSongTitle(s.name || s.title || '') === seedTitleNorm) continue;
                     seenKeys.add(key);
                     blended.push(s);
                     added++;

@@ -36,32 +36,26 @@ export const DJProvider = ({ children }: { children: React.ReactNode }) => {
 
     const mixTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-    // Toggle DJ Mode
+    // Toggle DJ Mode (AudioFX crossfade flags are synced in an effect below, never
+    // during render — see the sync effect).
     const toggleDJMode = useCallback(() => {
         const newState = !isDJMode;
         setIsDJMode(newState);
-
-        if (newState) {
-            // Enable crossfade when DJ mode is on
-            setCrossfadeEnabled(true);
-            setCrossfadeDuration(djSettings.crossfadeDuration);
-            setCurrentMixState('building');
-        } else {
-            setCurrentMixState('idle');
-            setNextTrackPreview(null);
-        }
-    }, [isDJMode, djSettings.crossfadeDuration, setCrossfadeEnabled, setCrossfadeDuration]);
+        setCurrentMixState(newState ? 'building' : 'idle');
+        if (!newState) setNextTrackPreview(null);
+    }, [isDJMode]);
 
     // Update DJ settings
     const updateDJSettings = useCallback((settings: Partial<typeof djSettings>) => {
-        setDJSettings(prev => {
-            const newSettings = { ...prev, ...settings };
-            if (settings.crossfadeDuration !== undefined) {
-                setCrossfadeDuration(settings.crossfadeDuration);
-            }
-            return newSettings;
-        });
-    }, [setCrossfadeDuration]);
+        setDJSettings(prev => ({ ...prev, ...settings }));
+    }, []);
+
+    // Keep AudioFX crossfade in sync with DJ state — in an effect (post-render) so we
+    // never call another provider's setState during this provider's render.
+    useEffect(() => {
+        setCrossfadeEnabled(isDJMode);
+        setCrossfadeDuration(djSettings.crossfadeDuration);
+    }, [isDJMode, djSettings.crossfadeDuration, setCrossfadeEnabled, setCrossfadeDuration]);
 
     // Auto-mix logic: monitor progress and trigger transitions
     useEffect(() => {
