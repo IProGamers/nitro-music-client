@@ -1,7 +1,7 @@
 "use client"
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { usePlayer } from '@/context/PlayerContext';
-import { Search, Clock, X, Music, User, Disc, ListMusic, ChevronRight, Trash2, Play } from 'lucide-react';
+import { Search, Clock, X, Music, User, Disc, ListMusic, ChevronRight, Trash2, Play, Calendar, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import SongContextMenu from '@/components/SongContextMenu';
@@ -28,6 +28,17 @@ type SearchedSong = {
 
 const SEARCH_PLAYED_KEY = 'nitro_search_played_songs';
 const MAX_SEARCH_PLAYED = 12;
+
+// Heuristic: is `to` a plausible typo-correction of `from` (vs an unrelated word)?
+// Requires a shared 2-char prefix and similar length so we don't swap a correctly
+// spelled query for a different popular song.
+const looksLikeTypoFix = (from: string, to: string): boolean => {
+    const a = from.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const b = to.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (!a || !b || a === b) return false;
+    if (Math.abs(a.length - b.length) > 3) return false;
+    return a.slice(0, 2) === b.slice(0, 2);
+};
 
 export default function SearchPage() {
     const { playTrack } = usePlayer();
@@ -64,20 +75,35 @@ export default function SearchPage() {
 
     // Handle actual search when debounced query changes
     useEffect(() => {
-        const q = debouncedQuery.trim();
-        if (q === '') {
+        const raw = debouncedQuery.trim();
+        if (raw === '') {
             setResults(null);
             setLoading(false);
             setDidYouMeanOptions([]);
+            setCorrectedFrom(null);
             return;
         }
 
         // Reset "Did you mean?" options for new search
         setDidYouMeanOptions([]);
 
-        // Check cache first
-        if (searchCache.has(q)) {
-            setResults(searchCache.get(q)!);
+        // Typo tolerance: correct the query (quick map + Fuse.js fuzzy) BEFORE the cache
+        // check and the API call, so a misspelling resolves to the right song and the
+        // cache + correction pill stay consistent. Skipped once when the user explicitly
+        // chose to keep their own spelling.
+        const bypass = skipNextCorrectionRef.current;
+        skipNextCorrectionRef.current = false;
+        const correction = bypass ? { wasCorrected: false, corrected: raw } : preprocessQuery(raw);
+        // Only accept the correction if it genuinely looks like a typo fix (shared prefix
+        // + similar length) — prevents a correctly-spelled but uncommon query from being
+        // swapped for an unrelated popular song.
+        const useCorrection = correction.wasCorrected && looksLikeTypoFix(raw, correction.corrected);
+        const searchTerm = useCorrection ? correction.corrected : raw;
+        setCorrectedFrom(useCorrection ? { from: raw, to: correction.corrected } : null);
+
+        // Check cache (keyed by the corrected term)
+        if (searchCache.has(searchTerm)) {
+            setResults(searchCache.get(searchTerm)!);
             setLoading(false);
             return;
         }
@@ -94,15 +120,6 @@ export default function SearchPage() {
 
             try {
                 const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
-
-                // Typo tolerance: correct the query (quick map + Fuse.js fuzzy) before hitting
-                // the API, so minor spelling mistakes still find the right song. Skipped once
-                // when the user explicitly chose to search their original spelling.
-                const bypass = skipNextCorrectionRef.current;
-                skipNextCorrectionRef.current = false;
-                const correction = bypass ? { wasCorrected: false, corrected: q } : preprocessQuery(q);
-                const searchTerm = correction.wasCorrected ? correction.corrected : q;
-                setCorrectedFrom(correction.wasCorrected ? { from: q, to: correction.corrected } : null);
 
                 // Check if this is a trending song search
                 const trendingSong = getTrendingSongForQuery(searchTerm);
@@ -157,8 +174,8 @@ export default function SearchPage() {
 
                     data.data.songs.results = songResults;
                     setResults(data.data);
-                    // Save to cache (with re-ranked results)
-                    searchCache.set(q, data.data);
+                    // Save to cache (keyed by the corrected term)
+                    searchCache.set(searchTerm, data.data);
 
                     // Default to 'all' tab so users see the summary first
                     setActiveTab('all');
@@ -167,8 +184,8 @@ export default function SearchPage() {
                     const songCount = songResults.length;
 
                     // Only suggest alternatives if we have ZERO songs and query is long enough
-                    if (songCount === 0 && q.length >= 4) {
-                        const suggestions = getDidYouMeanSuggestions(q, 3);
+                    if (songCount === 0 && raw.length >= 4) {
+                        const suggestions = getDidYouMeanSuggestions(raw, 3);
                         // Only show if we have very confident suggestions (70%+)
                         const goodSuggestions = suggestions.filter(s => s.confidence >= 70);
                         setDidYouMeanOptions(goodSuggestions);
@@ -386,19 +403,32 @@ export default function SearchPage() {
         { id: 'playlists', label: 'Playlists', icon: <ListMusic size={14} /> },
     ];
 
+    // "Start browsing" — large entry tiles (Spotify-style top of search)
+    const startBrowse = [
+        { id: 'music', title: 'Trending', color: '#22d3ee', dark: true, icon: <Music size={22} />, onClick: () => { setQuery('top trending hits 2025'); setActiveTab('songs'); } },
+        { id: 'newrel', title: 'New Releases', color: '#a855f7', dark: false, icon: <Disc size={22} />, onClick: () => { setQuery('new releases 2025'); setActiveTab('songs'); } },
+        { id: 'live', title: 'Live Events', color: '#ec4899', dark: false, icon: <Calendar size={22} />, onClick: () => { setQuery('live concert performance'); setActiveTab('songs'); } },
+        { id: 'made', title: 'Made for You', color: '#10b981', dark: true, icon: <Sparkles size={22} />, onClick: () => router.push('/') },
+    ];
+
+    // Browse-all category tiles — each opens a song search.
     const categories = [
-        { id: 'pop', title: 'Pop', color: 'bg-pink-600', query: 'pop hits' },
-        { id: 'hip-hop', title: 'Hip Hop', color: 'bg-orange-600', query: 'hip hop' },
-        { id: 'rock', title: 'Rock', color: 'bg-red-700', query: 'rock' },
-        { id: 'bollywood', title: 'Bollywood', color: 'bg-yellow-600', query: 'bollywood' },
-        { id: 'punjabi', title: 'Punjabi', color: 'bg-blue-600', query: 'punjabi hits' },
-        { id: 'edm', title: 'EDM', color: 'bg-purple-600', query: 'edm' },
-        { id: 'romance', title: 'Romance', color: 'bg-rose-500', query: 'romance' },
-        { id: 'focus', title: 'Focus', color: 'bg-indigo-600', query: 'lofi study' },
-        { id: 'party', title: 'Party', color: 'bg-cyan-600', query: 'party hits' },
-        { id: 'sleep', title: 'Sleep', color: 'bg-slate-700', query: 'sleep music' },
-        { id: 'jazz', title: 'Jazz', color: 'bg-amber-800', query: 'jazz' },
-        { id: 'classical', title: 'Classical', color: 'bg-emerald-800', query: 'classical' },
+        { id: 'new', title: 'New Releases', color: '#7c3aed', dark: false, query: 'new releases 2025' },
+        { id: 'charts', title: 'Charts', color: '#0e7490', dark: false, query: 'top charts global' },
+        { id: 'hindi', title: 'Hindi', color: '#be185d', dark: false, query: 'hindi bollywood hits' },
+        { id: 'punjabi', title: 'Punjabi', color: '#b45309', dark: false, query: 'punjabi hits' },
+        { id: 'pop', title: 'Pop', color: '#db2777', dark: false, query: 'pop hits' },
+        { id: 'hip-hop', title: 'Hip Hop', color: '#c2410c', dark: false, query: 'hip hop' },
+        { id: 'rock', title: 'Rock', color: '#b91c1c', dark: false, query: 'rock' },
+        { id: 'edm', title: 'Dance / EDM', color: '#6d28d9', dark: false, query: 'edm dance' },
+        { id: 'romance', title: 'Romance', color: '#9d174d', dark: false, query: 'romantic love songs' },
+        { id: 'party', title: 'Party', color: '#155e3a', dark: false, query: 'party hits' },
+        { id: 'focus', title: 'Focus', color: '#1e3a8a', dark: false, query: 'lofi study focus' },
+        { id: 'chill', title: 'Chill', color: '#0f766e', dark: false, query: 'chill vibes' },
+        { id: 'sleep', title: 'Sleep', color: '#1e293b', dark: false, query: 'sleep music' },
+        { id: 'devotional', title: 'Devotional', color: '#a16207', dark: false, query: 'devotional bhajan' },
+        { id: 'jazz', title: 'Jazz', color: '#854d0e', dark: false, query: 'jazz' },
+        { id: 'classical', title: 'Classical', color: '#065f46', dark: false, query: 'indian classical' },
     ];
 
     return (
@@ -502,35 +532,47 @@ export default function SearchPage() {
                             )}
                         </div>
                     ) : (
-                        /* Browse Categories - Shown by default when NOT focused */
-                        <div>
-                            <h2 className="text-xl md:text-2xl font-bold text-[var(--foreground)] mb-4 md:mb-6">Browse All</h2>
-                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-3 md:gap-4 lg:gap-5">
-                                {categories.map((cat) => (
-                                    <button
-                                        key={cat.id}
-                                        onClick={() => {
-                                            // Simply set the query to trigger song search
-                                            setQuery(cat.query);
-                                            setActiveTab('songs');
-                                        }}
-                                        className={`${cat.color} relative aspect-[16/9] md:aspect-square rounded-xl md:rounded-2xl overflow-hidden group hover:scale-[1.02] transition-all duration-300 shadow-xl`}
-                                    >
-                                        <div className="p-3 md:p-4 text-left h-full">
-                                            <h3 className="text-base md:text-xl lg:text-2xl font-bold text-white tracking-tighter leading-tight drop-shadow-md">
-                                                {cat.title}
-                                            </h3>
-                                        </div>
-                                        {/* Abstract background shape for premium look */}
-                                        <div className="absolute -bottom-4 -right-4 w-24 h-24 md:w-32 md:h-32 bg-white/20 rotate-12 group-hover:rotate-45 transition-transform duration-700 blur-2xl rounded-full" />
-                                        <div className="absolute -top-12 -right-8 w-24 h-24 md:w-32 md:h-32 bg-black/10 -rotate-12 group-hover:-rotate-45 transition-transform duration-700 blur-xl rounded-full" />
+                        /* Browse wall — Spotify-style colour category tiles, shown by default */
+                        <div className="space-y-7">
+                            {/* Start browsing */}
+                            <div>
+                                <h2 className="text-xl md:text-2xl font-bold text-[var(--foreground)] mb-4">Start browsing</h2>
+                                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+                                    {startBrowse.map((c) => (
+                                        <button
+                                            key={c.id}
+                                            onClick={c.onClick}
+                                            style={{ background: c.color }}
+                                            className="relative h-24 md:h-28 rounded-xl overflow-hidden group active:scale-[0.98] transition-transform text-left"
+                                        >
+                                            <h3 className="absolute top-3 left-3 z-10 text-[15px] md:text-lg font-extrabold leading-tight max-w-[68%]" style={{ color: c.dark ? '#04161a' : '#fff' }}>{c.title}</h3>
+                                            <div className="absolute -right-3 -bottom-3 w-16 h-16 md:w-20 md:h-20 rounded-md rotate-[25deg] shadow-lg shadow-black/40 flex items-center justify-center group-hover:rotate-[18deg] transition-transform duration-500" style={{ background: 'rgba(0,0,0,0.28)' }}>
+                                                <span style={{ color: c.dark ? 'rgba(0,0,0,0.55)' : 'rgba(255,255,255,0.85)' }}>{c.icon}</span>
+                                            </div>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
 
-                                        {/* Play icon mask on hover */}
-                                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-300 flex items-center justify-center">
-                                            <Search className="text-white opacity-0 group-hover:opacity-100 scale-50 group-hover:scale-100 transition-all duration-300" size={32} />
-                                        </div>
-                                    </button>
-                                ))}
+                            {/* Browse all */}
+                            <div>
+                                <h2 className="text-xl md:text-2xl font-bold text-[var(--foreground)] mb-4">Browse all</h2>
+                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-4">
+                                    {categories.map((cat) => (
+                                        <button
+                                            key={cat.id}
+                                            onClick={() => { setQuery(cat.query); setActiveTab('songs'); }}
+                                            style={{ background: cat.color }}
+                                            className="relative h-24 md:h-28 rounded-xl overflow-hidden group active:scale-[0.98] transition-transform text-left"
+                                        >
+                                            <h3 className="absolute top-3 left-3 z-10 text-[15px] md:text-lg font-extrabold leading-tight max-w-[68%]" style={{ color: cat.dark ? '#04161a' : '#fff' }}>{cat.title}</h3>
+                                            {/* Rotated corner thumbnail (abstract, image-free) */}
+                                            <div className="absolute -right-3 -bottom-3 w-16 h-16 md:w-20 md:h-20 rounded-md rotate-[25deg] shadow-lg shadow-black/40 flex items-center justify-center group-hover:rotate-[18deg] transition-transform duration-500" style={{ background: 'rgba(0,0,0,0.28)' }}>
+                                                <Music size={22} style={{ color: cat.dark ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.8)' }} />
+                                            </div>
+                                        </button>
+                                    ))}
+                                </div>
                             </div>
                         </div>
                     )}
@@ -551,11 +593,12 @@ export default function SearchPage() {
             {
                 !loading && query && results && (
                     <div className="mt-8 space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                        {/* Auto-correction pill: we fixed a typo and searched the corrected term */}
+                        {/* Auto-correction notice: we fixed a typo and searched the corrected term */}
                         {correctedFrom && (
-                            <div className="text-sm text-[var(--foreground-muted)] -mb-6">
-                                Showing results for <span className="text-[var(--foreground)] font-semibold">{correctedFrom.to}</span>
-                                {' · '}
+                            <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm text-[var(--foreground-muted)]">
+                                <span>Showing results for</span>
+                                <span className="text-[var(--foreground)] font-semibold">{correctedFrom.to}</span>
+                                <span className="text-[var(--foreground-muted)]/50">·</span>
                                 <button
                                     onClick={() => { skipNextCorrectionRef.current = true; setCorrectedFrom(null); setQuery(correctedFrom.from); }}
                                     className="text-[var(--accent)] hover:underline font-medium"
