@@ -628,7 +628,7 @@ export default function Home() {
                     Made for {userName || 'You'}
                   </h2>
                   <p className="text-[10px] md:text-xs text-[var(--foreground-muted)]">
-                    Fresh picks just for you • Updated daily ✨
+                    Fresh picks based on your listening
                   </p>
                 </div>
               </div>
@@ -662,7 +662,7 @@ export default function Home() {
                     {idx < 6 && (
                       <div className="absolute top-2 left-2 px-2 py-0.5 bg-black/60 backdrop-blur-sm rounded-full">
                         <span className="text-[8px] font-bold text-cyan-400 uppercase tracking-wider">
-                          {idx < 2 ? '🔥 Hot Pick' : idx < 4 ? '✨ For You' : '🎵 Similar'}
+                          {idx < 2 ? 'Hot Pick' : idx < 4 ? 'For You' : 'Similar'}
                         </span>
                       </div>
                     )}
@@ -952,7 +952,6 @@ export default function Home() {
           <section className="bg-gradient-to-r from-emerald-500/5 via-teal-500/5 to-cyan-500/5 -mx-4 md:-mx-6 lg:-mx-8 px-4 md:px-6 lg:px-8 py-6 rounded-none">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
-                <span className="text-emerald-400">🌍</span>
                 <h2 className="text-lg md:text-xl font-bold text-[var(--foreground)]">Timeless english classics</h2>
               </div>
               <button onClick={() => router.push('/section?title=english+classics&q=believer+shape+of+you+love+me+like+you+do+counting+stars+someone+like+you')} className="text-xs font-medium text-emerald-400 hover:underline">See all</button>
@@ -970,7 +969,6 @@ export default function Home() {
           <section>
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
-                <span className="text-orange-400">🎭</span>
                 <h2 className="text-lg md:text-xl font-bold text-[var(--foreground)]">Legendary hindi songs</h2>
               </div>
               <button onClick={() => router.push('/section?title=legendary+hindi&q=tum+hi+ho+kal+ho+naa+ho+kabhi+khushi+channa+mereya+gerua')} className="text-xs font-medium text-orange-400 hover:underline">See all</button>
@@ -988,7 +986,6 @@ export default function Home() {
           <section className="bg-gradient-to-r from-yellow-500/5 via-amber-500/5 to-orange-500/5 -mx-4 md:-mx-6 lg:-mx-8 px-4 md:px-6 lg:px-8 py-6 rounded-none">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
-                <span className="text-amber-400">🎤</span>
                 <h2 className="text-lg md:text-xl font-bold text-[var(--foreground)]">Punjabi hits</h2>
               </div>
               <button onClick={() => router.push('/section?title=punjabi+hits&q=diljit+dosanjh+sidhu+moose+wala+ap+dhillon+karan+aujla+guru+randhawa')} className="text-xs font-medium text-amber-400 hover:underline">See all</button>
@@ -1118,7 +1115,6 @@ export default function Home() {
           <section className="bg-gradient-to-r from-blue-500/5 via-indigo-500/5 to-purple-500/5 -mx-4 md:-mx-6 lg:-mx-8 px-4 md:px-6 lg:px-8 py-6 rounded-none">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
-                <span className="text-blue-400">☾</span>
                 <h2 className="text-lg md:text-xl font-bold text-[var(--foreground)]">Chill vibes</h2>
               </div>
               <button onClick={() => router.push('/section?title=chill+vibes&q=chill+vibes+lofi+relaxing+2025')} className="text-xs font-medium text-blue-400 hover:underline">See all</button>
@@ -1126,60 +1122,6 @@ export default function Home() {
             <div className="flex gap-3 md:gap-4 overflow-x-auto pb-2 no-scrollbar">
               {globalPop.slice(0, 20).map((song: any, idx: number) => (
                 <SongCard key={`cv-${song.id || song.songId || idx}`} song={song} queue={globalPop} getImg={getImg} getName={getName} getArtist={getArtist} playTrack={playTrack} />
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* Workout Beats - Energetic */}
-        {partyMix.length > 0 && (
-          <section>
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <span className="text-orange-400">🔥</span>
-                <h2 className="text-lg md:text-xl font-bold text-[var(--foreground)]">Workout beats</h2>
-              </div>
-              <button onClick={() => router.push('/section?title=workout+beats&q=workout+gym+motivation+beats+2025')} className="text-xs font-medium text-orange-400 hover:underline">See all</button>
-            </div>
-            <div className="flex gap-3 md:gap-4 overflow-x-auto pb-2 no-scrollbar -mx-4 px-4 md:mx-0 md:px-0">
-              {trending.slice(10, 30).map((song: any, idx: number) => (
-                <SongCard key={`wb-${song.id || song.songId || idx}`} song={song} queue={trending} getImg={getImg} getName={getName} getArtist={getArtist} playTrack={playTrack} />
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* Romantic Moods - Pink/Red theme */}
-        {bollywoodHits.length > 0 && (
-          <section className="bg-gradient-to-r from-rose-500/5 via-pink-500/5 to-red-500/5 -mx-4 md:-mx-6 lg:-mx-8 px-4 md:px-6 lg:px-8 py-6 rounded-none">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <Heart size={16} className="text-rose-400" />
-                <h2 className="text-lg md:text-xl font-bold text-[var(--foreground)]">Romantic moods</h2>
-              </div>
-              <button onClick={() => router.push('/section?title=romantic+moods&q=romantic+love+songs+2025')} className="text-xs font-medium text-rose-400 hover:underline">See all</button>
-            </div>
-            <div className="flex gap-3 md:gap-4 overflow-x-auto pb-2 no-scrollbar">
-              {bollywoodHits.slice(10, 30).map((song: any, idx: number) => (
-                <SongCard key={`rm-${song.id || song.songId || idx}`} song={song} queue={bollywoodHits} getImg={getImg} getName={getName} getArtist={getArtist} playTrack={playTrack} />
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* Throwback Classics */}
-        {topCharts.length > 0 && (
-          <section>
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <Disc3 size={16} className="text-amber-400" />
-                <h2 className="text-lg md:text-xl font-bold text-[var(--foreground)]">Throwback classics</h2>
-              </div>
-              <button onClick={() => router.push('/section?title=throwback+classics&q=90s+2000s+classics+throwback+hits')} className="text-xs font-medium text-amber-400 hover:underline">See all</button>
-            </div>
-            <div className="flex gap-3 md:gap-4 overflow-x-auto pb-2 no-scrollbar -mx-4 px-4 md:mx-0 md:px-0">
-              {internationalHits.slice(10, 30).map((song: any, idx: number) => (
-                <SongCard key={`tc-${song.id || song.songId || idx}`} song={song} queue={topCharts} getImg={getImg} getName={getName} getArtist={getArtist} playTrack={playTrack} />
               ))}
             </div>
           </section>
