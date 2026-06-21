@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useOffline } from '@/context/OfflineContext';
+import { useFriends } from '@/context/FriendsContext';
 import UsernameChanger from '@/components/UsernameChanger';
 import LiveStats from '@/components/LiveStats';
 import WrappedModal from '@/components/WrappedModal';
@@ -49,12 +50,13 @@ function ProfileContent() {
 
     const { profileData, setProfileData, hasLoadedProfile, setHasLoadedProfile, clearProfileCache, clearSearchCache } = useMusicData();
     const { downloads, removeSong, storageUsed, storageLimit, clearAllDownloads } = useOffline();
+    const { friends } = useFriends();
 
     // Use cached data immediately for instant UI
     const [favorites, setFavorites] = useState<any[]>(profileData?.favorites || []);
     const [history, setHistory] = useState<any[]>(profileData?.history || []);
     const [playlists, setPlaylists] = useState<any[]>(profileData?.playlists || []);
-    const [activeTab, setActiveTab] = useState<'favorites' | 'history' | 'playlists' | 'downloads' | 'settings'>('playlists');
+    const [activeTab, setActiveTab] = useState<'favorites' | 'history' | 'playlists' | 'downloads' | 'friends' | 'settings'>('favorites');
     const searchParams = useSearchParams();
     // Never show loading if we have cached data
     const [loading, setLoading] = useState(!profileData && !hasLoadedProfile);
@@ -476,9 +478,9 @@ function ProfileContent() {
                 {/* Navigation Tabs */}
                 <div className="flex overflow-x-auto no-scrollbar md:flex-wrap items-center justify-start gap-2 md:gap-4 -mx-1 px-1">
                     {[
-                        // Liked / Offline / Plays now live in Your Library — profile is a
-                        // clean public page (your playlists) + Settings.
-                        { id: 'playlists', label: 'Playlists', icon: ListMusic },
+                        { id: 'favorites', label: 'Liked Songs', icon: Heart },
+                        { id: 'downloads', label: 'Offline', icon: DownloadCloud },
+                        { id: 'friends', label: 'Friends', icon: Users },
                         { id: 'settings', label: 'Settings', icon: Settings }
                     ].map(tab => (
                         <button
@@ -674,6 +676,54 @@ function ProfileContent() {
                         </div>
                     )}
 
+
+                    {activeTab === 'friends' && (
+                        <div className="space-y-6">
+                            <div className="flex items-center justify-between px-2 md:px-0">
+                                <div>
+                                    <h2 className="text-lg md:text-xl font-bold text-[var(--foreground)]">Friends</h2>
+                                    <p className="text-[11px] text-[var(--foreground-muted)]">{friends.length} {friends.length === 1 ? 'friend' : 'friends'}</p>
+                                </div>
+                                <button
+                                    onClick={() => setShowFriendSheet(true)}
+                                    className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-[var(--accent)] text-[#04161a] text-xs font-semibold hover:scale-105 active:scale-95 transition-transform"
+                                >
+                                    <Users size={14} /> Add friends
+                                </button>
+                            </div>
+
+                            {friends.length === 0 ? (
+                                <div className="text-center py-20 md:py-32 bg-[var(--card)]/50 rounded-2xl md:rounded-[3rem] border border-[var(--border)] mx-2 md:mx-0">
+                                    <Users size={40} className="text-[var(--foreground-muted)]/20 mx-auto mb-4 md:mb-6 md:w-12 md:h-12" />
+                                    <h2 className="text-xl md:text-2xl font-bold text-[var(--foreground)] mb-2 px-4">No friends yet</h2>
+                                    <p className="text-[var(--foreground-muted)] font-medium text-xs md:text-base px-6">Find people to share your music taste with.</p>
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4 px-2 md:px-0">
+                                    {friends.map((f) => (
+                                        <div key={f.id} className="flex items-center gap-3 p-3 md:p-4 rounded-2xl bg-[var(--card)] border border-[var(--border)]">
+                                            <div className="relative shrink-0">
+                                                {f.photoURL ? (
+                                                    <img src={f.photoURL} alt="" className="w-12 h-12 rounded-full object-cover" />
+                                                ) : (
+                                                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-cyan-500 to-purple-600 flex items-center justify-center text-white font-bold">{f.displayName?.[0]?.toUpperCase() || 'U'}</div>
+                                                )}
+                                                {f.isOnline && <span className="absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-[var(--card)]" />}
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <h3 className="font-semibold text-sm text-[var(--foreground)] truncate">{f.displayName}</h3>
+                                                {f.nowPlaying ? (
+                                                    <p className="text-[11px] text-[var(--accent)] truncate flex items-center gap-1"><Music size={10} /> {f.nowPlaying.songName}</p>
+                                                ) : (
+                                                    <p className="text-[11px] text-[var(--foreground-muted)] truncate">{f.isOnline ? 'Online' : 'Offline'}</p>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    )}
 
                     {activeTab === 'settings' && (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8 mb-20">

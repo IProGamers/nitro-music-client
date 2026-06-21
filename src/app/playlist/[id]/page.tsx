@@ -11,6 +11,7 @@ import {
 import { useOffline } from '@/context/OfflineContext';
 import { fetchJioSaavnPlaylist } from '@/lib/homeData';
 import { getTrackImageUrl, getTrackArtistName, decodeHtml } from '@/lib/utils';
+import { fetchJioSaavnSuggestions, rankByTaste } from '@/lib/recommendations';
 import PlaylistCover from '@/components/PlaylistCover';
 
 // Format a duration that may be raw seconds (e.g. 249) or already "m:ss".
@@ -42,17 +43,31 @@ export default function PlaylistDetailPage() {
     const [isExternal, setIsExternal] = useState(false);
     const [saving, setSaving] = useState(false);
     const [saved, setSaved] = useState(false);
+    // Taste-based "Recommended Songs" (Spotify-style auto-suggest)
+    const [recommended, setRecommended] = useState<any[]>([]);
+    const [loadingRecs, setLoadingRecs] = useState(false);
+    const [addingId, setAddingId] = useState<string | null>(null);
 
     useEffect(() => {
         loadPlaylist();
     }, [id]);
 
-    // Also reload when user changes (to check ownership) 
+    // Also reload when user changes (to check ownership)
     useEffect(() => {
         if (playlist && user) {
             // Just update the ownership state without full reload
         }
     }, [user?.uid]);
+
+    // Load taste-based recommendations for the owner's own playlist.
+    useEffect(() => {
+        if (playlist && !isExternal && user?.uid === playlist.ownerId) {
+            loadRecommendations(playlist);
+        } else {
+            setRecommended([]);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [playlist?.id, isExternal, user?.uid, playlist?.songs.length]);
 
     const loadPlaylist = async () => {
         setLoading(true);
@@ -137,6 +152,50 @@ export default function PlaylistDetailPage() {
             setIsEditing(false);
         } catch (err) {
             console.error('Failed to update playlist:', err);
+        }
+    };
+
+    // Build a taste-based "Recommended Songs" list from the playlist's own tracks,
+    // seeded through JioSaavn's song-radio engine and ranked by listening taste.
+    const loadRecommendations = async (pl: Playlist | null) => {
+        if (!pl || pl.songs.length === 0) { setRecommended([]); return; }
+        setLoadingRecs(true);
+        try {
+            const inPlaylist = new Set(pl.songs.map(s => String(s.id)));
+            // Seed from a few recent tracks for variety (last added first).
+            const seeds = [...pl.songs].slice(-4).reverse();
+            const batches = await Promise.all(seeds.map(s => fetchJioSaavnSuggestions(s).catch(() => [])));
+            const seen = new Set<string>();
+            const merged: any[] = [];
+            for (const batch of batches) {
+                for (const s of batch) {
+                    const k = String(s?.id || s?.songId || '');
+                    if (!k || seen.has(k) || inPlaylist.has(k)) continue;
+                    seen.add(k);
+                    merged.push(s);
+                }
+            }
+            setRecommended(rankByTaste(merged).slice(0, 12));
+        } catch (err) {
+            console.error('Failed to load recommendations:', err);
+        } finally {
+            setLoadingRecs(false);
+        }
+    };
+
+    const handleAddRecommended = async (song: any, e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (!playlist) return;
+        const key = String(song?.id || song?.songId || '');
+        setAddingId(key);
+        try {
+            await addSongToPlaylist(playlist.id, song);
+            setPlaylist({ ...playlist, songs: [...playlist.songs, song] });
+            setRecommended(prev => prev.filter(s => String(s?.id || s?.songId) !== key));
+        } catch (err) {
+            console.error('Failed to add song:', err);
+        } finally {
+            setAddingId(null);
         }
     };
 
@@ -434,6 +493,61 @@ export default function PlaylistDetailPage() {
                     <div className="py-20 flex flex-col items-center justify-center text-center opacity-40">
                         <Plus size={48} className="text-[var(--foreground-muted)] mb-6" />
                         <p className="font-bold uppercase tracking-widest text-sm">Add some fire to this playlist</p>
+                    </div>
+                )}
+
+                {/* Recommended Songs — taste-based auto-suggest (Spotify-style) */}
+                {isOwner && !isExternal && playlist.songs.length > 0 && (recommended.length > 0 || loadingRecs) && (
+                    <div className="mt-12 pt-8 border-t border-[var(--border)]">
+                        <div className="flex items-center justify-between mb-1 px-2 md:px-6">
+                            <div>
+                                <h2 className="text-xl md:text-2xl font-bold text-[var(--foreground)]">Recommended Songs</h2>
+                                <p className="text-xs md:text-sm text-[var(--foreground-muted)] mt-0.5">Based on the songs in this playlist</p>
+                            </div>
+                            <button
+                                onClick={() => loadRecommendations(playlist)}
+                                disabled={loadingRecs}
+                                className="text-xs font-bold uppercase tracking-wider text-[var(--foreground-muted)] hover:text-[var(--foreground)] disabled:opacity-40 transition-colors shrink-0"
+                            >
+                                {loadingRecs ? 'Loading…' : 'Refresh'}
+                            </button>
+                        </div>
+
+                        {loadingRecs && recommended.length === 0 ? (
+                            <div className="flex justify-center py-12"><Loader2 size={26} className="animate-spin text-[var(--accent)]" /></div>
+                        ) : (
+                            <div className="mt-4">
+                                {recommended.map((song) => {
+                                    const key = String(song?.id || song?.songId || '');
+                                    return (
+                                        <div
+                                            key={key}
+                                            onClick={() => playTrack(song, recommended)}
+                                            className="group flex items-center gap-4 px-2 md:px-6 py-2.5 rounded-2xl hover:bg-[var(--card-hover)] transition-colors cursor-pointer"
+                                        >
+                                            <img
+                                                src={getTrackImageUrl(song) || (typeof song.image === 'string' ? song.image : '') || '/logo.png'}
+                                                onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/logo.png'; }}
+                                                alt=""
+                                                className="w-12 h-12 rounded-xl object-cover shrink-0 bg-[var(--surface)]"
+                                            />
+                                            <div className="flex-1 min-w-0">
+                                                <p className="font-semibold text-sm text-[var(--foreground)] truncate">{decodeHtml(song.name || song.title)}</p>
+                                                <p className="text-xs text-[var(--foreground-muted)] truncate mt-0.5">{decodeHtml(getTrackArtistName(song) || song.artist || '')}</p>
+                                            </div>
+                                            <button
+                                                onClick={(e) => handleAddRecommended(song, e)}
+                                                disabled={addingId === key}
+                                                className="shrink-0 w-9 h-9 rounded-full border border-[var(--border)] flex items-center justify-center text-[var(--foreground-muted)] hover:text-[var(--accent)] hover:border-[var(--accent)]/50 disabled:opacity-50 transition-colors"
+                                                title="Add to playlist"
+                                            >
+                                                {addingId === key ? <Loader2 size={16} className="animate-spin" /> : <Plus size={18} />}
+                                            </button>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
                     </div>
                 )}
             </div>

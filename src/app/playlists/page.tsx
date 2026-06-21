@@ -4,15 +4,17 @@ import { useAuth, Playlist } from '@/context/AuthContext';
 import { usePlayer } from '@/context/PlayerContext';
 import {
     Plus, Music, Globe, Lock, Loader2, Play,
-    Trash2, Search, Clock, Download, Heart
+    Search, Clock, Download, Heart
 } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import SpotifyImport from '@/components/SpotifyImport';
 import PlaylistCover from '@/components/PlaylistCover';
 import { useOffline } from '@/context/OfflineContext';
 
 export default function PlaylistsPage() {
-    const { user, getUserPlaylists, createPlaylist, deletePlaylist, getRecentPlays } = useAuth();
+    const router = useRouter();
+    const { user, getUserPlaylists, createPlaylist, getRecentPlays } = useAuth();
     const { playTrack } = usePlayer();
     const { downloads } = useOffline();
     const [playlists, setPlaylists] = useState<Playlist[]>([]);
@@ -22,6 +24,8 @@ export default function PlaylistsPage() {
     const [searchQuery, setSearchQuery] = useState('');
     const [isCreating, setIsCreating] = useState(false);
     const [showSpotify, setShowSpotify] = useState(false);
+    const [showCreateModal, setShowCreateModal] = useState(false);
+    const [newName, setNewName] = useState('');
 
     useEffect(() => {
         if (user) {
@@ -50,29 +54,22 @@ export default function PlaylistsPage() {
         }
     };
 
-    const handleCreate = async () => {
+    // New playlist now asks for a name (no more auto "My Playlist #N").
+    const confirmCreate = async () => {
         if (!user) return;
+        const name = newName.trim();
+        if (!name) return;
         setIsCreating(true);
         try {
-            const name = `My Playlist #${playlists.length + 1}`;
-            await createPlaylist(name, 'Playlist created with Nitro Music', false);
-            loadPlaylists();
+            const id = await createPlaylist(name, '', false);
+            setShowCreateModal(false);
+            setNewName('');
+            if (id) router.push(`/playlist/${id}`);
+            else loadPlaylists();
         } catch (err) {
             console.error('Failed to create playlist:', err);
         } finally {
             setIsCreating(false);
-        }
-    };
-
-    const handleDelete = async (id: string, e: React.MouseEvent) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (!confirm('Are you sure you want to delete this playlist?')) return;
-        try {
-            await deletePlaylist(id);
-            setPlaylists(prev => prev.filter(p => p.id !== id));
-        } catch (err) {
-            console.error('Failed to delete playlist:', err);
         }
     };
 
@@ -113,11 +110,10 @@ export default function PlaylistsPage() {
                 </div>
                 <div className="flex items-center gap-3">
                     <button
-                        onClick={handleCreate}
-                        disabled={isCreating}
-                        className="flex items-center justify-center gap-2 bg-[var(--foreground)] text-[var(--background)] px-5 py-2.5 rounded-full font-semibold text-sm hover:opacity-90 transition-all hover:scale-[1.03] active:scale-95 disabled:opacity-50"
+                        onClick={() => { setNewName(''); setShowCreateModal(true); }}
+                        className="flex items-center justify-center gap-2 bg-[var(--foreground)] text-[var(--background)] px-5 py-2.5 rounded-full font-semibold text-sm hover:opacity-90 transition-all hover:scale-[1.03] active:scale-95"
                     >
-                        {isCreating ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
+                        <Plus size={16} />
                         New Playlist
                     </button>
                     <button
@@ -131,6 +127,29 @@ export default function PlaylistsPage() {
             </header>
 
             <SpotifyImport isOpen={showSpotify} onClose={closeSpotify} />
+
+            {/* Create playlist — asks for a name */}
+            {showCreateModal && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={() => !isCreating && setShowCreateModal(false)}>
+                    <div className="w-full max-w-sm bg-[var(--background-secondary)] border border-[var(--border)] rounded-2xl p-6" onClick={e => e.stopPropagation()}>
+                        <h2 className="text-lg font-bold text-[var(--foreground)] mb-4">New playlist</h2>
+                        <input
+                            autoFocus
+                            value={newName}
+                            onChange={e => setNewName(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter') confirmCreate(); }}
+                            placeholder="Playlist name"
+                            className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-xl px-4 py-3 text-sm text-[var(--foreground)] placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--accent)]/50"
+                        />
+                        <div className="flex gap-2 mt-5">
+                            <button onClick={() => setShowCreateModal(false)} disabled={isCreating} className="flex-1 py-2.5 rounded-full bg-[var(--surface)] hover:bg-[var(--surface-hover)] text-sm font-medium text-[var(--foreground)] disabled:opacity-50">Cancel</button>
+                            <button onClick={confirmCreate} disabled={isCreating || !newName.trim()} className="flex-1 py-2.5 rounded-full bg-[var(--accent)] text-[#04161a] text-sm font-semibold disabled:opacity-40 flex items-center justify-center gap-2">
+                                {isCreating ? <Loader2 size={15} className="animate-spin" /> : null} Create
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Tabs */}
             <div className="flex items-center gap-2 -mt-6">
