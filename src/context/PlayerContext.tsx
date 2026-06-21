@@ -6,7 +6,7 @@ import { useAudioFX } from './AudioFXContext';
 import { useRouter } from 'next/navigation';
 import { getSong as getOfflineSong } from '@/lib/offlineDb';
 import { dedupeSongs, createSongKey, normalizeSongTitle } from '@/lib/searchUtils';
-import { recordListen, recordSkip, buildAutoplayQueries, buildQueuePools, rankByTaste, fetchLastfmSimilarSongs } from '@/lib/recommendations';
+import { recordListen, recordSkip, buildAutoplayQueries, buildQueuePools, rankByTaste, fetchLastfmSimilarSongs, fetchJioSaavnSuggestions } from '@/lib/recommendations';
 
 const FREE_PLAY_LIMIT = 10;
 const PLAY_COUNT_KEY = 'nitro_free_plays';
@@ -862,15 +862,24 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
                 return true;
             };
 
-            // 1) PRIMARY: Last.fm collaborative-filtering "similar songs" (real Spotify-
-            //    like data), resolved against our catalog. No-op if not configured.
+            // 1) PRIMARY: JioSaavn's own song-station suggestions (free, no key, tuned
+            //    for Indian music, ready-to-play). Best fit for this catalog.
             try {
-                const lf = await fetchLastfmSimilarSongs(seedSong);
-                for (const s of lf) if (accept(s)) out.push(s);
-            } catch { /* fall through to heuristic */ }
+                const jio = await fetchJioSaavnSuggestions(seedSong);
+                for (const s of jio) if (accept(s)) out.push(s);
+            } catch { /* fall through */ }
 
-            // 2) FALLBACK / SUPPLEMENT: heuristic intent pools (same artist, favourite
-            //    artists, mood/language, discovery) when Last.fm is off or thin.
+            // 2) SUPPLEMENT: Last.fm collaborative-filtering similar songs (stronger for
+            //    Western/English). No-op if not configured.
+            if (out.length < 8) {
+                try {
+                    const lf = await fetchLastfmSimilarSongs(seedSong);
+                    for (const s of lf) if (accept(s)) out.push(s);
+                } catch { /* fall through to heuristic */ }
+            }
+
+            // 3) FALLBACK: heuristic intent pools (same artist, favourite artists,
+            //    mood/language, discovery) when the above are off or thin.
             if (out.length < 8) {
                 const pools = buildQueuePools(seedSong);
                 const responses = await Promise.allSettled(

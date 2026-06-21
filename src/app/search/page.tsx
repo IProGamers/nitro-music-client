@@ -10,7 +10,7 @@ import { getDidYouMeanSuggestions, preprocessQuery } from '@/lib/fuzzySearch';
 import { processSearchResults, rankByRelevance, type ProcessedSong, type GroupedSearchResults } from '@/lib/searchUtils';
 import { reRankByTrending, getTopResultConfidence, getTrendingSongForQuery } from '@/lib/trendingSongs';
 import { decodeHtml } from '@/lib/utils';
-import { fetchLastfmSimilarSongs } from '@/lib/recommendations';
+import { fetchSimilarSongs } from '@/lib/recommendations';
 
 type SearchResults = {
     songs: { results: any[] };
@@ -389,7 +389,7 @@ export default function SearchPage() {
         const top = processedSongs.songs[0]?.song;
         if (!top) { setSimilarSongs([]); return; }
         let cancelled = false;
-        fetchLastfmSimilarSongs(top)
+        fetchSimilarSongs(top)
             .then(songs => { if (!cancelled) setSimilarSongs(songs.slice(0, 12)); })
             .catch(() => { if (!cancelled) setSimilarSongs([]); });
         return () => { cancelled = true; };

@@ -227,9 +227,48 @@ export const buildQueuePools = (seedSong: any): Array<{ query: string; category:
 };
 
 /**
- * Real "similar songs" via the backend Last.fm proxy, resolved against our own
- * JioSaavn catalog for playback. Returns [] when Last.fm isn't configured or
- * finds nothing — the caller then falls back to the heuristic pools.
+ * PRIMARY recommendation source: JioSaavn's own song-station / suggestions engine
+ * (the same one that powers JioSaavn autoplay). Free, no API key, tuned for Indian
+ * music, and returns full, ready-to-play song objects (no catalog resolution
+ * needed). This is the best fit for an India-focused catalog.
+ */
+export const fetchJioSaavnSuggestions = async (seedSong: any): Promise<any[]> => {
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+    const id = String(seedSong?.id || seedSong?.songId || '');
+    if (!id) return [];
+    try {
+        const res = await fetch(`${apiUrl}/api/songs/${id}/suggestions?limit=20`);
+        if (!res.ok) return [];
+        const data = await res.json();
+        return data?.success && Array.isArray(data.data) ? data.data : [];
+    } catch {
+        return [];
+    }
+};
+
+/**
+ * Unified "similar songs": JioSaavn suggestions first (free, Indian-tuned), then
+ * supplement with Last.fm (better for Western/English) when configured. Merges
+ * unique by id. Used by the home + search recommendation sections.
+ */
+export const fetchSimilarSongs = async (seedSong: any): Promise<any[]> => {
+    const jio = await fetchJioSaavnSuggestions(seedSong);
+    if (jio.length >= 6) return jio;
+
+    const lf = await fetchLastfmSimilarSongs(seedSong);
+    const seen = new Set(jio.map(s => String(s.id || s.songId)));
+    const merged = [...jio];
+    for (const s of lf) {
+        const k = String(s.id || s.songId);
+        if (k && !seen.has(k)) { seen.add(k); merged.push(s); }
+    }
+    return merged;
+};
+
+/**
+ * "Similar songs" via the backend Last.fm proxy, resolved against our own JioSaavn
+ * catalog for playback. Returns [] when Last.fm isn't configured or finds nothing.
+ * Used as a SUPPLEMENT to JioSaavn suggestions (better for Western/English tracks).
  */
 export const fetchLastfmSimilarSongs = async (seedSong: any): Promise<any[]> => {
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';

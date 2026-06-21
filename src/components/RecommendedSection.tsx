@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { Sparkles, Play, Music } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { usePlayer } from '@/context/PlayerContext';
-import { fetchLastfmSimilarSongs } from '@/lib/recommendations';
+import { fetchSimilarSongs } from '@/lib/recommendations';
 import { getTrackImageUrl, getTrackArtistName, decodeHtml } from '@/lib/utils';
 
 /**
@@ -27,7 +27,7 @@ export default function RecommendedSection() {
                 const recent = await getRecentPlays?.(1);
                 const seedSong = recent?.[0];
                 if (!seedSong) return;
-                const similar = await fetchLastfmSimilarSongs(seedSong);
+                const similar = await fetchSimilarSongs(seedSong);
                 if (!cancelled) {
                     setSeed(seedSong);
                     setSongs(similar.slice(0, 14));
