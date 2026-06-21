@@ -4,9 +4,10 @@ import { useAuth, Playlist } from '@/context/AuthContext';
 import { usePlayer } from '@/context/PlayerContext';
 import {
     Plus, Music, Globe, Lock, Loader2, Play,
-    Trash2, Search, Clock
+    Trash2, Search, Clock, Download
 } from 'lucide-react';
 import Link from 'next/link';
+import SpotifyImport from '@/components/SpotifyImport';
 
 export default function PlaylistsPage() {
     const { user, getUserPlaylists, createPlaylist, deletePlaylist, getRecentPlays } = useAuth();
@@ -17,6 +18,7 @@ export default function PlaylistsPage() {
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
     const [isCreating, setIsCreating] = useState(false);
+    const [showSpotify, setShowSpotify] = useState(false);
 
     useEffect(() => {
         if (user) {
@@ -26,6 +28,20 @@ export default function PlaylistsPage() {
             setLoading(false);
         }
     }, [user]);
+
+    // Auto-open the import modal after returning from the Spotify OAuth redirect.
+    useEffect(() => {
+        if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('spotify') === 'connected') {
+            setShowSpotify(true);
+            window.history.replaceState({}, '', '/playlists');
+        }
+    }, []);
+
+    // Refresh playlists after an import closes.
+    const closeSpotify = () => {
+        setShowSpotify(false);
+        if (user) loadPlaylists();
+    };
 
     const loadPlaylists = async () => {
         setLoading(true);
@@ -100,15 +116,26 @@ export default function PlaylistsPage() {
                         Your Library
                     </h1>
                 </div>
-                <button
-                    onClick={handleCreate}
-                    disabled={isCreating}
-                    className="flex items-center justify-center gap-2 bg-[var(--foreground)] text-[var(--background)] px-5 py-2.5 rounded-full font-semibold text-sm hover:opacity-90 transition-all hover:scale-[1.03] active:scale-95 disabled:opacity-50"
-                >
-                    {isCreating ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
-                    New Playlist
-                </button>
+                <div className="flex items-center gap-3">
+                    <button
+                        onClick={() => setShowSpotify(true)}
+                        className="flex items-center justify-center gap-2 bg-[var(--surface)] hover:bg-[var(--surface-hover)] text-[var(--foreground)] px-5 py-2.5 rounded-full font-semibold text-sm transition-all border border-[var(--border)]"
+                    >
+                        <Download size={16} />
+                        Import from Spotify
+                    </button>
+                    <button
+                        onClick={handleCreate}
+                        disabled={isCreating}
+                        className="flex items-center justify-center gap-2 bg-[var(--foreground)] text-[var(--background)] px-5 py-2.5 rounded-full font-semibold text-sm hover:opacity-90 transition-all hover:scale-[1.03] active:scale-95 disabled:opacity-50"
+                    >
+                        {isCreating ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
+                        New Playlist
+                    </button>
+                </div>
             </header>
+
+            <SpotifyImport isOpen={showSpotify} onClose={closeSpotify} />
 
             {/* Tabs */}
             <div className="flex items-center gap-2 -mt-6">
