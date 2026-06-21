@@ -15,7 +15,23 @@ const TASTE_KEY = 'nitro_taste_profile';         // { artists: {name:weight}, la
 
 type Signal = { plays: number; skips: number; repeats: number; lastPlayed: number };
 type Signals = Record<string, Signal>;
-type Taste = { artists: Record<string, number>; languages: Record<string, number> };
+type Taste = { artists: Record<string, number>; languages: Record<string, number>; moods: Record<string, number> };
+
+const MOOD_RULES: Array<{ key: string; match: RegExp }> = [
+    { key: 'party', match: /\b(party|dance|club|dj|remix|nach|bhangra|anthem|edm|beat)\b/i },
+    { key: 'romantic', match: /\b(love|dil|ishq|pyaar|pyar|romantic|heart|sajna|mohabbat|tum)\b/i },
+    { key: 'sad', match: /\b(sad|alone|cry|miss|broken|pain|judai|bewafa|tanha|tujhe)\b/i },
+    { key: 'chill', match: /\b(lofi|lo-?fi|chill|relax|calm|acoustic|slow|soft|sukoon)\b/i },
+    { key: 'energetic', match: /\b(rock|hard|power|hype|workout|gym|fire|swag|attitude)\b/i },
+];
+
+const detectMood = (song: any): string | null => {
+    const hay = `${(song?.name || song?.title || '')} ${(song?.album?.name || song?.album || '')}`.toLowerCase();
+    for (const rule of MOOD_RULES) {
+        if (rule.match.test(hay)) return rule.key;
+    }
+    return null;
+};
 
 const LANGUAGE_RULES: Array<{ key: string; match: RegExp }> = [
     { key: 'punjabi', match: /\b(kudi|kudiyan|bhangra|nach|gabru|sajna|sardar|diljit|aujla|jatt|peg)\b/i },
@@ -79,13 +95,17 @@ export const recordListen = (song: any, opts?: { liked?: boolean }) => {
     signals[id] = { ...prev, plays: prev.plays + 1, lastPlayed: Date.now() };
     writeJSON(SIGNALS_KEY, signals);
 
-    const taste = readJSON<Taste>(TASTE_KEY, { artists: {}, languages: {} });
+    const taste = readJSON<Taste>(TASTE_KEY, { artists: {}, languages: {}, moods: {} });
+    if (!taste.moods) taste.moods = {};
     decay(taste.artists);
     decay(taste.languages);
+    decay(taste.moods);
     const artist = getArtistNameFromSong(song).toLowerCase();
     if (artist && artist !== 'unknown artist') bump(taste.artists, artist, weight);
     const lang = detectLanguage(song);
     if (lang) bump(taste.languages, lang, weight);
+    const mood = detectMood(song);
+    if (mood) bump(taste.moods, mood, weight);
     writeJSON(TASTE_KEY, taste);
 };
 
@@ -98,7 +118,7 @@ export const recordSkip = (song: any) => {
     signals[id] = { ...prev, skips: prev.skips + 1 };
     writeJSON(SIGNALS_KEY, signals);
 
-    const taste = readJSON<Taste>(TASTE_KEY, { artists: {}, languages: {} });
+    const taste = readJSON<Taste>(TASTE_KEY, { artists: {}, languages: {}, moods: {} });
     const artist = getArtistNameFromSong(song).toLowerCase();
     if (artist && taste.artists[artist]) {
         taste.artists[artist] = Math.max(0, taste.artists[artist] - 0.5);
@@ -112,11 +132,12 @@ const rankedKeys = (map: Record<string, number>, limit: number): string[] =>
         .slice(0, limit)
         .map(([k]) => k);
 
-export const getTasteProfile = (): { topArtists: string[]; topLanguages: string[] } => {
-    const taste = readJSON<Taste>(TASTE_KEY, { artists: {}, languages: {} });
+export const getTasteProfile = (): { topArtists: string[]; topLanguages: string[]; topMoods: string[] } => {
+    const taste = readJSON<Taste>(TASTE_KEY, { artists: {}, languages: {}, moods: {} });
     return {
         topArtists: rankedKeys(taste.artists, 6),
         topLanguages: rankedKeys(taste.languages, 2),
+        topMoods: rankedKeys(taste.moods || {}, 2),
     };
 };
 
@@ -148,7 +169,7 @@ export const buildAutoplayQueries = (seedSong: any): string[] => {
 
 /** Affinity score of a candidate track against the learned taste profile. */
 export const scoreByTaste = (song: any): number => {
-    const { topArtists, topLanguages } = getTasteProfile();
+    const { topArtists, topLanguages, topMoods } = getTasteProfile();
     let score = 0;
 
     const artist = getArtistNameFromSong(song).toLowerCase();
@@ -157,6 +178,10 @@ export const scoreByTaste = (song: any): number => {
 
     const lang = detectLanguage(song);
     if (lang && topLanguages.includes(lang)) score += 15;
+
+    // Mood match — recommend songs that fit the user's current listening mood.
+    const mood = detectMood(song);
+    if (mood && topMoods.includes(mood)) score += 10;
 
     // Mild popularity nudge so well-known tracks win ties
     const plays = Number(song?.playCount || song?.play_count || 0);
@@ -167,6 +192,34 @@ export const scoreByTaste = (song: any): number => {
     if (/\b(remix|cover|lo-?fi|slowed|reverb|sped\s*up|instrumental|karaoke)\b/.test(raw)) score -= 20;
 
     return score;
+};
+
+/**
+ * Category pools for a diversified queue (Spotify-like): instead of one search
+ * that returns near-identical tracks, fetch several intent buckets and blend them.
+ * Returns [{ query, category, max }] — caller fetches each and caps per category.
+ */
+export const buildQueuePools = (seedSong: any): Array<{ query: string; category: string; max: number }> => {
+    const { topArtists, topLanguages, topMoods } = getTasteProfile();
+    const seedArtist = getArtistNameFromSong(seedSong).toLowerCase();
+    const lang = topLanguages[0] || '';
+    const mood = topMoods[0] || '';
+
+    const pools: Array<{ query: string; category: string; max: number }> = [];
+
+    // More popular tracks from the artist you're playing now
+    if (seedArtist && seedArtist !== 'unknown artist') {
+        pools.push({ query: `${seedArtist} hits`, category: 'same_artist', max: 3 });
+    }
+    // Your favourite artists (personalized)
+    const fav = topArtists.find(a => a && a !== seedArtist);
+    if (fav) pools.push({ query: `${fav} hits`, category: 'favourite_artist', max: 2 });
+    // Same mood + language vibe
+    if (mood || lang) pools.push({ query: `${lang} ${mood} songs`.trim(), category: 'mood', max: 3 });
+    // A little discovery so the queue doesn't feel closed
+    pools.push({ query: `${lang || 'trending'} trending`.trim(), category: 'discovery', max: 2 });
+
+    return pools;
 };
 
 /** Rank candidate songs by taste affinity (stable; ties keep original order). */

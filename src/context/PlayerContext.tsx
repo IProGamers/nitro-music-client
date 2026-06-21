@@ -6,7 +6,7 @@ import { useAudioFX } from './AudioFXContext';
 import { useRouter } from 'next/navigation';
 import { getSong as getOfflineSong } from '@/lib/offlineDb';
 import { dedupeSongs, createSongKey } from '@/lib/searchUtils';
-import { recordListen, recordSkip, buildAutoplayQueries, rankByTaste } from '@/lib/recommendations';
+import { recordListen, recordSkip, buildAutoplayQueries, buildQueuePools, rankByTaste } from '@/lib/recommendations';
 
 const FREE_PLAY_LIMIT = 10;
 const PLAY_COUNT_KEY = 'nitro_free_plays';
@@ -854,40 +854,48 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
         try {
             const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 
-            // Taste-aware queries (seed artist, favourite artists, favourite-language hits, seed name)
-            const queries = buildAutoplayQueries(seedSong).slice(0, 3);
-            if (queries.length === 0) {
-                queries.push(seedSong.artists?.primary?.[0]?.name || seedSong.artist || seedSong.name || '');
-            }
+            // Diversified, Spotify-like queue: fetch several INTENT pools (more from the
+            // current artist, your favourite artists, same mood/language, a little
+            // discovery) and blend them with per-category caps so the queue isn't filled
+            // with near-identical results.
+            const pools = buildQueuePools(seedSong);
 
-            // Fetch a couple of queries in parallel for a richer, more varied pool.
             const responses = await Promise.allSettled(
-                queries.slice(0, 2).map(q =>
-                    fetch(`${apiUrl}/api/search/songs?query=${encodeURIComponent(q)}&limit=12`).then(r => r.ok ? r.json() : null)
+                pools.map(p =>
+                    fetch(`${apiUrl}/api/search/songs?query=${encodeURIComponent(p.query)}&limit=10`)
+                        .then(r => r.ok ? r.json() : null)
+                        .then(data => ({ data, pool: p }))
                 )
             );
 
-            const pool: any[] = [];
-            for (const r of responses) {
-                if (r.status === 'fulfilled' && r.value?.success && r.value.data?.results) {
-                    pool.push(...r.value.data.results);
-                }
-            }
-            if (pool.length === 0) return [];
-
-            // Drop the seed + anything already queued (by exact id and by title+artist).
             const seedId = String(seedSong.id || seedSong.songId);
             const queueIds = new Set(queue.map(s => String(s.id || s.songId)));
-            const byId = pool.filter((s: any) => String(s.id) !== seedId && !queueIds.has(String(s.id)));
-
             const excludeKeys = new Set<string>([
                 createSongKey(seedSong),
                 ...queue.map(s => createSongKey(s)),
             ]);
-            const deduped = dedupeSongs(byId, excludeKeys);
 
-            // Rank by how well each candidate matches the user's taste.
-            return rankByTaste(deduped);
+            // Take up to `max` fresh, de-duped songs from each category, then blend.
+            const blended: any[] = [];
+            const seenKeys = new Set<string>(excludeKeys);
+            for (const r of responses) {
+                if (r.status !== 'fulfilled' || !r.value?.data?.success || !r.value.data.data?.results) continue;
+                const { data, pool } = r.value;
+                let added = 0;
+                for (const s of data.data.results) {
+                    if (added >= pool.max) break;
+                    const id = String(s.id || s.songId);
+                    const key = createSongKey(s);
+                    if (id === seedId || queueIds.has(id) || seenKeys.has(key)) continue;
+                    seenKeys.add(key);
+                    blended.push(s);
+                    added++;
+                }
+            }
+            if (blended.length === 0) return [];
+
+            // Rank the blend by taste affinity while keeping category variety.
+            return rankByTaste(blended);
         } catch (e) {
             console.log('Could not fetch more songs for autoplay:', e);
         }
