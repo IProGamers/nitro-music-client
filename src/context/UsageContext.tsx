@@ -74,83 +74,16 @@ export const UsageProvider = ({ children }: { children: React.ReactNode }) => {
         return false;
     };
 
-    const checkAccess = (feature: FeatureKey): CheckResult => {
-        const validTier = tier || 'NITRO_CORE';
-        const limits = PLAN_LIMITS[validTier] || PLAN_LIMITS['NITRO_CORE'];
-        const limitConfig = limits[feature];
-
-        if (!limitConfig) return { allowed: true };
-        if (limitConfig.max === -1) return { allowed: true, limit: -1 };
-
-        const state = usage[feature];
-        let currentCount = state?.count || 0;
-
-        // Check if we should pretend it's 0 (reset due)
-        if (state && shouldReset(feature, state.lastReset, limitConfig.period)) {
-            currentCount = 0;
-        }
-
-        if (currentCount >= limitConfig.max) {
-            return {
-                allowed: false,
-                reason: 'limit_reached',
-                remaining: 0,
-                limit: limitConfig.max
-            };
-        }
-
-        return {
-            allowed: true,
-            remaining: limitConfig.max - currentCount,
-            limit: limitConfig.max
-        };
+    // Binary access model: anyone who can reach the app is an approved user and
+    // gets full, unlimited access. All per-tier feature limits are removed.
+    const checkAccess = (_feature: FeatureKey): CheckResult => {
+        return { allowed: true, limit: -1 };
     };
 
-    const trackUsage = (feature: FeatureKey) => {
-        const validTier = tier || 'NITRO_CORE';
-        const limits = PLAN_LIMITS[validTier] || PLAN_LIMITS['NITRO_CORE'];
-        const limitConfig = limits[feature];
+    // No-op: usage limits no longer exist.
+    const trackUsage = (_feature: FeatureKey) => { /* unlimited */ };
 
-        if (!limitConfig || limitConfig.max === -1) return;
-
-        setUsage(prev => {
-            const now = Date.now();
-            const current = prev[feature] || { count: 0, lastReset: now };
-
-            let newCount = current.count;
-            let newReset = current.lastReset;
-
-            const needsReset = shouldReset(feature, current.lastReset, limitConfig.period);
-
-            if (needsReset) {
-                newCount = 1; // Reset and count this one
-                newReset = now;
-            } else {
-                newCount += 1;
-            }
-
-            return {
-                ...prev,
-                [feature]: {
-                    count: newCount,
-                    lastReset: newReset
-                }
-            };
-        });
-    };
-
-    const getUsage = (feature: FeatureKey) => {
-        const validTier = tier || 'NITRO_CORE';
-        const limits = PLAN_LIMITS[validTier] || PLAN_LIMITS['NITRO_CORE'];
-        const limitConfig = limits[feature];
-
-        const state = usage[feature];
-        if (!state) return 0;
-
-        if (shouldReset(feature, state.lastReset, limitConfig?.period)) return 0;
-
-        return state.count;
-    };
+    const getUsage = (_feature: FeatureKey) => 0;
 
     const resetUsage = () => setUsage({});
 

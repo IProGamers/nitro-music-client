@@ -140,10 +140,10 @@ export const FriendsProvider = ({ children }: { children: React.ReactNode }) => 
     const lastSyncRef = useRef<number>(0);
     const friendsFetchedRef = useRef<boolean>(false);
 
+    // Binary access: any approved/admin user (i.e. anyone past the gate) can use it.
     const canUseListenTogether = useMemo(() => {
-        if (!userProfile) return false;
-        return userProfile.tier === 'NITRO_ELITE' || userProfile.tier === 'NITRO_SUPREME' || userProfile.isAdmin;
-    }, [userProfile?.tier, userProfile?.isAdmin]);
+        return !!userProfile && (userProfile.isApproved === true || userProfile.isAdmin === true);
+    }, [userProfile?.isApproved, userProfile?.isAdmin]);
 
     const isInRoom = !!activeRoom;
 

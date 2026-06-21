@@ -135,8 +135,8 @@ export default function AvatarPicker({ isOpen, onClose, onSelect, selectedAvatar
                                     </div>
                                 </div>
 
-                                {/* Premium Features Teaser */}
-                                {tier === 'NITRO_CORE' && (
+                                {/* Premium Features Teaser — removed under binary access model */}
+                                {false && (
                                     <div className="p-4 rounded-2xl bg-gradient-to-r from-purple-500/10 to-amber-500/10 border border-purple-500/20">
                                         <div className="flex items-center gap-3 mb-2">
                                             <Crown className="text-amber-400" size={20} />

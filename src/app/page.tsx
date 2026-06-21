@@ -513,14 +513,6 @@ export default function Home() {
             <h1 className="text-2xl md:text-3xl font-bold text-[var(--foreground)]">
               {greeting}{userName ? `, ${userName}` : ''}
             </h1>
-            {user && (isSupreme || isElite) && (
-              <div className="flex items-center gap-1.5 mt-1">
-                <Crown size={12} className={isSupreme ? 'text-amber-400' : 'text-purple-400'} />
-                <span className={`text-[10px] font-bold uppercase tracking-wider ${isSupreme ? 'text-amber-400' : 'text-purple-400'}`}>
-                  {isSupreme ? 'Supreme' : 'Elite'} Member
-                </span>
-              </div>
-            )}
           </div>
           <div className="flex items-center gap-2">
             <Clock size={14} className="text-[var(--foreground-muted)]" />
@@ -779,8 +771,8 @@ export default function Home() {
           </div>
         </section>
 
-        {/* Plans Advertisement Section */}
-        {(!isSupreme && !isElite) && (
+        {/* Plans Advertisement Section — removed under the binary access model */}
+        {false && (
           <section className="mb-10 px-1">
             <div className="flex items-center gap-2 mb-4">
               <Crown size={18} className="text-amber-400" />

@@ -54,8 +54,8 @@ export function OfflineProvider({ children }: { children: ReactNode }) {
     const [storageUsed, setStorageUsed] = useState(0);
     const [playlistDownloadProgress, setPlaylistDownloadProgress] = useState<{ current: number; total: number; name: string } | null>(null);
 
-    // Get storage limit based on tier
-    const storageLimit = DOWNLOAD_STORAGE_LIMITS[tier as keyof typeof DOWNLOAD_STORAGE_LIMITS] || DOWNLOAD_STORAGE_LIMITS.NITRO_CORE;
+    // Binary access model: unlimited offline storage for all approved users (-1 = unlimited).
+    const storageLimit = -1;
 
     // Load downloads on mount
     useEffect(() => {

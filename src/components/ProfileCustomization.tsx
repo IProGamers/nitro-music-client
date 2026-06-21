@@ -64,8 +64,9 @@ export default function ProfileCustomization({
         onClose();
     };
 
-    const isEliteOrAbove = tier === 'NITRO_ELITE' || tier === 'NITRO_SUPREME' || (tier as string) === 'NITRO_ULTRA';
-    const isSupreme = tier === 'NITRO_SUPREME' || (tier as string) === 'NITRO_ULTRA';
+    // Binary access model: approved users get all customization options.
+    const isEliteOrAbove = true;
+    const isSupreme = true;
 
     if (!isOpen) return null;
 

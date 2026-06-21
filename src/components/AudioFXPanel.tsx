@@ -72,19 +72,17 @@ export default function AudioFXPanel({ isOpen, onClose }: AudioFXPanelProps) {
     const [activeTab, setActiveTab] = useState<'scene' | 'vocal' | 'effects' | 'visualizer' | 'timer'>('scene');
     const [customTimerMinutes, setCustomTimerMinutes] = useState<string>('10'); // For custom timer input
 
-    // Feature access by tier
-    const isEliteOrAbove = tier === 'NITRO_ELITE' || tier === 'NITRO_SUPREME';
-    const isSupreme = tier === 'NITRO_SUPREME';
+    // Binary access model: approved users get every audio feature.
+    const isEliteOrAbove = true;
+    const isSupreme = true;
 
-    // Elite: Scene Effects, Crossfade, Visualizer
-    // Supreme: All Elite + Vocals, Haptic, Sleep Timer
     const features = {
-        scene: isEliteOrAbove,        // Elite+
-        vocals: isSupreme,            // Supreme only
-        haptic: isSupreme,            // Supreme only
-        crossfade: isEliteOrAbove,    // Elite+
-        visualizer: isEliteOrAbove,   // Elite+
-        sleepTimer: isSupreme,        // Supreme only
+        scene: true,
+        vocals: true,
+        haptic: true,
+        crossfade: true,
+        visualizer: true,
+        sleepTimer: true,
     };
 
     const formatTime = (seconds: number) => {

@@ -33,6 +33,7 @@ interface UserData {
     photoURL: string | null;
     tier: SubscriptionTier;
     isAdmin: boolean;
+    isApproved?: boolean;
     arihantMode?: boolean;
     createdAt: any;
     updatedAt: any;
@@ -67,8 +68,11 @@ const SECURITY_QUESTIONS = [
 
 export default function AdminPage() {
     const router = useRouter();
-    const { isAdmin } = useSettings();
+    const { isAdmin: settingsIsAdmin } = useSettings();
     const { user, userProfile, loading: authLoading, refreshProfile: authRefresh } = useAuth();
+    // Single source of truth: the auth profile. (Avoids the derived-layer race that
+    // previously locked admins out of their own panel.)
+    const isAdmin = settingsIsAdmin || userProfile?.isAdmin === true;
 
     // State
     const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'playlists' | 'settings'>('overview');
@@ -244,6 +248,31 @@ export default function AdminPage() {
             setSuccess(`Updated user to ${TIER_INFO[newTier].name}`);
         } catch (err: any) {
             setError('Failed to update tier');
+        } finally {
+            setUpdating(null);
+        }
+    };
+
+    // Approve / revoke a user's access (binary access model)
+    const toggleApproval = async (userId: string, currentlyApproved: boolean) => {
+        setUpdating(userId);
+        setSuccess(null);
+        setError(null);
+        try {
+            const userRef = doc(db, 'users', userId);
+            await updateDoc(userRef, {
+                isApproved: !currentlyApproved,
+                updatedAt: new Date()
+            });
+            setUsers(prev => prev.map(u =>
+                u.uid === userId ? { ...u, isApproved: !currentlyApproved } : u
+            ));
+            if (userId === user?.uid) {
+                await authRefresh();
+            }
+            setSuccess(!currentlyApproved ? 'User approved — full access granted' : 'User access revoked');
+        } catch (err: any) {
+            setError('Failed to update approval');
         } finally {
             setUpdating(null);
         }
@@ -874,23 +903,30 @@ export default function AdminPage() {
                                                 </div>
                                             </div>
 
-                                            {/* Tier Selector Row */}
+                                            {/* Access (Approval) Row — binary access model */}
                                             <div className="flex items-center justify-between gap-3 pt-3 border-t border-[var(--border)]">
-                                                <div className={`px-3 py-1.5 rounded-lg ${TIER_INFO[u.tier].bgColor} ${TIER_INFO[u.tier].color} flex items-center gap-2 shrink-0`}>
-                                                    {TIER_INFO[u.tier].icon}
-                                                    <span className="font-bold text-[10px] uppercase tracking-wider">{TIER_INFO[u.tier].name.split(' ')[1]}</span>
+                                                <div className={`px-3 py-1.5 rounded-lg flex items-center gap-2 shrink-0 ${(u.isApproved || u.isAdmin)
+                                                    ? 'bg-emerald-500/15 text-emerald-400'
+                                                    : 'bg-zinc-500/15 text-zinc-400'}`}>
+                                                    {(u.isApproved || u.isAdmin) ? <UserCheck size={14} /> : <Lock size={14} />}
+                                                    <span className="font-bold text-[10px] uppercase tracking-wider">
+                                                        {u.isAdmin ? 'Admin · Full Access' : u.isApproved ? 'Approved' : 'Locked'}
+                                                    </span>
                                                 </div>
 
-                                                <select
-                                                    value={u.tier}
-                                                    onChange={(e) => updateUserTier(u.uid, e.target.value as SubscriptionTier)}
-                                                    disabled={updating === u.uid}
-                                                    className="bg-[var(--card)] border border-[var(--border)] rounded-lg px-2 py-1.5 text-[var(--foreground)] text-[10px] font-bold uppercase tracking-tight focus:outline-none focus:border-cyan-400/50 cursor-pointer flex-1 text-center"
-                                                >
-                                                    <option value="NITRO_CORE">Core</option>
-                                                    <option value="NITRO_ELITE">Elite</option>
-                                                    <option value="NITRO_SUPREME">Supreme</option>
-                                                </select>
+                                                {u.isAdmin ? (
+                                                    <span className="text-[10px] text-[var(--foreground-muted)]">Admins always have access</span>
+                                                ) : (
+                                                    <button
+                                                        onClick={() => toggleApproval(u.uid, !!u.isApproved)}
+                                                        disabled={updating === u.uid}
+                                                        className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-colors disabled:opacity-40 ${u.isApproved
+                                                            ? 'bg-red-500/15 text-red-400 hover:bg-red-500/25'
+                                                            : 'bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25'}`}
+                                                    >
+                                                        {u.isApproved ? 'Revoke access' : 'Approve user'}
+                                                    </button>
+                                                )}
 
                                                 {updating === u.uid && (
                                                     <Loader2 size={14} className="animate-spin text-cyan-400 shrink-0" />

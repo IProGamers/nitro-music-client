@@ -24,8 +24,9 @@ interface UserProfile {
     photoURL: string | null;
     bannerURL: string | null;
     bio: string;
-    tier: SubscriptionTier;
+    tier: SubscriptionTier; // Vestigial — access is now binary (isApproved). Kept for back-compat.
     isAdmin: boolean;
+    isApproved: boolean; // Binary access: admin-approved users get full access; everyone else is locked.
     arihantMode: boolean; // Simplified Jain Stavan UI mode
     status: UserStatus;
     lastActive: Date;
@@ -138,6 +139,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                 bio: '',
                 tier: 'NITRO_CORE',
                 isAdmin: false,
+                isApproved: false,
                 arihantMode: false,
                 status: 'online',
                 lastActive: new Date(),
@@ -150,7 +152,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         }
 
         if (userSnap.exists()) {
-            return userSnap.data() as UserProfile;
+            const data = userSnap.data() as UserProfile;
+            // Normalize access flags for legacy docs that predate the binary model.
+            // Admins are always implicitly approved.
+            return {
+                ...data,
+                isAdmin: data.isAdmin === true,
+                isApproved: data.isAdmin === true || data.isApproved === true,
+            } as UserProfile;
         } else {
             // Only create a new profile if the doc genuinely doesn't exist
             const newProfile: UserProfile = {
@@ -162,6 +171,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                 bio: 'Music enthusiast & audiophile. Exploring the universe of sound one track at a time.',
                 tier: 'NITRO_CORE',
                 isAdmin: false,
+                isApproved: false, // Locked by default — an admin must approve new users.
                 arihantMode: false,
                 status: 'online',
                 lastActive: new Date(),
@@ -461,8 +471,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                 playedAt: new Date()
             });
 
-            // Enforce tier-based history limits (Supreme = unlimited)
-            const maxHistory = PLAY_HISTORY_LIMITS[userProfile.tier as keyof typeof PLAY_HISTORY_LIMITS] ?? 25;
+            // Binary access model: unlimited play history for all approved users.
+            const maxHistory = -1;
 
             // Only enforce limits if not unlimited (-1)
             if (maxHistory !== -1) {
@@ -584,14 +594,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             // Avoid duplicates
             if (currentSongs.find((s: any) => s.id === song.id)) return;
 
-            // Enforce tier-based playlist song limits (Supreme = unlimited)
-            const maxSongs = PLAYLIST_SONG_LIMITS[userProfile.tier as keyof typeof PLAYLIST_SONG_LIMITS] ?? 50;
-
-            // Only enforce limits if not unlimited (-1)
-            if (maxSongs !== -1 && currentSongs.length >= maxSongs) {
-                const tierName = userProfile.tier === 'NITRO_ELITE' ? 'Elite' : 'Core';
-                throw new Error(`Playlist limit reached! ${tierName} users can have max ${maxSongs} songs per playlist. Upgrade to Supreme for unlimited!`);
-            }
+            // Binary access model: unlimited playlist size for all approved users.
 
             await updateDoc(playlistRef, {
                 songs: [...currentSongs, song],
