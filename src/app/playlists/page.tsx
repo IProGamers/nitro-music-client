@@ -198,8 +198,8 @@ export default function PlaylistsPage() {
                                 <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/20 to-purple-500/20 opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
 
                                 <div className="absolute inset-0 flex items-center justify-center">
-                                    {p.songs.length > 0 ? (
-                                        <img src={p.songs[0].image} alt="" className="w-full h-full object-cover opacity-60 group-hover:scale-110 transition-transform duration-1000" />
+                                    {(p.coverImage || p.songs.length > 0) ? (
+                                        <img src={p.coverImage || p.songs[0].image} alt="" className="w-full h-full object-cover opacity-60 group-hover:scale-110 transition-transform duration-1000" />
                                     ) : (
                                         <Music size={40} className="text-[var(--foreground-muted)] group-hover:text-cyan-400 transition-colors duration-500" />
                                     )}

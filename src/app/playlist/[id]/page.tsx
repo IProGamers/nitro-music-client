@@ -24,6 +24,7 @@ export default function PlaylistDetailPage() {
     const [editName, setEditName] = useState('');
     const [editDesc, setEditDesc] = useState('');
     const [editPublic, setEditPublic] = useState(false);
+    const [editCover, setEditCover] = useState('');
     const [isDownloadingPlaylist, setIsDownloadingPlaylist] = useState(false);
     // JioSaavn (external) playlist support
     const [isExternal, setIsExternal] = useState(false);
@@ -52,6 +53,7 @@ export default function PlaylistDetailPage() {
                 setEditName(data.name);
                 setEditDesc(data.description);
                 setEditPublic(data.isPublic);
+                setEditCover((data as any).coverImage || '');
                 return;
             }
             // 2) Fall back to a JioSaavn (curated/shared) playlist
@@ -105,9 +107,10 @@ export default function PlaylistDetailPage() {
             await updatePlaylist(playlist.id, {
                 name: editName,
                 description: editDesc,
-                isPublic: editPublic
+                isPublic: editPublic,
+                coverImage: editCover || null,
             });
-            setPlaylist({ ...playlist, name: editName, description: editDesc, isPublic: editPublic });
+            setPlaylist({ ...playlist, name: editName, description: editDesc, isPublic: editPublic, coverImage: editCover || null });
             setIsEditing(false);
         } catch (err) {
             console.error('Failed to update playlist:', err);
@@ -184,8 +187,8 @@ export default function PlaylistDetailPage() {
             {/* Header section */}
             <header className="flex flex-col md:flex-row gap-6 md:gap-8 md:items-end p-5 md:p-10 rounded-2xl md:rounded-[3rem] bg-gradient-to-b from-[var(--background)] to-transparent border border-[var(--border)] relative overflow-hidden group">
                 <div className="w-40 h-40 md:w-64 md:h-64 rounded-2xl md:rounded-[2.5rem] bg-[var(--card)] shadow-2xl overflow-hidden shrink-0 border border-[var(--border)] mx-auto md:mx-0">
-                    {playlist.songs.length > 0 ? (
-                        <img src={playlist.songs[0].image} alt="" className="w-full h-full object-cover" />
+                    {(playlist.coverImage || playlist.songs[0]?.image) ? (
+                        <img src={playlist.coverImage || playlist.songs[0].image} alt="" className="w-full h-full object-cover" />
                     ) : (
                         <div className="w-full h-full flex items-center justify-center text-[var(--foreground-muted)]">
                             <Music size={60} className="md:w-20 md:h-20" />
@@ -214,6 +217,34 @@ export default function PlaylistDetailPage() {
                                 placeholder="Edit description..."
                                 rows={2}
                             />
+                            {/* Custom cover */}
+                            <div className="space-y-2">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-14 h-14 rounded-lg overflow-hidden bg-[var(--card)] border border-[var(--border)] shrink-0">
+                                        {(editCover || playlist.songs[0]?.image) ? (
+                                            <img src={editCover || playlist.songs[0]?.image} alt="" className="w-full h-full object-cover" />
+                                        ) : <div className="w-full h-full flex items-center justify-center text-[var(--foreground-muted)]"><Music size={20} /></div>}
+                                    </div>
+                                    <input
+                                        value={editCover}
+                                        onChange={e => setEditCover(e.target.value)}
+                                        className="flex-1 bg-[var(--card-hover)] border border-[var(--border)] rounded-xl px-4 py-2 text-[var(--foreground-muted)] text-xs"
+                                        placeholder="Cover image URL (or pick a song cover below)"
+                                    />
+                                    {editCover && (
+                                        <button onClick={() => setEditCover('')} className="text-[10px] font-bold uppercase text-[var(--foreground-muted)] hover:text-rose-400">Reset</button>
+                                    )}
+                                </div>
+                                {playlist.songs.length > 0 && (
+                                    <div className="flex gap-2 overflow-x-auto no-scrollbar">
+                                        {playlist.songs.slice(0, 12).map((s: any, i: number) => s.image && (
+                                            <button key={i} onClick={() => setEditCover(s.image)} className={`w-10 h-10 rounded-md overflow-hidden shrink-0 border-2 transition-all ${editCover === s.image ? 'border-cyan-400' : 'border-transparent hover:border-[var(--border)]'}`}>
+                                                <img src={s.image} alt="" className="w-full h-full object-cover" />
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
                             <div className="flex items-center justify-center md:justify-start gap-3">
                                 <button onClick={() => setEditPublic(!editPublic)} className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase transition-all ${editPublic ? 'bg-cyan-500/20 text-cyan-400' : 'bg-[var(--card)] text-[var(--foreground-muted)]'}`}>
                                     {editPublic ? 'Public' : 'Private'}

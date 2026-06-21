@@ -49,6 +49,7 @@ export interface Playlist {
     isCollaborative: boolean;
     collaborators: string[]; // Array of user IDs
     songs: any[];
+    coverImage?: string | null; // Custom playlist cover (falls back to first song art)
     createdAt: any;
     updatedAt: any;
 }

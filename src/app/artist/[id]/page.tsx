@@ -18,7 +18,7 @@ export default function ArtistPage() {
         const fetchArtist = async (retries = 2) => {
             try {
                 const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
-                const res = await fetch(`${apiUrl}/api/artists/${id}?songCount=20&albumCount=20`, {
+                const res = await fetch(`${apiUrl}/api/artists/${id}?songCount=50&albumCount=50`, {
                     headers: { 'Accept': 'application/json' }
                 });
 
@@ -155,7 +155,7 @@ export default function ArtistPage() {
                             <Music size={20} className="text-cyan-400" /> Popular Songs
                         </h2>
                         <div className="space-y-1">
-                            {artist.topSongs.slice(0, 10).map((song: any, index: number) => (
+                            {artist.topSongs.slice(0, 30).map((song: any, index: number) => (
                                 <div
                                     key={song.id}
                                     onClick={() => playTrack(song, artist.topSongs)}
@@ -203,7 +203,7 @@ export default function ArtistPage() {
                             <Disc size={20} className="text-cyan-400" /> Albums
                         </h2>
                         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                            {artist.topAlbums.slice(0, 10).map((album: any) => (
+                            {artist.topAlbums.slice(0, 20).map((album: any) => (
                                 <div
                                     key={album.id}
                                     onClick={() => router.push(`/album/${album.id}`)}
