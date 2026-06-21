@@ -30,61 +30,7 @@ import ProfileCustomization from '@/components/ProfileCustomization';
 import { PREMIUM_PROFILE_FEATURES } from '@/lib/avatarLibrary';
 
 // Tier configurations with unique badges
-const TIER_CONFIG: Record<SubscriptionTier, {
-    name: string;
-    tagline: string;
-    icon: React.ReactNode;
-    color: string;
-    bgColor: string;
-    borderColor: string;
-    gradient: string;
-    shadowColor: string;
-    features: string[];
-}> = {
-    NITRO_CORE: {
-        name: 'Nitro Core',
-        tagline: 'Essential Experience',
-        icon: <Star size={16} />,
-        color: 'text-zinc-400',
-        bgColor: 'bg-zinc-500/10',
-        borderColor: 'border-zinc-500/20',
-        gradient: 'from-zinc-600 to-zinc-800',
-        shadowColor: 'shadow-zinc-500/20',
-        features: ['Standard Audio', 'Basic Streaming', 'Limited History']
-    },
-    NITRO_ELITE: {
-        name: 'Nitro Elite',
-        tagline: 'Premium Power',
-        icon: <Zap size={16} />,
-        color: 'text-purple-400',
-        bgColor: 'bg-purple-500/10',
-        borderColor: 'border-purple-500/20',
-        gradient: 'from-purple-600 to-indigo-600',
-        shadowColor: 'shadow-purple-500/30',
-        features: ['3D Spatial Audio', 'HD Quality', 'Full Visualizer', 'Extended History']
-    },
-    NITRO_SUPREME: {
-        name: 'Nitro Supreme',
-        tagline: 'Supreme Audiophile',
-        icon: <Crown size={16} />,
-        color: 'text-amber-400',
-        bgColor: 'bg-amber-500/10',
-        borderColor: 'border-amber-500/20',
-        gradient: 'from-amber-500 to-orange-600',
-        shadowColor: 'shadow-amber-500/30',
-        features: ['All Elite Features', 'Offline Downloads', 'Supreme HD Audio', 'Priority Support', 'Exclusive Content']
-    }
-};
-
 // Feature access per tier (includes legacy NITRO_ULTRA fallback)
-const TIER_FEATURES: Record<string, { audio3D: boolean; download: boolean; supremeQuality: boolean; visualizer: boolean }> = {
-    NITRO_CORE: { audio3D: false, download: false, supremeQuality: false, visualizer: false },
-    NITRO_ELITE: { audio3D: true, download: false, supremeQuality: false, visualizer: true },
-    NITRO_SUPREME: { audio3D: true, download: true, supremeQuality: true, visualizer: true },
-    // Legacy fallback for users with old tier value
-    NITRO_ULTRA: { audio3D: true, download: true, supremeQuality: true, visualizer: true }
-};
-
 function ProfileContent() {
     const router = useRouter();
     const { playTrack, isSmartShuffle, toggleSmartShuffle, threeDMode, setThreeDMode } = usePlayer();
@@ -108,7 +54,7 @@ function ProfileContent() {
     const [favorites, setFavorites] = useState<any[]>(profileData?.favorites || []);
     const [history, setHistory] = useState<any[]>(profileData?.history || []);
     const [playlists, setPlaylists] = useState<any[]>(profileData?.playlists || []);
-    const [activeTab, setActiveTab] = useState<'favorites' | 'history' | 'playlists' | 'downloads' | 'plans' | 'settings'>('favorites');
+    const [activeTab, setActiveTab] = useState<'favorites' | 'history' | 'playlists' | 'downloads' | 'settings'>('playlists');
     const searchParams = useSearchParams();
     // Never show loading if we have cached data
     const [loading, setLoading] = useState(!profileData && !hasLoadedProfile);
@@ -116,7 +62,7 @@ function ProfileContent() {
     // Deep link to tab
     useEffect(() => {
         const tab = searchParams.get('tab');
-        if (tab && ['favorites', 'history', 'playlists', 'downloads', 'plans', 'settings'].includes(tab)) {
+        if (tab && ['favorites', 'history', 'playlists', 'downloads', 'settings'].includes(tab)) {
             setActiveTab(tab as any);
         }
     }, [searchParams]);
@@ -165,10 +111,8 @@ function ProfileContent() {
         localStorage.setItem('nitro_profile_custom', JSON.stringify(settings));
     };
 
-    // Handle legacy NITRO_ULTRA tier by mapping to NITRO_SUPREME config
-    const effectiveTier = (tier as string) === 'NITRO_ULTRA' ? 'NITRO_SUPREME' : tier;
-    const tierConfig = TIER_CONFIG[effectiveTier as keyof typeof TIER_CONFIG] || TIER_CONFIG.NITRO_CORE;
-    const features = TIER_FEATURES[tier as string] || TIER_FEATURES.NITRO_CORE;
+    // Access is binary now (approved = everything). Every feature is unlocked for all users.
+    const features = { audio3D: true, download: true, supremeQuality: true, visualizer: true };
 
     // Redirect to auth if not logged in
     useEffect(() => {
@@ -333,7 +277,7 @@ function ProfileContent() {
                                 <Users size={14} className="md:w-[18px] md:h-[18px]" />
                             </button>
                             <button
-                                onClick={() => setActiveTab('settings')}
+                                onClick={() => router.push('/settings')}
                                 className="p-2 md:p-3 rounded-xl bg-[var(--card-hover)] hover:bg-cyan-400 hover:text-black border border-[var(--border)] text-[var(--foreground-muted)] transition-colors"
                                 title="Settings"
                             >
@@ -496,11 +440,6 @@ function ProfileContent() {
                                                 <h1 className="text-lg md:text-4xl font-bold text-[var(--foreground)]">
                                                     {userProfile.displayName || 'User'}
                                                 </h1>
-                                                {/* Dynamic Tier Badge */}
-                                                <div className={`px-2.5 py-0.5 rounded-full ${tierConfig.bgColor} border ${tierConfig.borderColor} ${tierConfig.color} text-[9px] md:text-[10px] font-bold uppercase tracking-wide w-fit mx-auto md:mx-0 flex items-center gap-1`}>
-                                                    {tierConfig.icon}
-                                                    <span>{tierConfig.name}</span>
-                                                </div>
                                             </div>
                                             {userProfile.bio && (
                                                 <p className="text-[var(--foreground-muted)] text-xs md:text-base max-w-xl mx-auto md:mx-0 leading-relaxed">
@@ -537,21 +476,14 @@ function ProfileContent() {
                 {/* Navigation Tabs */}
                 <div className="flex overflow-x-auto no-scrollbar md:flex-wrap items-center justify-start gap-2 md:gap-4 -mx-1 px-1">
                     {[
-                        { id: 'favorites', label: 'Liked', icon: Heart, mobileOnly: false },
-                        { id: 'playlists', label: 'Playlists', icon: ListMusic, mobileOnly: false },
-                        { id: 'downloads', label: 'Offline', icon: DownloadCloud, mobileOnly: false },
-                        { id: 'history', label: 'Plays', icon: Clock, desktopOnly: false },
-                        { id: 'plans', label: 'Plans', icon: Crown, mobileOnly: false },
-                        { id: 'settings', label: 'More', icon: Settings, mobileOnly: false }
-                    ].filter(tab => {
-                        const isPC = typeof window !== 'undefined' && window.innerWidth >= 768;
-                        if (tab.mobileOnly && isPC) return false;
-                        if (tab.desktopOnly && !isPC) return false;
-                        return true;
-                    }).map(tab => (
+                        // Liked / Offline / Plays now live in Your Library — profile is a
+                        // clean public page (your playlists) + Settings.
+                        { id: 'playlists', label: 'Playlists', icon: ListMusic },
+                        { id: 'settings', label: 'Settings', icon: Settings }
+                    ].map(tab => (
                         <button
                             key={tab.id}
-                            onClick={() => setActiveTab(tab.id as any)}
+                            onClick={() => { if (tab.id === 'settings') { router.push('/settings'); } else { setActiveTab(tab.id as any); } }}
                             className={`flex items-center gap-1.5 md:gap-3 px-3.5 md:px-8 py-2 md:py-4 rounded-xl md:rounded-3xl text-[9px] md:text-[11px] font-bold uppercase tracking-wider md:tracking-[0.2em] transition-all border shrink-0 ${activeTab === tab.id ? 'bg-[var(--foreground)] text-[var(--background)] border-[var(--foreground)] shadow-lg' : 'bg-[var(--card)] text-[var(--foreground-muted)] border-[var(--border)] hover:border-[var(--foreground-muted)]/30 hover:text-[var(--foreground)]'}`}
                         >
                             <tab.icon size={12} className="md:w-4 md:h-4" /> {tab.label}
@@ -742,158 +674,6 @@ function ProfileContent() {
                         </div>
                     )}
 
-
-                    {activeTab === 'plans' && (
-                        <div className="space-y-6 md:space-y-8">
-                            {/* Current Plan Header - Compact on Mobile */}
-                            <div className={`p-5 md:p-8 rounded-2xl md:rounded-[2.5rem] bg-gradient-to-r ${tierConfig.gradient} relative overflow-hidden`}>
-                                <div className="absolute inset-0 bg-black/20"></div>
-                                <div className="absolute top-0 right-0 w-32 h-32 md:w-40 md:h-40 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
-                                <div className="relative z-10">
-                                    <div className="flex items-center gap-3 md:gap-5 mb-3 md:mb-4">
-                                        <div className="w-12 h-12 md:w-16 md:h-16 rounded-xl md:rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
-                                            {tierConfig.icon}
-                                        </div>
-                                        <div>
-                                            <p className="text-white/70 text-[10px] md:text-sm uppercase tracking-widest font-bold">Your Plan</p>
-                                            <h2 className="text-xl md:text-3xl font-bold text-white flex items-center gap-2">
-                                                {tierConfig.name}
-                                                <Sparkles size={18} className="text-white/80 md:w-6 md:h-6" />
-                                            </h2>
-                                        </div>
-                                    </div>
-                                    <div className="flex flex-wrap gap-1.5 md:gap-2">
-                                        {tierConfig.features.slice(0, 3).map((f, i) => (
-                                            <span key={i} className="px-2.5 py-1 md:px-3 md:py-1.5 bg-white/20 rounded-full text-[10px] md:text-xs font-bold text-white">
-                                                {f}
-                                            </span>
-                                        ))}
-                                        {tierConfig.features.length > 3 && (
-                                            <span className="px-2.5 py-1 bg-white/10 rounded-full text-[10px] font-bold text-white/70">
-                                                +{tierConfig.features.length - 3} more
-                                            </span>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* All Plans - Horizontal Scroll on Mobile */}
-                            <div>
-                                <h3 className="text-sm md:text-base font-bold text-[var(--foreground-muted)] uppercase tracking-widest mb-4 px-1">Choose Your Experience</h3>
-                                <div className="flex md:grid md:grid-cols-3 gap-3 md:gap-6 overflow-x-auto no-scrollbar pb-2 -mx-4 px-4 md:mx-0 md:px-0">
-                                    {(['NITRO_CORE', 'NITRO_ELITE', 'NITRO_SUPREME'] as SubscriptionTier[]).map((tierKey) => {
-                                        const config = TIER_CONFIG[tierKey];
-                                        const isActive = tier === tierKey || ((tier as string) === 'NITRO_ULTRA' && tierKey === 'NITRO_SUPREME');
-
-                                        return (
-                                            <div
-                                                key={tierKey}
-                                                className={`shrink-0 w-[260px] md:w-auto p-4 md:p-6 rounded-2xl md:rounded-[2rem] border-2 transition-all relative overflow-hidden ${isActive
-                                                    ? `bg-gradient-to-br ${config.gradient} border-transparent shadow-xl ${config.shadowColor}`
-                                                    : `bg-[var(--card)] ${config.borderColor} hover:bg-[var(--card-hover)] active:scale-[0.98]`
-                                                    }`}
-                                            >
-                                                {/* Popular Badge */}
-                                                {tierKey === 'NITRO_ELITE' && !isActive && (
-                                                    <div className="absolute top-0 right-0 px-3 py-1 bg-purple-500 text-white text-[9px] font-bold uppercase tracking-wider rounded-bl-xl">
-                                                        Popular
-                                                    </div>
-                                                )}
-                                                {tierKey === 'NITRO_SUPREME' && !isActive && (
-                                                    <div className="absolute top-0 right-0 px-3 py-1 bg-amber-500 text-black text-[9px] font-bold uppercase tracking-wider rounded-bl-xl">
-                                                        Best Value
-                                                    </div>
-                                                )}
-
-                                                {/* Tier Header */}
-                                                <div className="flex items-center gap-2.5 mb-3 md:mb-4">
-                                                    <div className={`p-2.5 md:p-3 rounded-xl ${isActive ? 'bg-white/20' : config.bgColor}`}>
-                                                        {config.icon}
-                                                    </div>
-                                                    <div>
-                                                        <h3 className={`font-bold text-base md:text-lg ${isActive ? 'text-white' : config.color}`}>
-                                                            {config.name}
-                                                        </h3>
-                                                        <p className={`text-[10px] md:text-xs ${isActive ? 'text-white/70' : 'text-[var(--foreground-muted)]'}`}>
-                                                            {config.tagline}
-                                                        </p>
-                                                    </div>
-                                                </div>
-
-                                                {/* Features List - Compact */}
-                                                <div className="space-y-1.5 md:space-y-2 mb-4 md:mb-6">
-                                                    {config.features.slice(0, 4).map((f, i) => (
-                                                        <div key={i} className={`flex items-center gap-2 text-xs md:text-sm ${isActive ? 'text-white' : 'text-[var(--foreground-muted)]/80'}`}>
-                                                            <Check size={12} className={`shrink-0 ${isActive ? 'text-white' : config.color}`} />
-                                                            <span className="truncate">{f}</span>
-                                                        </div>
-                                                    ))}
-                                                    {config.features.length > 4 && (
-                                                        <p className={`text-[10px] pl-5 ${isActive ? 'text-white/60' : 'text-[var(--foreground-muted)]/60'}`}>
-                                                            +{config.features.length - 4} more features
-                                                        </p>
-                                                    )}
-                                                </div>
-
-                                                {/* CTA Button */}
-                                                {isActive ? (
-                                                    <div className="w-full py-2.5 md:py-3 bg-white/20 rounded-xl text-center text-white font-bold text-xs md:text-sm">
-                                                        ✓ Current Plan
-                                                    </div>
-                                                ) : (
-                                                    <Link
-                                                        href="/upgrade"
-                                                        className={`block w-full py-2.5 md:py-3 rounded-xl font-bold text-xs md:text-sm transition-all active:scale-95 text-center ${config.bgColor} ${config.color} hover:opacity-80`}
-                                                    >
-                                                        Upgrade Now
-                                                    </Link>
-                                                )}
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-
-                            {/* Feature Comparison - Compact Grid */}
-                            <div className="bg-[var(--card)]/50 rounded-2xl md:rounded-[2rem] p-4 md:p-8 border border-[var(--border)]">
-                                <h3 className="text-sm md:text-xl font-bold text-[var(--foreground)] mb-4 md:mb-6 flex items-center gap-2 md:gap-3">
-                                    <Eye size={16} className="text-cyan-400 md:w-5 md:h-5" /> Feature Access
-                                </h3>
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 md:gap-4">
-                                    {[
-                                        { name: '3D Audio', icon: Headphones, available: features.audio3D, requiredTier: 'Elite' },
-                                        { name: 'Downloads', icon: Download, available: features.download, requiredTier: 'Supreme' },
-                                        { name: 'HD Quality', icon: Music, available: features.supremeQuality, requiredTier: 'Supreme' },
-                                        { name: 'Visualizer', icon: Eye, available: features.visualizer, requiredTier: 'Elite' },
-                                    ].map((feature, i) => (
-                                        <div
-                                            key={i}
-                                            className={`p-3 md:p-4 rounded-xl md:rounded-2xl border transition-all ${feature.available
-                                                ? 'bg-cyan-500/10 border-cyan-500/20'
-                                                : 'bg-[var(--card-hover)] border-[var(--border)] opacity-60'
-                                                }`}
-                                        >
-                                            <div className="flex items-center gap-2 mb-1.5 md:mb-2">
-                                                <feature.icon size={16} className={`shrink-0 ${feature.available ? 'text-cyan-400' : 'text-[var(--foreground-muted)]'} md:w-5 md:h-5`} />
-                                                <span className={`font-bold text-[11px] md:text-sm ${feature.available ? 'text-white' : 'text-[var(--foreground-muted)]'}`}>
-                                                    {feature.name}
-                                                </span>
-                                            </div>
-                                            {feature.available ? (
-                                                <span className="text-[9px] md:text-xs text-cyan-400 font-bold flex items-center gap-1">
-                                                    <Check size={10} className="md:w-3 md:h-3" /> Unlocked
-                                                </span>
-                                            ) : (
-                                                <span className="text-[9px] md:text-xs text-[var(--foreground-muted)] font-bold flex items-center gap-1">
-                                                    <Lock size={10} className="md:w-3 md:h-3" /> {feature.requiredTier}
-                                                </span>
-                                            )}
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
-                    )}
 
                     {activeTab === 'settings' && (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8 mb-20">
