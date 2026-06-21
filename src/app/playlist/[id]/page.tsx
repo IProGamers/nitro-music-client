@@ -11,6 +11,7 @@ import {
 import { useOffline } from '@/context/OfflineContext';
 import { fetchJioSaavnPlaylist } from '@/lib/homeData';
 import { getTrackImageUrl, getTrackArtistName, decodeHtml } from '@/lib/utils';
+import PlaylistCover from '@/components/PlaylistCover';
 
 export default function PlaylistDetailPage() {
     const { id } = useParams();
@@ -186,15 +187,12 @@ export default function PlaylistDetailPage() {
         <div className="px-4 md:px-12 pt-4 pb-32 md:py-8 max-w-7xl mx-auto space-y-10">
             {/* Header section */}
             <header className="flex flex-col md:flex-row gap-6 md:gap-8 md:items-end p-5 md:p-10 rounded-2xl md:rounded-[3rem] bg-gradient-to-b from-[var(--background)] to-transparent border border-[var(--border)] relative overflow-hidden group">
-                <div className="w-40 h-40 md:w-64 md:h-64 rounded-2xl md:rounded-[2.5rem] bg-[var(--card)] shadow-2xl overflow-hidden shrink-0 border border-[var(--border)] mx-auto md:mx-0">
-                    {(playlist.coverImage || playlist.songs[0]?.image) ? (
-                        <img src={playlist.coverImage || playlist.songs[0].image} alt="" className="w-full h-full object-cover" />
-                    ) : (
-                        <div className="w-full h-full flex items-center justify-center text-[var(--foreground-muted)]">
-                            <Music size={60} className="md:w-20 md:h-20" />
-                        </div>
-                    )}
-                </div>
+                <PlaylistCover
+                    coverImage={playlist.coverImage}
+                    songs={playlist.songs}
+                    className="w-40 h-40 md:w-64 md:h-64 shadow-2xl shrink-0 border border-[var(--border)] mx-auto md:mx-0"
+                    rounded="rounded-2xl md:rounded-[2.5rem]"
+                />
 
                 <div className="flex-1 space-y-3 text-center md:text-left">
                     <div className="flex items-center justify-center md:justify-start gap-2">

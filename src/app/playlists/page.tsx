@@ -8,13 +8,16 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import SpotifyImport from '@/components/SpotifyImport';
+import PlaylistCover from '@/components/PlaylistCover';
+import { useOffline } from '@/context/OfflineContext';
 
 export default function PlaylistsPage() {
     const { user, getUserPlaylists, createPlaylist, deletePlaylist, getRecentPlays } = useAuth();
     const { playTrack } = usePlayer();
+    const { downloads } = useOffline();
     const [playlists, setPlaylists] = useState<Playlist[]>([]);
     const [recent, setRecent] = useState<any[]>([]);
-    const [activeTab, setActiveTab] = useState<'playlists' | 'recent'>('playlists');
+    const [activeTab, setActiveTab] = useState<'playlists' | 'recent' | 'downloaded'>('playlists');
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
     const [isCreating, setIsCreating] = useState(false);
@@ -131,7 +134,7 @@ export default function PlaylistsPage() {
 
             {/* Tabs */}
             <div className="flex items-center gap-2 -mt-6">
-                {([['playlists', 'Playlists'], ['recent', 'Recently Played']] as const).map(([key, label]) => (
+                {([['playlists', 'Playlists'], ['recent', 'Recently Played'], ['downloaded', 'Downloaded']] as const).map(([key, label]) => (
                     <button
                         key={key}
                         onClick={() => setActiveTab(key)}
@@ -144,7 +147,36 @@ export default function PlaylistsPage() {
                 ))}
             </div>
 
-            {activeTab === 'recent' ? (
+            {activeTab === 'downloaded' ? (
+                downloads.length > 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1">
+                        {downloads.map((song: any, idx: number) => (
+                            <div
+                                key={`dl-${song.id || song.songId || idx}`}
+                                onClick={() => playTrack(song, downloads)}
+                                className="group flex items-center gap-3.5 p-2.5 rounded-lg hover:bg-[var(--surface-hover)] cursor-pointer transition-colors"
+                            >
+                                <div className="relative w-11 h-11 flex-shrink-0">
+                                    <img src={song.image || '/logo.png'} alt="" className="w-full h-full rounded-md object-cover shadow-sm shadow-black/30" />
+                                    <div className="absolute inset-0 rounded-md bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                        <Play size={14} fill="white" className="text-white ml-0.5" />
+                                    </div>
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <h3 className="font-medium text-sm text-[var(--foreground)] truncate">{song.name || song.title}</h3>
+                                    <p className="text-xs text-[var(--foreground-muted)] truncate mt-0.5">{song.artist}</p>
+                                </div>
+                                <Download size={15} className="text-emerald-400 shrink-0" />
+                            </div>
+                        ))}
+                    </div>
+                ) : (
+                    <div className="py-20 flex flex-col items-center justify-center text-center text-[var(--foreground-muted)]">
+                        <Download size={40} className="mb-3 opacity-50" />
+                        <p className="text-sm">Songs you download for offline play show up here</p>
+                    </div>
+                )
+            ) : activeTab === 'recent' ? (
                 recent.length > 0 ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1">
                         {recent.map((song, idx) => (
@@ -195,15 +227,7 @@ export default function PlaylistsPage() {
                             className="group flex flex-col gap-4 animate-in fade-in zoom-in-95 duration-500"
                         >
                             <div className="relative aspect-square rounded-[2.5rem] overflow-hidden bg-[var(--card)] border border-[var(--border)] group-hover:border-cyan-400/30 transition-all duration-500">
-                                <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/20 to-purple-500/20 opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
-
-                                <div className="absolute inset-0 flex items-center justify-center">
-                                    {(p.coverImage || p.songs.length > 0) ? (
-                                        <img src={p.coverImage || p.songs[0].image} alt="" className="w-full h-full object-cover opacity-60 group-hover:scale-110 transition-transform duration-1000" />
-                                    ) : (
-                                        <Music size={40} className="text-[var(--foreground-muted)] group-hover:text-cyan-400 transition-colors duration-500" />
-                                    )}
-                                </div>
+                                <PlaylistCover coverImage={p.coverImage} songs={p.songs} className="absolute inset-0 w-full h-full" rounded="rounded-[2.5rem]" />
 
                                 {/* Hover Play Button */}
                                 <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-500 scale-90 group-hover:scale-100">
