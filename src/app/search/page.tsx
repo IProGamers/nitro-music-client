@@ -645,6 +645,11 @@ export default function SearchPage() {
                         {activeTab === 'all' && processedSongs.songs.length > 0 && (() => {
                             const topSong = processedSongs.songs[0]?.song;
                             if (!topSong) return null;
+                            // Don't crown a "Top Result" for short/ambiguous input (e.g. "s") —
+                            // only once a real name is typed AND the match is confident. Short
+                            // queries just show the song list / suggestions, like Apple Music.
+                            const { confidence } = getTopResultConfidence(topSong, query);
+                            if (query.trim().length < 3 || confidence < 55) return null;
 
                             return (
                                 <div className="space-y-6">
@@ -808,25 +813,23 @@ export default function SearchPage() {
                                     )}
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-x-6 gap-y-1">
+                                <div className="grid grid-cols-1 xl:grid-cols-2 gap-x-8 gap-y-0">
                                     {processedSongs.songs
                                         .slice(activeTab === 'all' ? 1 : 0, activeTab === 'all' ? 12 : processedSongs.songs.length)
                                         .map((ps) => (
                                             <div
                                                 key={ps.song.id}
                                                 onClick={() => playFromSearch(ps.song, processedSongs.songs.map(s => s.song))}
-                                                className="flex items-center gap-3 p-2 rounded-xl bg-[var(--card)] hover:bg-[var(--card-hover)] border border-[var(--border)] hover:border-cyan-500/30 cursor-pointer group transition-all"
+                                                className="flex items-center gap-3 py-1.5 px-1.5 rounded-lg hover:bg-[var(--surface-hover)] cursor-pointer transition-colors"
                                             >
-                                                <div className="relative w-10 h-10 flex-shrink-0">
-                                                    <img src={getImg(ps.song)} className="w-full h-full rounded object-cover shadow-lg" />
-                                                </div>
-                                                <div className="flex-1 overflow-hidden">
-                                                    <h3 className="font-bold text-sm text-[var(--foreground)] truncate">{getName(ps.song)}</h3>
-                                                    <p className="text-xs text-[var(--foreground-muted)] truncate mt-0.5">
-                                                        {ps.artistName}
+                                                <img src={getImg(ps.song)} className="w-12 h-12 rounded-md object-cover flex-shrink-0 shadow-sm bg-[var(--card)]" />
+                                                <div className="flex-1 min-w-0">
+                                                    <h3 className="font-semibold text-[15px] text-[var(--foreground)] truncate leading-tight">{getName(ps.song)}</h3>
+                                                    <p className="text-[13px] text-[var(--foreground-muted)] truncate mt-0.5">
+                                                        Song • {ps.artistName}
                                                     </p>
                                                 </div>
-                                                <div className="opacity-0 group-hover:opacity-100 transition-opacity pr-2" onClick={e => e.stopPropagation()}>
+                                                <div className="pr-1 text-[var(--foreground-muted)] shrink-0" onClick={e => e.stopPropagation()}>
                                                     <SongContextMenu song={ps.song} queue={processedSongs.songs.map(s => s.song)} />
                                                 </div>
                                             </div>
