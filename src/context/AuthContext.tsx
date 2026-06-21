@@ -71,6 +71,7 @@ interface AuthContextType {
     addLikedSong: (song: { id: string; name: string; artist: string; image: string }) => Promise<void>;
     removeLikedSong: (songId: string) => Promise<void>;
     isLikedSong: (songId: string) => Promise<boolean>;
+    getLikedSongs: () => Promise<any[]>;
     // Playlist Functions
     createPlaylist: (name: string, description: string, isPublic: boolean) => Promise<string>;
     updatePlaylist: (playlistId: string, data: Partial<Playlist>) => Promise<void>;
@@ -629,6 +630,31 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         return null;
     }, []);
 
+    const getLikedSongs = useCallback(async (): Promise<any[]> => {
+        if (!user) return [];
+        try {
+            const likesRef = collection(db, 'users', user.uid, 'likedSongs');
+            const snap = await getDocs(likesRef);
+            const songs = snap.docs.map(d => {
+                const data: any = d.data();
+                return {
+                    id: data.songId || d.id,
+                    songId: data.songId || d.id,
+                    name: data.name,
+                    artist: data.artist,
+                    image: data.image,
+                    likedAt: data.likedAt?.toDate?.() || data.likedAt || null,
+                };
+            });
+            // Newest liked first
+            songs.sort((a, b) => (b.likedAt?.getTime?.() || 0) - (a.likedAt?.getTime?.() || 0));
+            return songs;
+        } catch (err) {
+            if (!isQuotaError(err)) console.error('Failed to load liked songs:', err);
+            return [];
+        }
+    }, [user]);
+
     const getRecentPlays = useCallback(async (limitCount = 20) => {
         if (!user) return [];
         const historyRef = collection(db, 'users', user.uid, 'playHistory');
@@ -769,6 +795,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         getUserPlaylists,
         getPlaylist,
         getRecentPlays,
+        getLikedSongs,
         updateNowPlaying,
         addCollaborator,
         removeCollaborator,
@@ -801,6 +828,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         getUserPlaylists,
         getPlaylist,
         getRecentPlays,
+        getLikedSongs,
         updateNowPlaying,
         addCollaborator,
         removeCollaborator,

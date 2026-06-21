@@ -4,7 +4,7 @@ import { useAuth, Playlist } from '@/context/AuthContext';
 import { usePlayer } from '@/context/PlayerContext';
 import {
     Plus, Music, Globe, Lock, Loader2, Play,
-    Trash2, Search, Clock, Download
+    Trash2, Search, Clock, Download, Heart
 } from 'lucide-react';
 import Link from 'next/link';
 import SpotifyImport from '@/components/SpotifyImport';
@@ -206,6 +206,17 @@ export default function PlaylistsPage() {
                 )
             ) : (
             <>
+            {/* Pinned Liked Songs (Spotify-style) */}
+            <Link href="/liked" className="flex items-center gap-4 p-2.5 rounded-xl hover:bg-[var(--surface-hover)] transition-colors group">
+                <div className="w-14 h-14 rounded-lg bg-gradient-to-br from-indigo-400 to-purple-700 flex items-center justify-center shrink-0 shadow-lg">
+                    <Heart size={24} className="text-white" fill="white" />
+                </div>
+                <div className="min-w-0">
+                    <h3 className="font-semibold text-[var(--foreground)]">Liked Songs</h3>
+                    <p className="text-xs text-[var(--foreground-muted)]">Playlist · your likes</p>
+                </div>
+            </Link>
+
             {/* Search Bar */}
             <div className="relative group max-w-md">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--foreground-muted)] group-focus-within:text-[var(--accent)] transition-colors" size={18} />
