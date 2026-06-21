@@ -97,6 +97,9 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
     const [isSmartShuffle, setIsSmartShuffle] = useState(false);
     const [isListenerMode, setListenerMode] = useState(false);
     const recentlyPlayedRef = useRef<string[]>([]);
+    // Normalized keys of recently-played songs, so the radio never re-queues what
+    // you just heard (the main cause of "the queue is just my recent songs").
+    const playedSongKeysRef = useRef<string[]>([]);
 
     // A-B Loop state
     const [loopA, setLoopAState] = useState<number | null>(null);
@@ -526,6 +529,11 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
 
         // Learn from this play to personalize future recommendations.
         try { recordListen(song); } catch { /* non-critical */ }
+        // Remember it so the radio won't recommend it back to us.
+        try {
+            const k = createSongKey(song);
+            if (k) playedSongKeysRef.current = [k, ...playedSongKeysRef.current.filter(x => x !== k)].slice(0, 40);
+        } catch { /* non-critical */ }
 
         // Show loading indicator immediately
         setIsLoadingSong(true);
@@ -841,7 +849,7 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
 
             const responses = await Promise.allSettled(
                 pools.map(p =>
-                    fetch(`${apiUrl}/api/search/songs?query=${encodeURIComponent(p.query)}&limit=10`)
+                    fetch(`${apiUrl}/api/search/songs?query=${encodeURIComponent(p.query)}&limit=15`)
                         .then(r => r.ok ? r.json() : null)
                         .then(data => ({ data, pool: p }))
                 )
@@ -853,6 +861,8 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
             const excludeKeys = new Set<string>([
                 createSongKey(seedSong),
                 ...queue.map(s => createSongKey(s)),
+                // Don't recommend songs we've recently played.
+                ...playedSongKeysRef.current,
             ]);
 
             // Take up to `max` fresh, de-duped songs from each category, then blend.

@@ -207,17 +207,20 @@ export const buildQueuePools = (seedSong: any): Array<{ query: string; category:
 
     const pools: Array<{ query: string; category: string; max: number }> = [];
 
-    // More popular tracks from the artist you're playing now
+    // More tracks from the artist you're playing now
     if (seedArtist && seedArtist !== 'unknown artist') {
-        pools.push({ query: `${seedArtist} hits`, category: 'same_artist', max: 3 });
+        pools.push({ query: `${seedArtist}`, category: 'same_artist', max: 4 });
     }
-    // Your favourite artists (personalized)
-    const fav = topArtists.find(a => a && a !== seedArtist);
-    if (fav) pools.push({ query: `${fav} hits`, category: 'favourite_artist', max: 2 });
-    // Same mood + language vibe
-    if (mood || lang) pools.push({ query: `${lang} ${mood} songs`.trim(), category: 'mood', max: 3 });
-    // A little discovery so the queue doesn't feel closed
-    pools.push({ query: `${lang || 'trending'} trending`.trim(), category: 'discovery', max: 2 });
+    // Up to two of YOUR favourite artists (skip the seed artist) for personalization
+    const favs = topArtists.filter(a => a && a !== seedArtist).slice(0, 2);
+    favs.forEach((fav, i) => pools.push({ query: `${fav}`, category: `favourite_${i}`, max: 3 }));
+
+    // Same mood + language vibe (two angles for variety)
+    if (mood || lang) pools.push({ query: `${lang} ${mood} songs`.trim(), category: 'mood', max: 4 });
+    if (lang && mood) pools.push({ query: `best ${lang} ${mood}`.trim(), category: 'mood2', max: 3 });
+
+    // Discovery so the queue doesn't feel closed
+    pools.push({ query: `${lang || ''} top hits 2025`.trim(), category: 'discovery', max: 3 });
 
     return pools;
 };
