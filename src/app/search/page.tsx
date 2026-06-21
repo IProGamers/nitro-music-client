@@ -62,13 +62,11 @@ export default function SearchPage() {
     // Typo-correction pill: when we auto-correct the query before searching.
     const [correctedFrom, setCorrectedFrom] = useState<{ from: string; to: string } | null>(null);
 
-    // Debounce query
+    // Debounce query — short delay so results feel live as you type.
     useEffect(() => {
         const timer = setTimeout(() => {
             setDebouncedQuery(query);
-            // Reset active tab to 'all' when query changes significantly? 
-            // Better to keep it if the user is refining their search in a category
-        }, 400); // 400ms delay for debouncing
+        }, 220);
 
         return () => clearTimeout(timer);
     }, [query]);
@@ -180,15 +178,14 @@ export default function SearchPage() {
                     // Default to 'all' tab so users see the summary first
                     setActiveTab('all');
 
-                    // Only show "Did you mean?" when there are NO song results at all
-                    const songCount = songResults.length;
-
-                    // Only suggest alternatives if we have ZERO songs and query is long enough
-                    if (songCount === 0 && raw.length >= 4) {
-                        const suggestions = getDidYouMeanSuggestions(raw, 3);
-                        // Only show if we have very confident suggestions (70%+)
-                        const goodSuggestions = suggestions.filter(s => s.confidence >= 70);
-                        setDidYouMeanOptions(goodSuggestions);
+                    // "Did you mean?" — show a confident correction even when the API DID
+                    // return (junk) results, as long as we didn't already auto-correct.
+                    // This catches typos like "pefect" that match real-but-wrong songs.
+                    if (!useCorrection && raw.length >= 3) {
+                        const normKey = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+                        const suggestions = getDidYouMeanSuggestions(raw, 3)
+                            .filter(s => s.confidence >= 80 && normKey(s.query) !== normKey(raw));
+                        setDidYouMeanOptions(suggestions);
                     }
                 }
             } catch (e: any) {
@@ -632,9 +629,7 @@ export default function SearchPage() {
                         {/* Spotify-Style Top Result Card - Mobile optimized */}
                         {activeTab === 'all' && processedSongs.songs.length > 0 && (() => {
                             const topSong = processedSongs.songs[0]?.song;
-                            const { isConfident, confidence } = getTopResultConfidence(topSong, query);
-
-                            if (!isConfident || confidence < 75) return null;
+                            if (!topSong) return null;
 
                             return (
                                 <div className="space-y-6">
@@ -798,58 +793,6 @@ export default function SearchPage() {
                                     )}
                                 </div>
 
-                                {/* Top Result with "More by this artist" - Only show on 'all' tab */}
-                                {activeTab === 'all' && processedSongs.topResult && processedSongs.uniqueArtists[0]?.songCount > 1 && (
-                                    <div className="mb-6 p-4 bg-gradient-to-r from-[var(--card)] to-transparent border border-[var(--border)] rounded-2xl">
-                                        <div className="flex items-start gap-4">
-                                            {/* Top song */}
-                                            <div
-                                                onClick={() => playFromSearch(processedSongs.topResult!.song, processedSongs.songs.map(s => s.song))}
-                                                className="flex items-center gap-4 flex-1 cursor-pointer group"
-                                            >
-                                                <div className="relative w-16 h-16 flex-shrink-0">
-                                                    <img src={getImg(processedSongs.topResult.song)} className="w-full h-full rounded-lg object-cover shadow-xl" />
-                                                </div>
-                                                <div className="flex-1 overflow-hidden">
-                                                    <p className="text-xs text-cyan-400 font-semibold uppercase tracking-wider mb-1">Top Result</p>
-                                                    <h3 className="font-bold text-lg text-[var(--foreground)] truncate group-hover:text-cyan-400 transition-colors">
-                                                        {processedSongs.topResult.song.title || processedSongs.topResult.song.name}
-                                                    </h3>
-                                                    <p className="text-sm text-[var(--foreground-muted)] truncate">
-                                                        {processedSongs.topResult.artistName}
-                                                    </p>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        {/* More by this artist */}
-                                        {processedSongs.uniqueArtists[0]?.songCount > 1 && (
-                                            <div className="mt-4 pt-4 border-t border-[var(--border)]">
-                                                <p className="text-xs text-[var(--foreground-muted)] mb-2">
-                                                    More by <span className="text-cyan-400">{processedSongs.topResult.artistName}</span>
-                                                </p>
-                                                <div className="flex gap-2 overflow-x-auto no-scrollbar">
-                                                    {processedSongs.songs
-                                                        .filter(s => s.artistName.toLowerCase() === processedSongs.topResult!.artistName.toLowerCase() && s.song.id !== processedSongs.topResult!.song.id)
-                                                        .slice(0, 4)
-                                                        .map((ps) => (
-                                                            <div
-                                                                key={ps.song.id}
-                                                                onClick={() => playFromSearch(ps.song, processedSongs.songs.map(s => s.song))}
-                                                                className="flex items-center gap-2 px-3 py-2 bg-[var(--background)] rounded-lg cursor-pointer hover:bg-[var(--card-hover)] transition-colors flex-shrink-0"
-                                                            >
-                                                                <img src={getImg(ps.song)} className="w-8 h-8 rounded object-cover" />
-                                                                <span className="text-sm text-[var(--foreground)] truncate max-w-[120px]">
-                                                                    {ps.song.title || ps.song.name}
-                                                                </span>
-                                                            </div>
-                                                        ))}
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
-
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-x-6 gap-y-1">
                                     {processedSongs.songs
                                         .slice(activeTab === 'all' ? 1 : 0, activeTab === 'all' ? 12 : processedSongs.songs.length)
@@ -879,6 +822,35 @@ export default function SearchPage() {
                                         <div className="animate-spin w-6 h-6 border-2 border-cyan-400 border-t-transparent rounded-full"></div>
                                     </div>
                                 )}
+                            </section>
+                        )}
+
+                        {/* Artists row on the All tab (Spotify-style: Songs -> Artists -> Albums) */}
+                        {activeTab === 'all' && results?.artists?.results?.length > 0 && (
+                            <section>
+                                <div className="flex items-center justify-between mb-6">
+                                    <h2 className="text-xl md:text-2xl font-bold text-[var(--foreground)] flex items-center gap-3">
+                                        <User className="text-cyan-400" /> Artists
+                                    </h2>
+                                    <button onClick={() => setActiveTab('artists')} className="px-3 py-1.5 md:px-4 md:py-2 text-xs md:text-sm font-bold text-cyan-400 hover:text-cyan-300 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 rounded-full flex items-center gap-1.5 transition-all hover:scale-105">
+                                        Show all <ChevronRight size={14} />
+                                    </button>
+                                </div>
+                                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-4 md:gap-5">
+                                    {results.artists.results.slice(0, 7).map((artist: any) => (
+                                        <div
+                                            key={artist.id}
+                                            onClick={() => handleArtistClick(artist.id)}
+                                            className="flex flex-col items-center text-center group cursor-pointer"
+                                        >
+                                            <div className="relative aspect-square w-full mb-3 rounded-full overflow-hidden bg-[var(--surface)] shadow-lg transition-transform duration-300 group-hover:scale-105">
+                                                <img src={getImg(artist)} className="w-full h-full object-cover" />
+                                            </div>
+                                            <h3 className="font-semibold text-sm text-[var(--foreground)] group-hover:underline truncate w-full">{artist.title || artist.name}</h3>
+                                            <p className="text-xs text-[var(--foreground-muted)] mt-0.5">Artist</p>
+                                        </div>
+                                    ))}
+                                </div>
                             </section>
                         )}
 
