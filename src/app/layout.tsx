@@ -36,10 +36,16 @@ export const metadata: Metadata = {
     apple: "/logo.png",
   },
   manifest: "/manifest.json",
+  // iOS PWA / background-audio + lock-screen support
+  appleWebApp: {
+    capable: true,
+    title: "Nitro",
+    statusBarStyle: "black-translucent",
+  },
 };
 
 export const viewport = {
-  themeColor: "#000000",
+  themeColor: "#0a0a0b",
 };
 
 export default function RootLayout({

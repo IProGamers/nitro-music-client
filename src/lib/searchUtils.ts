@@ -111,13 +111,14 @@ export const getRelevanceScore = (song: any, query: string): number => {
         score += (matched / qWords.length) * 250;
     }
 
-    // Popularity boost (log-scaled so it never overrides a strong title match)
+    // Popularity boost (log-scaled). Weighted strongly so the official/most-played
+    // cut wins ties between same-name results, like Spotify.
     const plays = Number(song.playCount || song.play_count || 0);
-    if (plays > 0) score += Math.min(Math.log10(plays + 1) * 40, 200);
+    if (plays > 0) score += Math.min(Math.log10(plays + 1) * 70, 380);
 
-    // Slightly de-prioritise remix/version/cover variants so the official cut wins
+    // De-prioritise remix/version/cover variants so the official cut surfaces first.
     if (/\b(remix|acoustic|live|cover|reprise|lo-?fi|slowed|reverb|sped\s*up|version|instrumental|karaoke)\b/i.test(rawTitle)) {
-        score -= 120;
+        score -= 220;
     }
 
     // Prefer studio recordings with higher year when available (tie-breaker handled by caller)

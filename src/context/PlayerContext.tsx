@@ -196,6 +196,17 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
     useEffect(() => {
         if (!audioRef.current) return;
 
+        // iOS Safari: routing the <audio> through createMediaElementSource breaks the
+        // native now-playing / lock-screen controls and background playback. So on iOS
+        // we DON'T wire up Web Audio unless the user explicitly turns on 3D audio
+        // (accepting the trade-off). Visualizer/scene FX are off by default on iOS but
+        // playback + lock-screen controls work natively. Non-iOS is unchanged.
+        const isIOS = typeof navigator !== 'undefined' && (
+            /iPhone|iPad|iPod/.test(navigator.userAgent) ||
+            (navigator.platform === 'MacIntel' && (navigator as any).maxTouchPoints > 1)
+        );
+        if (isIOS && !is3DActive) return;
+
         // Initialize AudioContext only once
         if (!audioContextRef.current) {
             const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
@@ -224,7 +235,7 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
                 pannerRef.current.setPosition(0, 0, 1);
             }
         }
-    }, [connectAudioSource]);
+    }, [connectAudioSource, is3DActive]);
 
     // Handle Routing with optional 3D Panner
     useEffect(() => {
@@ -1330,6 +1341,8 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
             <audio
                 ref={audioRef}
                 crossOrigin="anonymous"
+                playsInline
+                {...{ 'webkit-playsinline': 'true', 'x-webkit-airplay': 'allow' }}
                 onTimeUpdate={(e) => {
                     const currentTime = e.currentTarget.currentTime;
                     const dur = e.currentTarget.duration;
@@ -1346,7 +1359,7 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
                 onEnded={next}
             />
             {/* Secondary element used only for DJ-mode crossfade (not wired to Web Audio) */}
-            <audio ref={crossfadeAudioRef} crossOrigin="anonymous" preload="auto" />
+            <audio ref={crossfadeAudioRef} crossOrigin="anonymous" preload="auto" playsInline {...{ 'webkit-playsinline': 'true' }} />
         </PlayerContext.Provider>
     );
 }

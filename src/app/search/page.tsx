@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import SongContextMenu from '@/components/SongContextMenu';
 import { useMusicData } from '@/context/MusicDataContext';
-import { getDidYouMeanSuggestions } from '@/lib/fuzzySearch';
+import { getDidYouMeanSuggestions, preprocessQuery } from '@/lib/fuzzySearch';
 import { processSearchResults, rankByRelevance, type ProcessedSong, type GroupedSearchResults } from '@/lib/searchUtils';
 import { reRankByTrending, getTopResultConfidence, getTrendingSongForQuery } from '@/lib/trendingSongs';
 
@@ -42,10 +42,14 @@ export default function SearchPage() {
     const [debouncedQuery, setDebouncedQuery] = useState('');
     const searchAbortControllerRef = useRef<AbortController | null>(null);
     const categoryAbortControllerRef = useRef<AbortController | null>(null);
+    // When the user clicks "Search instead for <original>", skip typo-correction once.
+    const skipNextCorrectionRef = useRef(false);
     const { searchCache } = useMusicData();
 
     // Smart search state - only for "Did you mean?" suggestions
     const [didYouMeanOptions, setDidYouMeanOptions] = useState<{ query: string; artist: string; confidence: number }[]>([]);
+    // Typo-correction pill: when we auto-correct the query before searching.
+    const [correctedFrom, setCorrectedFrom] = useState<{ from: string; to: string } | null>(null);
 
     // Debounce query
     useEffect(() => {
@@ -91,11 +95,20 @@ export default function SearchPage() {
             try {
                 const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 
-                // Check if this is a trending song search
-                const trendingSong = getTrendingSongForQuery(q);
+                // Typo tolerance: correct the query (quick map + Fuse.js fuzzy) before hitting
+                // the API, so minor spelling mistakes still find the right song. Skipped once
+                // when the user explicitly chose to search their original spelling.
+                const bypass = skipNextCorrectionRef.current;
+                skipNextCorrectionRef.current = false;
+                const correction = bypass ? { wasCorrected: false, corrected: q } : preprocessQuery(q);
+                const searchTerm = correction.wasCorrected ? correction.corrected : q;
+                setCorrectedFrom(correction.wasCorrected ? { from: q, to: correction.corrected } : null);
 
-                // Make primary search
-                const res = await fetch(`${apiUrl}/api/search?query=${encodeURIComponent(q)}`, {
+                // Check if this is a trending song search
+                const trendingSong = getTrendingSongForQuery(searchTerm);
+
+                // Make primary search (using the corrected term)
+                const res = await fetch(`${apiUrl}/api/search?query=${encodeURIComponent(searchTerm)}`, {
                     signal: controller.signal
                 });
                 const data = await res.json();
@@ -138,8 +151,8 @@ export default function SearchPage() {
                     // the official/most-relevant track surfaces to the top), then apply
                     // the curated trending boost on top for known viral songs.
                     if (songResults.length > 0) {
-                        songResults = rankByRelevance(songResults, q);
-                        songResults = reRankByTrending(songResults, q);
+                        songResults = rankByRelevance(songResults, searchTerm);
+                        songResults = reRankByTrending(songResults, searchTerm);
                     }
 
                     data.data.songs.results = songResults;
@@ -288,6 +301,15 @@ export default function SearchPage() {
         }
     };
 
+    // Remove a single recent item.
+    const removeSearchPlayedSong = (id: string) => {
+        setSearchPlayedSongs(prev => {
+            const next = prev.filter(s => s.id !== id);
+            try { localStorage.setItem(SEARCH_PLAYED_KEY, JSON.stringify(next)); } catch { /* ignore */ }
+            return next;
+        });
+    };
+
     // Play song from search results AND save to search history
     const playFromSearch = (song: any, queue: any[]) => {
         saveToSearchHistory(song);
@@ -430,47 +452,52 @@ export default function SearchPage() {
                     {isFocused ? (
                         /* Search History - Shown ONLY when focused */
                         <div>
-                            <div className="flex items-center justify-between mb-4">
-                                <h2 className="text-xl font-bold flex items-center gap-3 text-[var(--foreground)]">
-                                    <Clock className="text-cyan-400" size={20} /> Recently Played
+                            <div className="flex items-center justify-between mb-5">
+                                <h2 className="text-lg font-bold flex items-center gap-2.5 text-[var(--foreground)]">
+                                    <Clock className="text-[var(--foreground-muted)]" size={18} /> Recent
                                 </h2>
                                 {searchPlayedSongs.length > 0 && (
                                     <button
                                         onClick={clearSearchHistory}
-                                        className="text-xs font-bold text-[var(--foreground-muted)] hover:text-red-400 uppercase tracking-widest transition-colors flex items-center gap-2"
+                                        className="text-xs font-medium text-[var(--foreground-muted)] hover:text-[var(--foreground)] transition-colors"
                                     >
-                                        <Trash2 size={14} />
-                                        Clear
+                                        Clear all
                                     </button>
                                 )}
                             </div>
 
                             {searchPlayedSongs.length > 0 ? (
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1">
                                     {searchPlayedSongs.map((song) => (
                                         <div
                                             key={song.id}
                                             onClick={() => playFromHistory(song)}
-                                            className="flex items-center gap-3 p-2 rounded-xl bg-[var(--card)] hover:bg-[var(--card-hover)] border border-[var(--border)] hover:border-cyan-500/30 cursor-pointer group transition-all"
+                                            className="flex items-center gap-3.5 p-2.5 rounded-lg hover:bg-[var(--surface-hover)] cursor-pointer group transition-colors"
                                         >
-                                            <div className="relative w-10 h-10 flex-shrink-0">
-                                                <img src={song.image} className="w-full h-full rounded-lg object-cover" />
+                                            <div className="relative w-11 h-11 flex-shrink-0">
+                                                <img src={song.image} className="w-full h-full rounded-md object-cover shadow-sm shadow-black/30" />
+                                                <div className="absolute inset-0 rounded-md bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                                    <Play size={14} fill="white" className="text-white ml-0.5" />
+                                                </div>
                                             </div>
                                             <div className="flex-1 overflow-hidden">
-                                                <h3 className="font-bold text-xs text-[var(--foreground)] group-hover:text-cyan-400 transition-colors truncate">{song.name}</h3>
-                                                <p className="text-[9px] text-[var(--foreground-muted)] truncate mt-0.5">{song.artist}</p>
+                                                <h3 className="font-medium text-sm text-[var(--foreground)] truncate">{song.name}</h3>
+                                                <p className="text-xs text-[var(--foreground-muted)] truncate mt-0.5">{song.artist}</p>
                                             </div>
-                                            <ChevronRight size={14} className="text-[var(--foreground-muted)] group-hover:text-[var(--foreground)] transition-colors" />
-                                            <div className="ml-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
-                                                <SongContextMenu song={song} queue={searchPlayedSongs} />
-                                            </div>
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); removeSearchPlayedSong(song.id); }}
+                                                aria-label="Remove from recent"
+                                                className="p-1.5 rounded-full text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:bg-[var(--card-hover)] opacity-0 group-hover:opacity-100 max-md:opacity-100 transition-all"
+                                            >
+                                                <X size={15} />
+                                            </button>
                                         </div>
                                     ))}
                                 </div>
                             ) : (
-                                <div className="flex flex-col items-center justify-center py-20 text-center opacity-40">
-                                    <Clock size={48} className="mb-4" />
-                                    <p className="text-sm font-medium">Your recent searches will appear here</p>
+                                <div className="flex flex-col items-center justify-center py-20 text-center text-[var(--foreground-muted)]">
+                                    <Clock size={40} className="mb-3 opacity-50" />
+                                    <p className="text-sm">Songs you play from search show up here</p>
                                 </div>
                             )}
                         </div>
@@ -524,6 +551,19 @@ export default function SearchPage() {
             {
                 !loading && query && results && (
                     <div className="mt-8 space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                        {/* Auto-correction pill: we fixed a typo and searched the corrected term */}
+                        {correctedFrom && (
+                            <div className="text-sm text-[var(--foreground-muted)] -mb-6">
+                                Showing results for <span className="text-[var(--foreground)] font-semibold">{correctedFrom.to}</span>
+                                {' · '}
+                                <button
+                                    onClick={() => { skipNextCorrectionRef.current = true; setCorrectedFrom(null); setQuery(correctedFrom.from); }}
+                                    className="text-[var(--accent)] hover:underline font-medium"
+                                >
+                                    Search instead for &ldquo;{correctedFrom.from}&rdquo;
+                                </button>
+                            </div>
+                        )}
                         {/* Did you mean? suggestions when results are poor */}
                         {didYouMeanOptions.length > 0 && (
                             <div className="px-4 py-3 bg-[var(--card)] border border-[var(--border)] rounded-xl animate-in fade-in slide-in-from-top-2 duration-300">
