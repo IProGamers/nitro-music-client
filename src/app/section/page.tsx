@@ -20,8 +20,12 @@ function SectionContent() {
     const router = useRouter();
     const { playTrack } = usePlayer();
 
-    const title = searchParams.get('title') || 'Songs';
-    const query = searchParams.get('q') || '';
+    // `+` in the query string is used as a space separator on the home page, but
+    // Next's router percent-encodes it to %2B so it reads back as a literal '+'.
+    // Normalize both params back to spaces (no-op if already decoded) — otherwise
+    // JioSaavn search gets "trending+viral+hits" and returns nothing.
+    const title = (searchParams.get('title') || 'Songs').replace(/\+/g, ' ');
+    const query = (searchParams.get('q') || '').replace(/\+/g, ' ');
 
     const [songs, setSongs] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
