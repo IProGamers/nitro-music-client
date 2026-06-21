@@ -1,15 +1,40 @@
 "use client"
 import { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { X, Loader2, Check, ClipboardList, FileUp, ListMusic } from 'lucide-react';
+import { X, Loader2, Check, ClipboardList, FileUp, ListMusic, ExternalLink, ListChecks, ArrowRight, HelpCircle } from 'lucide-react';
 import {
     parsePastedTracks, parseCsvTracks, matchInCatalog, type ImportTrack,
 } from '@/lib/playlistImport';
 
 type Result = { matched: number; skipped: number; total: number; name: string; missing: string[] } | null;
 
+// Step-by-step "flashcards" shown to users before importing.
+const GUIDE_STEPS = [
+    {
+        icon: ExternalLink,
+        title: 'Open Exportify',
+        body: 'Go to exportify.net and log in with your own Spotify account. It’s free and runs in your browser — we never see your Spotify login.',
+    },
+    {
+        icon: FileUp,
+        title: 'Export your playlist to CSV',
+        body: 'Pick any playlist on Exportify and click "Export". A .csv file with your songs downloads to your device.',
+    },
+    {
+        icon: ClipboardList,
+        title: 'Upload it here (or paste a list)',
+        body: 'Come back, choose "Upload CSV" and select that file — or just paste a list of songs, one per line ("Song - Artist").',
+    },
+    {
+        icon: ListChecks,
+        title: 'We match & build your playlist',
+        body: 'We find each song in our catalog and create the playlist in your library. Songs we can’t find are listed and skipped — playback stays on Nitro.',
+    },
+];
+
 export default function SpotifyImport({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
     const { createPlaylist, addSongToPlaylist } = useAuth();
+    const [showGuide, setShowGuide] = useState(true);
     const [mode, setMode] = useState<'paste' | 'csv'>('paste');
     const [pasteText, setPasteText] = useState('');
     const [csvTracks, setCsvTracks] = useState<ImportTrack[]>([]);
@@ -113,8 +138,51 @@ export default function SpotifyImport({ isOpen, onClose }: { isOpen: boolean; on
                             <button onClick={handleClose} className="flex-1 py-2.5 rounded-full bg-[var(--foreground)] text-[var(--background)] text-sm font-semibold hover:opacity-90">Done</button>
                         </div>
                     </div>
+                ) : showGuide ? (
+                    <div>
+                        <p className="text-xs font-semibold uppercase tracking-wider text-[var(--accent)] mb-3">How to import from Spotify</p>
+                        <div className="space-y-3">
+                            {GUIDE_STEPS.map((step, i) => {
+                                const Icon = step.icon;
+                                return (
+                                    <div key={i} className="flex gap-3 p-3 rounded-xl bg-[var(--surface)] border border-[var(--border)]">
+                                        <div className="relative shrink-0">
+                                            <div className="w-9 h-9 rounded-lg bg-[var(--background)] flex items-center justify-center text-[var(--accent)]">
+                                                <Icon size={18} />
+                                            </div>
+                                            <span className="absolute -top-1.5 -left-1.5 w-5 h-5 rounded-full bg-[var(--accent)] text-[#04161a] text-[10px] font-bold flex items-center justify-center">{i + 1}</span>
+                                        </div>
+                                        <div className="min-w-0">
+                                            <h3 className="text-sm font-semibold text-[var(--foreground)]">{step.title}</h3>
+                                            <p className="text-xs text-[var(--foreground-muted)] leading-relaxed mt-0.5">{step.body}</p>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                        <a
+                            href="https://exportify.net"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="mt-4 w-full flex items-center justify-center gap-2 py-2.5 rounded-full bg-[var(--surface)] hover:bg-[var(--surface-hover)] border border-[var(--border)] text-sm font-medium text-[var(--foreground)] transition-colors"
+                        >
+                            <ExternalLink size={15} /> Open Exportify
+                        </a>
+                        <button
+                            onClick={() => setShowGuide(false)}
+                            className="mt-2 w-full flex items-center justify-center gap-2 py-3 rounded-full bg-[var(--accent)] text-[#04161a] font-semibold text-sm transition-all"
+                        >
+                            I have my songs — continue <ArrowRight size={16} />
+                        </button>
+                    </div>
                 ) : (
                     <>
+                        <button
+                            onClick={() => setShowGuide(true)}
+                            className="flex items-center gap-1.5 text-xs font-medium text-[var(--accent)] hover:underline mb-3"
+                        >
+                            <HelpCircle size={13} /> How to import from Spotify?
+                        </button>
                         {/* Mode toggle */}
                         <div className="flex gap-2 mb-4">
                             <button onClick={() => setMode('paste')} className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-colors ${mode === 'paste' ? 'bg-[var(--foreground)] text-[var(--background)]' : 'bg-[var(--surface)] text-[var(--foreground-secondary)] hover:bg-[var(--surface-hover)]'}`}>

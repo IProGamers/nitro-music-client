@@ -15,38 +15,43 @@ export default function ArtistPage() {
     useEffect(() => {
         if (!id) return;
 
-        const fetchArtist = async (retries = 2) => {
+        // Retry with backoff — handles transient 503s and server cold-starts
+        // (e.g. a sleeping Render instance waking up).
+        const fetchArtist = async (attempt = 0): Promise<void> => {
+            const MAX_ATTEMPTS = 4;
             try {
                 const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
                 const res = await fetch(`${apiUrl}/api/artists/${id}?songCount=50&albumCount=50`, {
                     headers: { 'Accept': 'application/json' }
                 });
-
-                if (!res.ok) {
-                    throw new Error(`HTTP ${res.status}`);
-                }
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
                 const data = await res.json();
                 if (data.success && data.data) {
                     setArtist(data.data);
                     setErrorMsg(null);
                 } else {
-                    console.warn('Artist API returned:', data);
                     setErrorMsg(data?.message || 'This artist could not be loaded.');
                 }
+                setLoading(false);
             } catch (e: any) {
-                console.error('Artist fetch error:', e);
-                // Retry on failure
-                if (retries > 0) {
-                    setTimeout(() => fetchArtist(retries - 1), 1000);
+                // Retry transient failures (503 / network / cold start) with backoff.
+                if (attempt < MAX_ATTEMPTS - 1) {
+                    const delay = 1200 * Math.pow(1.8, attempt); // ~1.2s, 2.2s, 3.9s
+                    setTimeout(() => fetchArtist(attempt + 1), delay);
                     return;
                 }
-                setErrorMsg(e?.message ? `Couldn't reach the music server (${e.message}).` : 'Couldn\'t reach the music server.');
-            } finally {
+                console.error('Artist fetch error:', e);
+                setErrorMsg(
+                    e?.message?.includes('503')
+                        ? "The music server is waking up — please try again in a moment."
+                        : (e?.message ? `Couldn't reach the music server (${e.message}).` : "Couldn't reach the music server.")
+                );
                 setLoading(false);
             }
         };
 
+        setLoading(true);
         fetchArtist();
     }, [id]);
 
