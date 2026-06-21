@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { useOffline } from '@/context/OfflineContext';
 import { fetchJioSaavnPlaylist } from '@/lib/homeData';
-import { getTrackImageUrl, getTrackArtistName, decodeHtml } from '@/lib/utils';
+import { getTrackImageUrl, getTrackArtistName, decodeHtml, normalizeTrack } from '@/lib/utils';
 import { fetchJioSaavnSuggestions, rankByTaste } from '@/lib/recommendations';
 import PlaylistCover from '@/components/PlaylistCover';
 
@@ -168,8 +168,13 @@ export default function PlaylistDetailPage() {
             const seen = new Set<string>();
             const merged: any[] = [];
             for (const batch of batches) {
-                for (const s of batch) {
-                    const k = String(s?.id || s?.songId || '');
+                for (const raw of batch) {
+                    // JioSaavn suggestions come back as raw payloads (image array,
+                    // `artists` object). Normalize to our canonical song shape so
+                    // display, playback and Firestore storage all work, and drop
+                    // any `undefined` fields (Firestore rejects them).
+                    const s = JSON.parse(JSON.stringify(normalizeTrack(raw)));
+                    const k = String(s.id || '');
                     if (!k || seen.has(k) || inPlaylist.has(k)) continue;
                     seen.add(k);
                     merged.push(s);
