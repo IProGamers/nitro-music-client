@@ -220,8 +220,8 @@ export const buildQueuePools = (seedSong: any): Array<{ query: string; category:
     if (mood || lang) pools.push({ query: `${lang} ${mood} songs`.trim(), category: 'mood', max: 4 });
     if (lang && mood) pools.push({ query: `best ${lang} ${mood}`.trim(), category: 'mood2', max: 3 });
 
-    // Discovery so the queue doesn't feel closed
-    pools.push({ query: `${lang || ''} top hits 2025`.trim(), category: 'discovery', max: 3 });
+    // Discovery so the queue doesn't feel closed (current year, never stale)
+    pools.push({ query: `${lang || ''} top hits ${new Date().getFullYear()}`.trim(), category: 'discovery', max: 3 });
 
     return pools;
 };

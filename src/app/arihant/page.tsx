@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 
 // Stavan search categories
 const STAVAN_CATEGORIES = [
-    { name: 'Latest Stavans', query: 'latest jain stavan 2024 2025', emoji: '✨' },
+    { name: 'Latest Stavans', query: `latest jain stavan ${new Date().getFullYear() - 1} ${new Date().getFullYear()}`, emoji: '✨' },
     { name: 'Paryushan Special', query: 'paryushan stavan pratikraman', emoji: '🕉️' },
     { name: 'Morning Bhakti', query: 'jain morning stavan prabhatia', emoji: '🌅' },
     { name: 'Evening Aarti', query: 'jain sandhya aarti mangal deep', emoji: '🪔' },
