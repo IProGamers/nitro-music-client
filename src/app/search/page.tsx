@@ -645,11 +645,16 @@ export default function SearchPage() {
                         {activeTab === 'all' && processedSongs.songs.length > 0 && (() => {
                             const topSong = processedSongs.songs[0]?.song;
                             if (!topSong) return null;
-                            // Don't crown a "Top Result" for short/ambiguous input (e.g. "s") —
-                            // only once a real name is typed AND the match is confident. Short
-                            // queries just show the song list / suggestions, like Apple Music.
-                            const { confidence } = getTopResultConfidence(topSong, query);
-                            if (query.trim().length < 3 || confidence < 55) return null;
+                            // Don't crown a "Top Result" for short/ambiguous input (e.g. "s").
+                            // Show it once the query is a real name (>=3 chars) AND the top
+                            // song's title actually matches what was typed — a direct string
+                            // check that works for ANY song (not just curated/trending ones),
+                            // so e.g. "saiyaara" still gets its Top Result.
+                            const _norm = (s: string) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                            const _q = _norm(query);
+                            const _t = _norm(getName(topSong));
+                            const strongMatch = !!_q && !!_t && (_t === _q || _t.startsWith(_q) || _t.includes(_q) || _q.includes(_t));
+                            if (query.trim().length < 3 || !strongMatch) return null;
 
                             return (
                                 <div className="space-y-6">
