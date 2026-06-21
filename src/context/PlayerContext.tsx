@@ -319,15 +319,61 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
         };
     }, [isPlaying]);
 
-    // Media Session API - Show song info on car displays, lock screens, Bluetooth devices
+    // ---- Media Session API ----
+    // Drives lock-screen / notification controls, Bluetooth car head units (AVRCP),
+    // wearables, and Android Auto's media metadata. Split into focused effects so we
+    // don't re-register handlers on every progress tick (which caused flicker and is
+    // unnecessary churn). Handlers delegate through a ref so they're never stale.
+    const mediaHandlersRef = useRef<{ next: () => void; prev: () => void }>({ next: () => {}, prev: () => {} });
     useEffect(() => {
-        if (typeof window === 'undefined' || !('mediaSession' in navigator)) return;
-        if (!currentSong) return;
+        // No deps: runs after every render (post-render, so no TDZ on next/prev).
+        mediaHandlersRef.current = { next, prev };
+    });
 
-        // Get song metadata (inline logic to avoid reference issues)
+    // Register action handlers once.
+    useEffect(() => {
+        if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
+        const ms = navigator.mediaSession;
+        const safe = (action: MediaSessionAction, handler: MediaSessionActionHandler | null) => {
+            try { ms.setActionHandler(action, handler); } catch { /* unsupported action */ }
+        };
+        safe('play', () => { audioRef.current?.play().catch(() => {}); setIsPlaying(true); });
+        safe('pause', () => { audioRef.current?.pause(); setIsPlaying(false); });
+        safe('previoustrack', () => mediaHandlersRef.current.prev());
+        safe('nexttrack', () => mediaHandlersRef.current.next());
+        safe('stop', () => { audioRef.current?.pause(); setIsPlaying(false); });
+        safe('seekto', (details) => {
+            if (audioRef.current && details.seekTime != null) {
+                audioRef.current.currentTime = details.seekTime;
+                setProgress(details.seekTime);
+            }
+        });
+        safe('seekbackward', (details) => {
+            if (audioRef.current) {
+                const offset = details.seekOffset || 10;
+                audioRef.current.currentTime = Math.max(0, audioRef.current.currentTime - offset);
+            }
+        });
+        safe('seekforward', (details) => {
+            if (audioRef.current) {
+                const offset = details.seekOffset || 10;
+                const dur = audioRef.current.duration || 0;
+                audioRef.current.currentTime = Math.min(dur, audioRef.current.currentTime + offset);
+            }
+        });
+        return () => {
+            // Clear handlers on unmount
+            (['play', 'pause', 'previoustrack', 'nexttrack', 'stop', 'seekto', 'seekbackward', 'seekforward'] as MediaSessionAction[])
+                .forEach(a => safe(a, null));
+        };
+    }, []);
+
+    // Update metadata when the track changes.
+    useEffect(() => {
+        if (typeof navigator === 'undefined' || !('mediaSession' in navigator) || !currentSong) return;
+
         const title = currentSong.name || currentSong.title || 'Unknown Track';
 
-        // Get artist
         let artist = 'Unknown Artist';
         if (currentSong.artists?.primary?.length) {
             artist = currentSong.artists.primary.map((a: any) => a.name).join(', ');
@@ -339,7 +385,6 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
 
         const album = currentSong.album?.name || currentSong.album || '';
 
-        // Get artwork URL
         let artwork = '';
         if (typeof currentSong.image === 'string') {
             artwork = currentSong.image;
@@ -347,13 +392,15 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
             const img = currentSong.image[currentSong.image.length - 1];
             artwork = img?.url || img?.link || '';
         }
+        // Car systems require absolute https artwork; upgrade protocol-relative/http.
+        if (artwork.startsWith('//')) artwork = 'https:' + artwork;
+        else if (artwork.startsWith('http://')) artwork = artwork.replace('http://', 'https://');
 
-        // Update Media Session metadata
         try {
             navigator.mediaSession.metadata = new MediaMetadata({
-                title: title,
-                artist: artist,
-                album: album,
+                title,
+                artist,
+                album,
                 artwork: artwork ? [
                     { src: artwork, sizes: '96x96', type: 'image/jpeg' },
                     { src: artwork, sizes: '128x128', type: 'image/jpeg' },
@@ -363,53 +410,29 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
                     { src: artwork, sizes: '512x512', type: 'image/jpeg' },
                 ] : []
             });
-
-            // Set playback state
-            navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
-
-            // Set up media session action handlers
-            navigator.mediaSession.setActionHandler('play', () => {
-                if (audioRef.current) {
-                    audioRef.current.play();
-                    setIsPlaying(true);
-                }
-            });
-
-            navigator.mediaSession.setActionHandler('pause', () => {
-                if (audioRef.current) {
-                    audioRef.current.pause();
-                    setIsPlaying(false);
-                }
-            });
-
-            navigator.mediaSession.setActionHandler('previoustrack', () => {
-                prev();
-            });
-
-            navigator.mediaSession.setActionHandler('nexttrack', () => {
-                next();
-            });
-
-            navigator.mediaSession.setActionHandler('seekto', (details) => {
-                if (audioRef.current && details.seekTime !== undefined) {
-                    audioRef.current.currentTime = details.seekTime;
-                    setProgress(details.seekTime);
-                }
-            });
-
-            // Update position state for seek bar on external devices
-            if (audioRef.current && duration > 0) {
-                navigator.mediaSession.setPositionState({
-                    duration: duration,
-                    playbackRate: audioRef.current.playbackRate,
-                    position: Math.min(progress, duration)
-                });
-            }
         } catch (e) {
-            // Media Session not fully supported
-            console.warn('Media Session error:', e);
+            console.warn('Media Session metadata error:', e);
         }
-    }, [currentSong, isPlaying, duration, progress]);
+    }, [currentSong]);
+
+    // Reflect play/pause state.
+    useEffect(() => {
+        if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
+        navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
+    }, [isPlaying, currentSong]);
+
+    // Keep the external scrubber position in sync.
+    useEffect(() => {
+        if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
+        if (!audioRef.current || !duration || !isFinite(duration) || duration <= 0) return;
+        try {
+            navigator.mediaSession.setPositionState({
+                duration,
+                playbackRate: audioRef.current.playbackRate || 1,
+                position: Math.min(Math.max(progress, 0), duration)
+            });
+        } catch { /* invalid state — ignore */ }
+    }, [progress, duration]);
 
     const getImg = (t: any) => {
         if (typeof t.image === 'string') return t.image;
