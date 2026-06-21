@@ -6,7 +6,7 @@ import { useAudioFX } from './AudioFXContext';
 import { useRouter } from 'next/navigation';
 import { getSong as getOfflineSong } from '@/lib/offlineDb';
 import { dedupeSongs, createSongKey, normalizeSongTitle } from '@/lib/searchUtils';
-import { recordListen, recordSkip, buildAutoplayQueries, buildQueuePools, rankByTaste } from '@/lib/recommendations';
+import { recordListen, recordSkip, buildAutoplayQueries, buildQueuePools, rankByTaste, fetchLastfmSimilarSongs } from '@/lib/recommendations';
 
 const FREE_PLAY_LIMIT = 10;
 const PLAY_COUNT_KEY = 'nitro_free_plays';
@@ -841,54 +841,61 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
         try {
             const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 
-            // Diversified, Spotify-like queue: fetch several INTENT pools (more from the
-            // current artist, your favourite artists, same mood/language, a little
-            // discovery) and blend them with per-category caps so the queue isn't filled
-            // with near-identical results.
-            const pools = buildQueuePools(seedSong);
-
-            const responses = await Promise.allSettled(
-                pools.map(p =>
-                    fetch(`${apiUrl}/api/search/songs?query=${encodeURIComponent(p.query)}&limit=15`)
-                        .then(r => r.ok ? r.json() : null)
-                        .then(data => ({ data, pool: p }))
-                )
-            );
-
+            // Centralized filter: skip the seed, queued songs, recently-played, dupes,
+            // and name-twins (other songs sharing the seed's title — a dozen "Perfect"s).
             const seedId = String(seedSong.id || seedSong.songId);
             const seedTitleNorm = normalizeSongTitle(seedSong.name || seedSong.title || '');
             const queueIds = new Set(queue.map(s => String(s.id || s.songId)));
-            const excludeKeys = new Set<string>([
+            const seenKeys = new Set<string>([
                 createSongKey(seedSong),
                 ...queue.map(s => createSongKey(s)),
-                // Don't recommend songs we've recently played.
                 ...playedSongKeysRef.current,
             ]);
+            const out: any[] = [];
+            const accept = (s: any): boolean => {
+                if (!s) return false;
+                const id = String(s.id || s.songId);
+                const key = createSongKey(s);
+                if (id === seedId || queueIds.has(id) || seenKeys.has(key)) return false;
+                if (seedTitleNorm && normalizeSongTitle(s.name || s.title || '') === seedTitleNorm) return false;
+                seenKeys.add(key);
+                return true;
+            };
 
-            // Take up to `max` fresh, de-duped songs from each category, then blend.
-            const blended: any[] = [];
-            const seenKeys = new Set<string>(excludeKeys);
-            for (const r of responses) {
-                if (r.status !== 'fulfilled' || !r.value?.data?.success || !r.value.data.data?.results) continue;
-                const { data, pool } = r.value;
-                let added = 0;
-                for (const s of data.data.results) {
-                    if (added >= pool.max) break;
-                    const id = String(s.id || s.songId);
-                    const key = createSongKey(s);
-                    // Skip the seed, anything already queued, dupes, AND name-twins
-                    // (other songs that share the seed's title — e.g. a dozen "Perfect"s).
-                    if (id === seedId || queueIds.has(id) || seenKeys.has(key)) continue;
-                    if (seedTitleNorm && normalizeSongTitle(s.name || s.title || '') === seedTitleNorm) continue;
-                    seenKeys.add(key);
-                    blended.push(s);
-                    added++;
+            // 1) PRIMARY: Last.fm collaborative-filtering "similar songs" (real Spotify-
+            //    like data), resolved against our catalog. No-op if not configured.
+            try {
+                const lf = await fetchLastfmSimilarSongs(seedSong);
+                for (const s of lf) if (accept(s)) out.push(s);
+            } catch { /* fall through to heuristic */ }
+
+            // 2) FALLBACK / SUPPLEMENT: heuristic intent pools (same artist, favourite
+            //    artists, mood/language, discovery) when Last.fm is off or thin.
+            if (out.length < 8) {
+                const pools = buildQueuePools(seedSong);
+                const responses = await Promise.allSettled(
+                    pools.map(p =>
+                        fetch(`${apiUrl}/api/search/songs?query=${encodeURIComponent(p.query)}&limit=15`)
+                            .then(r => r.ok ? r.json() : null)
+                            .then(data => ({ data, pool: p }))
+                    )
+                );
+                for (const r of responses) {
+                    if (r.status !== 'fulfilled' || !r.value?.data?.success || !r.value.data.data?.results) continue;
+                    const { data, pool } = r.value;
+                    let added = 0;
+                    for (const s of data.data.results) {
+                        if (added >= pool.max) break;
+                        if (!accept(s)) continue;
+                        out.push(s);
+                        added++;
+                    }
                 }
             }
-            if (blended.length === 0) return [];
 
-            // Rank the blend by taste affinity while keeping category variety.
-            return rankByTaste(blended);
+            if (out.length === 0) return [];
+            // Rank the blend by taste affinity (favourite artists/mood) for ordering.
+            return rankByTaste(out);
         } catch (e) {
             console.log('Could not fetch more songs for autoplay:', e);
         }

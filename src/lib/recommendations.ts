@@ -9,6 +9,7 @@
 // It complements lib/discovery.ts (which reads the same signal store).
 
 import { getArtistNameFromSong, normalizeSongTitle, createSongKey } from './searchUtils';
+import { matchInCatalog } from './playlistImport';
 
 const SIGNALS_KEY = 'nitro_discovery_signals';   // { [trackId]: { plays, skips, repeats, lastPlayed } }
 const TASTE_KEY = 'nitro_taste_profile';         // { artists: {name:weight}, languages: {key:weight} }
@@ -223,6 +224,51 @@ export const buildQueuePools = (seedSong: any): Array<{ query: string; category:
     pools.push({ query: `${lang || ''} top hits 2025`.trim(), category: 'discovery', max: 3 });
 
     return pools;
+};
+
+/**
+ * Real "similar songs" via the backend Last.fm proxy, resolved against our own
+ * JioSaavn catalog for playback. Returns [] when Last.fm isn't configured or
+ * finds nothing — the caller then falls back to the heuristic pools.
+ */
+export const fetchLastfmSimilarSongs = async (seedSong: any): Promise<any[]> => {
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+    const name = seedSong?.name || seedSong?.title || '';
+    const artist = getArtistNameFromSong(seedSong);
+    if (!name) return [];
+
+    let payload: { tracks: Array<{ name: string; artist: string }>; artists: string[] } | null = null;
+    try {
+        const res = await fetch(`${apiUrl}/api/recommendations/similar?track=${encodeURIComponent(name)}&artist=${encodeURIComponent(artist)}&limit=30`);
+        if (!res.ok) return [];
+        const data = await res.json();
+        if (!data?.success) return []; // not_configured → heuristic fallback
+        payload = data.data;
+    } catch {
+        return [];
+    }
+    if (!payload) return [];
+
+    // Resolve similar TRACKS against our catalog (parallel, capped).
+    const trackTargets = payload.tracks.slice(0, 18);
+    const resolvedTracks = await Promise.allSettled(
+        trackTargets.map(t => matchInCatalog({ name: t.name, artist: t.artist, durationSec: 0 }))
+    );
+    const songs: any[] = resolvedTracks
+        .map(r => (r.status === 'fulfilled' ? r.value : null))
+        .filter(Boolean);
+
+    // If track-level matches were thin, supplement with top hits of similar artists.
+    if (songs.length < 6 && payload.artists.length) {
+        const artistTargets = payload.artists.slice(0, 6);
+        const resolvedArtists = await Promise.allSettled(
+            artistTargets.map(a => matchInCatalog({ name: a, artist: a, durationSec: 0 }))
+        );
+        for (const r of resolvedArtists) {
+            if (r.status === 'fulfilled' && r.value) songs.push(r.value);
+        }
+    }
+    return songs;
 };
 
 /** Rank candidate songs by taste affinity (stable; ties keep original order). */
