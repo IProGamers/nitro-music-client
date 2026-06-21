@@ -30,14 +30,13 @@ export default function Sidebar() {
 
     if (userProfile?.arihantMode) return null;
 
-    // Base links - Profile href is static, we'll redirect in the Profile page if not logged in
+    // Spotify-style core nav: Home / Search / Your Library.
+    // Profile lives in the header avatar (mobile) and the bottom user block (desktop),
+    // not as a nav slot.
     const links = [
         { name: 'Home', href: '/', icon: Home },
         { name: 'Search', href: '/search', icon: Search },
-        { name: 'Playlists', href: '/playlists', icon: ListMusic, desktopOnly: true },
-        { name: 'Recently Played', href: '/recent', icon: Clock, desktopOnly: true },
-        // Use consistent href for SSR/CSR - profile page handles auth redirect
-        { name: 'Profile', href: mounted && user ? '/profile' : '/auth', icon: User },
+        { name: 'Your Library', href: '/playlists', icon: ListMusic },
     ];
 
     // Add Admin link only for admins (client-side only to avoid hydration issues)
@@ -74,7 +73,7 @@ export default function Sidebar() {
 
                 {/* Navigation */}
                 <nav className="flex flex-col gap-1 flex-1 overflow-y-auto pr-1">
-                    {allLinks.filter(l => !l.desktopOnly).concat(allLinks.filter(l => l.desktopOnly)).map(l => {
+                    {allLinks.map(l => {
 
                         const Icon = l.icon;
                         const active = pathname === l.href;
@@ -201,7 +200,6 @@ export default function Sidebar() {
                         { name: 'Home', href: '/', icon: Home },
                         { name: 'Search', href: '/search', icon: Search },
                         { name: 'Library', href: '/playlists', icon: ListMusic },
-                        { name: 'Profile', href: mounted && user ? '/profile' : '/auth', icon: User },
                     ].map(l => {
                         const Icon = l.icon;
                         const active = pathname === l.href;

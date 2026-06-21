@@ -1,15 +1,19 @@
 "use client"
 import { useState, useEffect } from 'react';
 import { useAuth, Playlist } from '@/context/AuthContext';
+import { usePlayer } from '@/context/PlayerContext';
 import {
     Plus, Music, Globe, Lock, Loader2, Play,
-    MoreHorizontal, Share2, Trash2, Edit2, Search
+    Trash2, Search, Clock
 } from 'lucide-react';
 import Link from 'next/link';
 
 export default function PlaylistsPage() {
-    const { user, getUserPlaylists, createPlaylist, deletePlaylist } = useAuth();
+    const { user, getUserPlaylists, createPlaylist, deletePlaylist, getRecentPlays } = useAuth();
+    const { playTrack } = usePlayer();
     const [playlists, setPlaylists] = useState<Playlist[]>([]);
+    const [recent, setRecent] = useState<any[]>([]);
+    const [activeTab, setActiveTab] = useState<'playlists' | 'recent'>('playlists');
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
     const [isCreating, setIsCreating] = useState(false);
@@ -17,6 +21,7 @@ export default function PlaylistsPage() {
     useEffect(() => {
         if (user) {
             loadPlaylists();
+            getRecentPlays?.(50).then((r: any[]) => setRecent(r || [])).catch(() => { });
         } else {
             setLoading(false);
         }
@@ -90,31 +95,75 @@ export default function PlaylistsPage() {
     return (
         <div className="px-6 md:px-12 py-8 pb-32 max-w-7xl mx-auto space-y-12">
             <header className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                <div className="space-y-2">
-                    <span className="text-[10px] font-bold uppercase tracking-[0.4em] text-cyan-400">Library</span>
-                    <h1 className="text-5xl md:text-7xl font-bold text-[var(--foreground)] uppercase tracking-tighter leading-none">
-                        Playlists
+                <div className="space-y-1">
+                    <h1 className="text-3xl md:text-4xl font-bold text-[var(--foreground)] tracking-tight leading-none">
+                        Your Library
                     </h1>
                 </div>
                 <button
                     onClick={handleCreate}
                     disabled={isCreating}
-                    className="flex items-center justify-center gap-3 bg-[var(--foreground)] text-[var(--background)] px-8 py-4 rounded-[1.5rem] font-bold uppercase tracking-widest text-xs hover:bg-cyan-400 hover:text-black transition-all hover:scale-105 active:scale-95 shadow-2xl disabled:opacity-50"
+                    className="flex items-center justify-center gap-2 bg-[var(--foreground)] text-[var(--background)] px-5 py-2.5 rounded-full font-semibold text-sm hover:opacity-90 transition-all hover:scale-[1.03] active:scale-95 disabled:opacity-50"
                 >
-                    {isCreating ? <Loader2 size={18} className="animate-spin" /> : <Plus size={18} />}
-                    Create Playlist
+                    {isCreating ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
+                    New Playlist
                 </button>
             </header>
 
+            {/* Tabs */}
+            <div className="flex items-center gap-2 -mt-6">
+                {([['playlists', 'Playlists'], ['recent', 'Recently Played']] as const).map(([key, label]) => (
+                    <button
+                        key={key}
+                        onClick={() => setActiveTab(key)}
+                        className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${activeTab === key
+                            ? 'bg-[var(--foreground)] text-[var(--background)]'
+                            : 'bg-[var(--surface)] text-[var(--foreground-secondary)] hover:bg-[var(--surface-hover)]'}`}
+                    >
+                        {label}
+                    </button>
+                ))}
+            </div>
+
+            {activeTab === 'recent' ? (
+                recent.length > 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1">
+                        {recent.map((song, idx) => (
+                            <div
+                                key={`rec-${song.id || song.songId || idx}`}
+                                onClick={() => playTrack(song, recent)}
+                                className="group flex items-center gap-3.5 p-2.5 rounded-lg hover:bg-[var(--surface-hover)] cursor-pointer transition-colors"
+                            >
+                                <div className="relative w-11 h-11 flex-shrink-0">
+                                    <img src={song.image || '/logo.png'} alt="" className="w-full h-full rounded-md object-cover shadow-sm shadow-black/30" />
+                                    <div className="absolute inset-0 rounded-md bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                        <Play size={14} fill="white" className="text-white ml-0.5" />
+                                    </div>
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <h3 className="font-medium text-sm text-[var(--foreground)] truncate">{song.name || song.title}</h3>
+                                    <p className="text-xs text-[var(--foreground-muted)] truncate mt-0.5">{song.artist}</p>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                ) : (
+                    <div className="py-20 flex flex-col items-center justify-center text-center text-[var(--foreground-muted)]">
+                        <Clock size={40} className="mb-3 opacity-50" />
+                        <p className="text-sm">Songs you play will show up here</p>
+                    </div>
+                )
+            ) : (
+            <>
             {/* Search Bar */}
             <div className="relative group max-w-md">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--foreground-muted)] group-focus-within:text-cyan-400 transition-colors" size={20} />
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--foreground-muted)] group-focus-within:text-[var(--accent)] transition-colors" size={18} />
                 <input
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Search your library..."
-                    className="w-full bg-[var(--card)] border border-[var(--border)] rounded-2xl pl-12 pr-4 py-4 text-[var(--foreground)] focus:outline-none focus:border-cyan-400/50 transition-all font-medium text-sm focus:bg-[var(--card-hover)]"
+                    className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-xl pl-11 pr-4 py-3 text-[var(--foreground)] focus:outline-none focus:border-[var(--accent)]/50 transition-all text-sm"
                 />
             </div>
 
@@ -176,6 +225,8 @@ export default function PlaylistsPage() {
                     <Music size={48} className="text-[var(--foreground-muted)] mb-6" />
                     <p className="text-[var(--foreground-muted)] font-bold uppercase tracking-[0.2em]">No playlists found</p>
                 </div>
+            )}
+            </>
             )}
         </div>
     );
