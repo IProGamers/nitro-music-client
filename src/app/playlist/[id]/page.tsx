@@ -13,10 +13,21 @@ import { fetchJioSaavnPlaylist } from '@/lib/homeData';
 import { getTrackImageUrl, getTrackArtistName, decodeHtml } from '@/lib/utils';
 import PlaylistCover from '@/components/PlaylistCover';
 
+// Format a duration that may be raw seconds (e.g. 249) or already "m:ss".
+const formatDuration = (d: any): string => {
+    if (d == null) return '';
+    if (typeof d === 'string' && d.includes(':')) return d;
+    const n = Number(d);
+    if (!n || !isFinite(n)) return '';
+    const m = Math.floor(n / 60);
+    const s = Math.floor(n % 60);
+    return `${m}:${String(s).padStart(2, '0')}`;
+};
+
 export default function PlaylistDetailPage() {
     const { id } = useParams();
     const router = useRouter();
-    const { user, getPlaylist, updatePlaylist, removeSongFromPlaylist, createPlaylist, addSongToPlaylist } = useAuth();
+    const { user, getPlaylist, updatePlaylist, removeSongFromPlaylist, createPlaylist, addSongToPlaylist, deletePlaylist } = useAuth();
     const { playTrack, currentSong, isPlaying } = usePlayer();
     const { downloadPlaylist, playlistDownloadProgress, isDownloaded } = useOffline();
     const [playlist, setPlaylist] = useState<Playlist | null>(null);
@@ -102,6 +113,17 @@ export default function PlaylistDetailPage() {
         }
     };
 
+    const handleDeletePlaylist = async () => {
+        if (!playlist || user?.uid !== playlist.ownerId) return;
+        if (!confirm(`Delete "${playlist.name}"? This can't be undone.`)) return;
+        try {
+            await deletePlaylist(playlist.id);
+            router.push('/playlists');
+        } catch (err) {
+            console.error('Failed to delete playlist:', err);
+        }
+    };
+
     const handleSave = async () => {
         if (!playlist) return;
         try {
@@ -184,7 +206,15 @@ export default function PlaylistDetailPage() {
     const isOwner = user?.uid === playlist.ownerId;
 
     return (
-        <div className="px-4 md:px-12 pt-4 pb-32 md:py-8 max-w-7xl mx-auto space-y-10">
+        <div className="px-4 md:px-12 pt-4 pb-32 md:py-8 max-w-7xl mx-auto space-y-6">
+            {/* Back to Library */}
+            <button
+                onClick={() => router.push('/playlists')}
+                className="flex items-center gap-2 text-sm font-medium text-[var(--foreground-muted)] hover:text-[var(--foreground)] transition-colors"
+            >
+                <ArrowLeft size={18} /> Your Library
+            </button>
+
             {/* Header section */}
             <header className="flex flex-col md:flex-row gap-6 md:gap-8 md:items-end p-5 md:p-10 rounded-2xl md:rounded-[3rem] bg-gradient-to-b from-[var(--background)] to-transparent border border-[var(--border)] relative overflow-hidden group">
                 <PlaylistCover
@@ -249,6 +279,11 @@ export default function PlaylistDetailPage() {
                                 </button>
                                 <button onClick={handleSave} className="px-5 py-2 bg-[var(--foreground)] text-[var(--background)] rounded-lg font-bold text-[10px] uppercase">Save</button>
                                 <button onClick={() => setIsEditing(false)} className="px-5 py-2 bg-[var(--card-hover)] text-[var(--foreground)] rounded-lg font-bold text-[10px] uppercase">Cancel</button>
+                                {isOwner && (
+                                    <button onClick={handleDeletePlaylist} className="px-5 py-2 bg-red-500/15 text-red-400 rounded-lg font-bold text-[10px] uppercase hover:bg-red-500/25 flex items-center gap-1.5">
+                                        <Trash2 size={13} /> Delete
+                                    </button>
+                                )}
                             </div>
                         </div>
                     ) : (
@@ -364,16 +399,21 @@ export default function PlaylistDetailPage() {
                             </span>
 
                             <div className="flex items-center gap-4 min-w-0">
-                                <img src={song.image} alt="" className="w-12 h-12 rounded-xl object-cover shrink-0" />
+                                <img
+                                    src={getTrackImageUrl(song) || (typeof song.image === 'string' ? song.image : '') || '/logo.png'}
+                                    onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/logo.png'; }}
+                                    alt=""
+                                    className="w-12 h-12 rounded-xl object-cover shrink-0 bg-[var(--surface)]"
+                                />
                                 <div className="min-w-0">
                                     <p className={`font-bold uppercase tracking-tighter truncate ${currentSong?.id === song.id ? 'text-cyan-400' : 'text-[var(--foreground)]'}`}>
-                                        {song.name}
+                                        {decodeHtml(song.name)}
                                     </p>
-                                    <p className="text-xs text-[var(--foreground-muted)] md:hidden">{song.artist}</p>
+                                    <p className="text-xs text-[var(--foreground-muted)] md:hidden">{decodeHtml(song.artist)}</p>
                                 </div>
                             </div>
 
-                            <span className="hidden md:inline text-[var(--foreground-muted)] font-medium truncate">{song.artist}</span>
+                            <span className="hidden md:inline text-[var(--foreground-muted)] font-medium truncate">{decodeHtml(song.artist)}</span>
 
                             <div className="flex items-center gap-4">
                                 {isOwner && (
@@ -385,7 +425,7 @@ export default function PlaylistDetailPage() {
                                     </button>
                                 )}
                                 <span className="text-[var(--foreground-muted)] font-bold tabular-nums text-xs">
-                                    {song.duration || '3:30'}
+                                    {formatDuration(song.duration)}
                                 </span>
                             </div>
                         </div>

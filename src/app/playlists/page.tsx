@@ -113,19 +113,19 @@ export default function PlaylistsPage() {
                 </div>
                 <div className="flex items-center gap-3">
                     <button
-                        onClick={() => setShowSpotify(true)}
-                        className="flex items-center justify-center gap-2 bg-[var(--surface)] hover:bg-[var(--surface-hover)] text-[var(--foreground)] px-5 py-2.5 rounded-full font-semibold text-sm transition-all border border-[var(--border)]"
-                    >
-                        <Download size={16} />
-                        Import playlist
-                    </button>
-                    <button
                         onClick={handleCreate}
                         disabled={isCreating}
                         className="flex items-center justify-center gap-2 bg-[var(--foreground)] text-[var(--background)] px-5 py-2.5 rounded-full font-semibold text-sm hover:opacity-90 transition-all hover:scale-[1.03] active:scale-95 disabled:opacity-50"
                     >
                         {isCreating ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
                         New Playlist
+                    </button>
+                    <button
+                        onClick={() => setShowSpotify(true)}
+                        className="flex items-center justify-center gap-2 bg-[var(--surface)] hover:bg-[var(--surface-hover)] text-[var(--foreground)] px-5 py-2.5 rounded-full font-semibold text-sm transition-all border border-[var(--border)]"
+                    >
+                        <Download size={16} />
+                        Import playlist
                     </button>
                 </div>
             </header>
@@ -247,14 +247,6 @@ export default function PlaylistsPage() {
                                     </div>
                                 </div>
 
-                                <div className="absolute top-4 right-4 flex gap-2">
-                                    <button
-                                        onClick={(e) => handleDelete(p.id, e)}
-                                        className="p-2 bg-[var(--background)]/40 backdrop-blur-md rounded-full text-[var(--foreground-muted)] hover:text-rose-400 transition-colors opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0 duration-300"
-                                    >
-                                        <Trash2 size={14} />
-                                    </button>
-                                </div>
                             </div>
 
                             <div className="space-y-1">
