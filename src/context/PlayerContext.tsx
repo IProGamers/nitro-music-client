@@ -6,6 +6,7 @@ import { useAudioFX } from './AudioFXContext';
 import { useRouter } from 'next/navigation';
 import { getSong as getOfflineSong } from '@/lib/offlineDb';
 import { dedupeSongs, createSongKey } from '@/lib/searchUtils';
+import { recordListen, recordSkip, buildAutoplayQueries, rankByTaste } from '@/lib/recommendations';
 
 const FREE_PLAY_LIMIT = 10;
 const PLAY_COUNT_KEY = 'nitro_free_plays';
@@ -512,6 +513,9 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
             return;
         }
 
+        // Learn from this play to personalize future recommendations.
+        try { recordListen(song); } catch { /* non-critical */ }
+
         // Show loading indicator immediately
         setIsLoadingSong(true);
 
@@ -830,42 +834,49 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
         return scoredIndices[0].idx;
     };
 
-    // Fetch more related songs for autoplay
+    // Fetch more related songs for autoplay — PERSONALIZED.
+    // Blends the seed song with the user's learned taste profile (favourite
+    // artists + language), gathers candidates from a few queries, de-dupes by
+    // title+artist, and ranks the pool by taste affinity so the next track
+    // reflects what the user actually likes — not just a same-name remix.
     const fetchMoreSongsForAutoplay = async (seedSong: any): Promise<any[]> => {
         try {
             const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
-            const songName = seedSong.name || seedSong.title || '';
-            const artistName = seedSong.artists?.primary?.[0]?.name || seedSong.artist || '';
 
-            // Try multiple search strategies for variety
-            const queries = [
-                `${artistName}`, // Same artist songs
-                `${songName}`, // Similar title songs
-                `${artistName} ${songName}`.trim(), // Exact match
-            ];
-
-            const randomQuery = queries[Math.floor(Math.random() * queries.length)];
-            const res = await fetch(`${apiUrl}/api/search/songs?query=${encodeURIComponent(randomQuery)}&limit=15`);
-            if (!res.ok) return [];
-            const data = await res.json();
-
-            if (data.success && data.data?.results) {
-                // Filter out songs already in queue (by exact ID)
-                const seedId = String(seedSong.id || seedSong.songId);
-                const queueIds = new Set(queue.map(s => String(s.id || s.songId)));
-
-                const byId = data.data.results.filter((s: any) =>
-                    String(s.id) !== seedId && !queueIds.has(String(s.id))
-                );
-
-                // Also dedupe by normalized title+artist so we never queue the SAME
-                // song in a different version/remix/live cut. Exclude the seed + queue keys.
-                const excludeKeys = new Set<string>([
-                    createSongKey(seedSong),
-                    ...queue.map(s => createSongKey(s)),
-                ]);
-                return dedupeSongs(byId, excludeKeys);
+            // Taste-aware queries (seed artist, favourite artists, favourite-language hits, seed name)
+            const queries = buildAutoplayQueries(seedSong).slice(0, 3);
+            if (queries.length === 0) {
+                queries.push(seedSong.artists?.primary?.[0]?.name || seedSong.artist || seedSong.name || '');
             }
+
+            // Fetch a couple of queries in parallel for a richer, more varied pool.
+            const responses = await Promise.allSettled(
+                queries.slice(0, 2).map(q =>
+                    fetch(`${apiUrl}/api/search/songs?query=${encodeURIComponent(q)}&limit=12`).then(r => r.ok ? r.json() : null)
+                )
+            );
+
+            const pool: any[] = [];
+            for (const r of responses) {
+                if (r.status === 'fulfilled' && r.value?.success && r.value.data?.results) {
+                    pool.push(...r.value.data.results);
+                }
+            }
+            if (pool.length === 0) return [];
+
+            // Drop the seed + anything already queued (by exact id and by title+artist).
+            const seedId = String(seedSong.id || seedSong.songId);
+            const queueIds = new Set(queue.map(s => String(s.id || s.songId)));
+            const byId = pool.filter((s: any) => String(s.id) !== seedId && !queueIds.has(String(s.id)));
+
+            const excludeKeys = new Set<string>([
+                createSongKey(seedSong),
+                ...queue.map(s => createSongKey(s)),
+            ]);
+            const deduped = dedupeSongs(byId, excludeKeys);
+
+            // Rank by how well each candidate matches the user's taste.
+            return rankByTaste(deduped);
         } catch (e) {
             console.log('Could not fetch more songs for autoplay:', e);
         }
@@ -1037,6 +1048,14 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
     };
 
     const next = () => {
+        // If we're leaving a track well before it ends, treat it as a skip signal
+        // (onEnded fires at ~full duration, so natural completion isn't counted).
+        try {
+            const el = audioRef.current;
+            if (currentSong && el && el.duration && isFinite(el.duration) && el.currentTime < el.duration * 0.8) {
+                recordSkip(currentSong);
+            }
+        } catch { /* non-critical */ }
         cancelCrossfade();
         if (queue.length === 0) return;
 
