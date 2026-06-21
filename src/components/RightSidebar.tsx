@@ -1,15 +1,36 @@
 "use client"
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { usePlayer } from '@/context/PlayerContext';
-import { Music, Mic2, User, ListMusic, ChevronLeft, ChevronRight, ExternalLink, Disc } from 'lucide-react';
+import { Music, Mic2, User, ListMusic, ChevronLeft, ChevronRight, ExternalLink, Disc, Loader2 } from 'lucide-react';
 import Link from 'next/link';
+import { resolveArtistIdByName } from '@/lib/homeData';
 
 export default function RightSidebar() {
     const { currentSong, queue, currentIndex, isRadioMode } = usePlayer();
+    const router = useRouter();
     const [isOpen, setIsOpen] = useState(true);
     const [activeTab, setActiveTab] = useState<'lyrics' | 'queue' | 'artist'>('lyrics');
     const [lyrics, setLyrics] = useState<string | null>(null);
     const [loadingLyrics, setLoadingLyrics] = useState(false);
+    const [resolvingArtist, setResolvingArtist] = useState(false);
+
+    // Open the artist page. Uses the song's artist id when present, otherwise
+    // resolves it by name via JioSaavn search (so the link always works).
+    const goToArtist = async () => {
+        const direct = getArtistId(currentSong);
+        if (direct) { router.push(`/artist/${direct}`); return; }
+        const name = getArtist(currentSong);
+        if (!name || name === 'Unknown') return;
+        setResolvingArtist(true);
+        try {
+            const id = await resolveArtistIdByName(name);
+            if (id) router.push(`/artist/${id}`);
+            else router.push(`/search?q=${encodeURIComponent(name)}`);
+        } finally {
+            setResolvingArtist(false);
+        }
+    };
 
     const getImg = (t: any) => {
         if (!t) return '';
@@ -210,15 +231,16 @@ export default function RightSidebar() {
                                     </h4>
                                 </div>
 
-                                {getArtistId(currentSong) && (
-                                    <Link
-                                        href={`/artist/${getArtistId(currentSong)}`}
-                                        className="flex items-center justify-center gap-2 px-4 py-2.5 bg-[var(--background)] hover:bg-cyan-500/10 border border-[var(--border)] hover:border-cyan-400/50 rounded-xl text-sm font-medium text-[var(--foreground)] transition-all"
+                                {getArtist(currentSong) !== 'Unknown' && (
+                                    <button
+                                        onClick={goToArtist}
+                                        disabled={resolvingArtist}
+                                        className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-[var(--background)] hover:bg-cyan-500/10 border border-[var(--border)] hover:border-cyan-400/50 rounded-xl text-sm font-medium text-[var(--foreground)] transition-all disabled:opacity-60"
                                     >
-                                        <User size={14} />
+                                        {resolvingArtist ? <Loader2 size={14} className="animate-spin" /> : <User size={14} />}
                                         View Artist Page
                                         <ExternalLink size={12} className="text-[var(--foreground-muted)]" />
-                                    </Link>
+                                    </button>
                                 )}
 
                                 {(currentSong.album?.id || currentSong.albumId) && (

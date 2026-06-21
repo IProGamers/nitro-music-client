@@ -6,14 +6,16 @@ import { usePlayer } from '@/context/PlayerContext';
 import {
     Play, Pause, Heart, Clock, MoreHorizontal,
     Trash2, Globe, Lock, Share2, ArrowLeft,
-    Edit2, Plus, Loader2, Music, Shuffle, Download
+    Edit2, Plus, Loader2, Music, Shuffle, Download, Check
 } from 'lucide-react';
 import { useOffline } from '@/context/OfflineContext';
+import { fetchJioSaavnPlaylist } from '@/lib/homeData';
+import { getTrackImageUrl, getTrackArtistName, decodeHtml } from '@/lib/utils';
 
 export default function PlaylistDetailPage() {
     const { id } = useParams();
     const router = useRouter();
-    const { user, getPlaylist, updatePlaylist, removeSongFromPlaylist } = useAuth();
+    const { user, getPlaylist, updatePlaylist, removeSongFromPlaylist, createPlaylist, addSongToPlaylist } = useAuth();
     const { playTrack, currentSong, isPlaying } = usePlayer();
     const { downloadPlaylist, playlistDownloadProgress, isDownloaded } = useOffline();
     const [playlist, setPlaylist] = useState<Playlist | null>(null);
@@ -23,6 +25,10 @@ export default function PlaylistDetailPage() {
     const [editDesc, setEditDesc] = useState('');
     const [editPublic, setEditPublic] = useState(false);
     const [isDownloadingPlaylist, setIsDownloadingPlaylist] = useState(false);
+    // JioSaavn (external) playlist support
+    const [isExternal, setIsExternal] = useState(false);
+    const [saving, setSaving] = useState(false);
+    const [saved, setSaved] = useState(false);
 
     useEffect(() => {
         loadPlaylist();
@@ -38,17 +44,58 @@ export default function PlaylistDetailPage() {
     const loadPlaylist = async () => {
         setLoading(true);
         try {
+            // 1) Try the user's own (Firestore) playlist
             const data = await getPlaylist(id as string);
             if (data) {
                 setPlaylist(data);
+                setIsExternal(false);
                 setEditName(data.name);
                 setEditDesc(data.description);
                 setEditPublic(data.isPublic);
+                return;
+            }
+            // 2) Fall back to a JioSaavn (curated/shared) playlist
+            const ext = await fetchJioSaavnPlaylist(id as string);
+            if (ext) {
+                const mapped: any = {
+                    id: String(ext.id),
+                    name: decodeHtml(ext.name || 'Playlist'),
+                    description: decodeHtml(ext.description || ''),
+                    isPublic: true,
+                    ownerId: '',
+                    ownerName: ext.artists?.[0]?.name ? decodeHtml(ext.artists[0].name) : 'JioSaavn',
+                    songs: (ext.songs || []).map((s: any) => ({
+                        ...s,
+                        id: String(s.id || s.songId),
+                        name: decodeHtml(s.name || s.title || ''),
+                        artist: decodeHtml(getTrackArtistName(s)),
+                        image: getTrackImageUrl(s),
+                    })),
+                };
+                setPlaylist(mapped as Playlist);
+                setIsExternal(true);
             }
         } catch (err) {
             console.error('Failed to load playlist:', err);
         } finally {
             setLoading(false);
+        }
+    };
+
+    // Save a JioSaavn playlist into the user's own library (like / follow).
+    const handleSaveToLibrary = async () => {
+        if (!playlist || !user || saving || saved) return;
+        setSaving(true);
+        try {
+            const newId = await createPlaylist(playlist.name, playlist.description || 'Saved from JioSaavn', false);
+            for (const s of playlist.songs) {
+                try { await addSongToPlaylist(newId, s); } catch { /* skip a failed song */ }
+            }
+            setSaved(true);
+        } catch (err) {
+            console.error('Failed to save playlist:', err);
+        } finally {
+            setSaving(false);
         }
     };
 
@@ -229,6 +276,20 @@ export default function PlaylistDetailPage() {
                                 <Download size={18} className="md:w-6 md:h-6" />
                             )}
                         </button>
+                        {isExternal && user && (
+                            <button
+                                onClick={handleSaveToLibrary}
+                                disabled={saving || saved}
+                                className={`p-3.5 md:p-5 rounded-xl md:rounded-[2rem] transition-all hover:scale-110 active:scale-90 border ${saved
+                                    ? 'bg-green-500/20 text-green-400 border-green-500/30'
+                                    : 'bg-[var(--card-hover)] hover:bg-[var(--border)] text-[var(--foreground)] border-[var(--border)]'}`}
+                                title={saved ? 'Saved to your library' : 'Save to your library'}
+                            >
+                                {saving ? <Loader2 size={18} className="md:w-6 md:h-6 animate-spin" />
+                                    : saved ? <Check size={18} className="md:w-6 md:h-6" />
+                                        : <Heart size={18} className="md:w-6 md:h-6" />}
+                            </button>
+                        )}
                         {isOwner && (
                             <button
                                 onClick={() => setIsEditing(true)}
