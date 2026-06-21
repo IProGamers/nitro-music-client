@@ -1,170 +1,177 @@
 "use client"
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
+import { X, Loader2, Check, ClipboardList, FileUp, ListMusic } from 'lucide-react';
 import {
-    X, Loader2, Check, Music, Download, ExternalLink, AlertCircle,
-} from 'lucide-react';
-import {
-    isSpotifyConfigured, beginSpotifyAuth, getStoredSpotifyToken, clearSpotifyToken,
-    getSpotifyPlaylists, getSpotifyPlaylistTracks, matchInCatalog,
-    type SpotifyPlaylist,
-} from '@/lib/spotify';
+    parsePastedTracks, parseCsvTracks, matchInCatalog, type ImportTrack,
+} from '@/lib/playlistImport';
 
-type ImportState = { running: boolean; playlistId: string | null; matched: number; skipped: number; total: number; done: boolean; createdName?: string };
+type Result = { matched: number; skipped: number; total: number; name: string; missing: string[] } | null;
 
 export default function SpotifyImport({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
     const { createPlaylist, addSongToPlaylist } = useAuth();
-    const [token, setToken] = useState<string | null>(null);
-    const [playlists, setPlaylists] = useState<SpotifyPlaylist[]>([]);
-    const [loading, setLoading] = useState(false);
+    const [mode, setMode] = useState<'paste' | 'csv'>('paste');
+    const [pasteText, setPasteText] = useState('');
+    const [csvTracks, setCsvTracks] = useState<ImportTrack[]>([]);
+    const [csvName, setCsvName] = useState('');
+    const [playlistName, setPlaylistName] = useState('');
+    const [running, setRunning] = useState(false);
+    const [progress, setProgress] = useState({ done: 0, total: 0 });
+    const [result, setResult] = useState<Result>(null);
     const [error, setError] = useState<string | null>(null);
-    const [imp, setImp] = useState<ImportState>({ running: false, playlistId: null, matched: 0, skipped: 0, total: 0, done: false });
 
-    useEffect(() => {
-        if (!isOpen) return;
-        const t = getStoredSpotifyToken();
-        setToken(t);
-        if (t) loadPlaylists(t);
-    }, [isOpen]);
-
-    const loadPlaylists = async (t: string) => {
-        setLoading(true);
-        setError(null);
-        try {
-            setPlaylists(await getSpotifyPlaylists(t));
-        } catch (e: any) {
-            if (e?.message === 'SPOTIFY_UNAUTHORIZED') {
-                clearSpotifyToken();
-                setToken(null);
-            } else {
-                setError('Could not load your Spotify playlists.');
-            }
-        } finally {
-            setLoading(false);
-        }
+    const reset = () => {
+        setPasteText(''); setCsvTracks([]); setCsvName(''); setPlaylistName('');
+        setResult(null); setError(null); setProgress({ done: 0, total: 0 });
     };
 
-    const connect = async () => {
+    const handleClose = () => { if (!running) { reset(); onClose(); } };
+
+    const onCsvFile = async (file: File) => {
         try {
-            window.location.href = await beginSpotifyAuth();
+            const text = await file.text();
+            const tracks = parseCsvTracks(text);
+            setCsvTracks(tracks);
+            setCsvName(file.name);
+            if (!playlistName) setPlaylistName(file.name.replace(/\.csv$/i, ''));
+            if (tracks.length === 0) setError('No tracks found in that CSV.');
+            else setError(null);
         } catch {
-            setError('Could not start Spotify sign-in.');
+            setError('Could not read that file.');
         }
     };
 
-    const importPlaylist = async (pl: SpotifyPlaylist) => {
-        if (!token || imp.running) return;
+    const runImport = async () => {
         setError(null);
-        setImp({ running: true, playlistId: pl.id, matched: 0, skipped: 0, total: 0, done: false });
+        const tracks = mode === 'paste' ? parsePastedTracks(pasteText) : csvTracks;
+        if (tracks.length === 0) { setError('Add some tracks first.'); return; }
+
+        const name = playlistName.trim() || 'Imported Playlist';
+        setRunning(true);
+        setProgress({ done: 0, total: tracks.length });
         try {
-            const tracks = await getSpotifyPlaylistTracks(token, pl.id);
-            const newId = await createPlaylist(pl.name, `Imported from Spotify · ${pl.name}`, false);
+            const newId = await createPlaylist(name, 'Imported into Nitro', false);
             let matched = 0, skipped = 0;
+            const missing: string[] = [];
             for (let i = 0; i < tracks.length; i++) {
                 const song = await matchInCatalog(tracks[i]);
                 if (song) {
                     try { await addSongToPlaylist(newId, song); matched++; }
-                    catch { skipped++; }
+                    catch { skipped++; missing.push(`${tracks[i].name}${tracks[i].artist ? ' — ' + tracks[i].artist : ''}`); }
                 } else {
-                    skipped++; // not in our catalog — skipped, never streamed from Spotify
+                    skipped++;
+                    missing.push(`${tracks[i].name}${tracks[i].artist ? ' — ' + tracks[i].artist : ''}`);
                 }
-                setImp(s => ({ ...s, matched, skipped, total: tracks.length }));
+                setProgress({ done: i + 1, total: tracks.length });
             }
-            setImp({ running: false, playlistId: pl.id, matched, skipped, total: tracks.length, done: true, createdName: pl.name });
-        } catch (e: any) {
-            if (e?.message === 'SPOTIFY_UNAUTHORIZED') { clearSpotifyToken(); setToken(null); }
-            setError('Import failed. Your Spotify session may have expired — reconnect and try again.');
-            setImp(s => ({ ...s, running: false }));
+            setResult({ matched, skipped, total: tracks.length, name, missing });
+        } catch {
+            setError('Import failed — please try again.');
+        } finally {
+            setRunning(false);
         }
     };
 
     if (!isOpen) return null;
 
+    const pasteCount = mode === 'paste' ? parsePastedTracks(pasteText).length : csvTracks.length;
+
     return (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={onClose}>
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={handleClose}>
             <div
-                className="w-full max-w-lg max-h-[85vh] overflow-y-auto bg-[var(--background-secondary)] border border-[var(--border)] rounded-2xl p-6"
+                className="w-full max-w-lg max-h-[88vh] overflow-y-auto bg-[var(--background-secondary)] border border-[var(--border)] rounded-2xl p-6"
                 onClick={e => e.stopPropagation()}
             >
-                <div className="flex items-center justify-between mb-5">
-                    <div className="flex items-center gap-2.5">
-                        <div className="w-9 h-9 rounded-full bg-[#1DB954] flex items-center justify-center">
-                            <Music size={18} className="text-black" />
-                        </div>
-                        <h2 className="text-lg font-bold text-[var(--foreground)]">Import from Spotify</h2>
-                    </div>
-                    <button onClick={onClose} className="p-2 rounded-full hover:bg-[var(--surface-hover)] text-[var(--foreground-muted)]">
+                <div className="flex items-center justify-between mb-1">
+                    <h2 className="text-lg font-bold text-[var(--foreground)]">Import a playlist</h2>
+                    <button onClick={handleClose} disabled={running} className="p-2 rounded-full hover:bg-[var(--surface-hover)] text-[var(--foreground-muted)] disabled:opacity-40">
                         <X size={18} />
                     </button>
                 </div>
+                <p className="text-xs text-[var(--foreground-muted)] mb-5 leading-relaxed">
+                    Bring playlists from Spotify (or anywhere) — no account connection needed. We match each
+                    song to our catalog and skip what we can&apos;t find. Playback stays on Nitro.
+                </p>
 
-                {!isSpotifyConfigured() ? (
-                    <div className="text-center py-8">
-                        <AlertCircle size={28} className="text-amber-400 mx-auto mb-3" />
-                        <p className="text-[var(--foreground)] font-medium mb-2">Spotify import isn&apos;t configured yet</p>
-                        <p className="text-sm text-[var(--foreground-muted)]">
-                            Set <code className="text-[var(--foreground-secondary)]">NEXT_PUBLIC_SPOTIFY_CLIENT_ID</code> and add
-                            <code className="text-[var(--foreground-secondary)]"> /spotify/callback</code> as a redirect URI in your
-                            Spotify Developer dashboard. See docs/SPOTIFY_IMPORT_DESIGN.md.
-                        </p>
-                    </div>
-                ) : error ? (
-                    <div className="text-center py-6">
-                        <AlertCircle size={26} className="text-red-400 mx-auto mb-3" />
-                        <p className="text-sm text-[var(--foreground)] mb-4">{error}</p>
-                        <button onClick={() => token ? loadPlaylists(token) : connect()} className="px-5 py-2.5 rounded-full bg-[var(--surface)] hover:bg-[var(--surface-hover)] text-sm font-medium text-[var(--foreground)]">
-                            Try again
-                        </button>
-                    </div>
-                ) : !token ? (
-                    <div className="text-center py-8">
-                        <p className="text-sm text-[var(--foreground-muted)] mb-6 leading-relaxed">
-                            Connect your Spotify account to import your playlists. We&apos;ll match each song to our
-                            catalog and play it here — songs we can&apos;t find are skipped. (Spotify is used only for
-                            import; playback stays on Nitro.)
-                        </p>
-                        <button onClick={connect} className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-[#1DB954] hover:brightness-110 text-black font-semibold text-sm transition-all">
-                            <ExternalLink size={16} /> Connect with Spotify
-                        </button>
-                    </div>
-                ) : (
-                    <div className="space-y-2">
-                        {imp.done && (
-                            <div className="mb-4 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-sm text-emerald-400 flex items-center gap-2">
-                                <Check size={16} /> Imported &ldquo;{imp.createdName}&rdquo; — {imp.matched} added, {imp.skipped} skipped.
+                {result ? (
+                    <div>
+                        <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-sm text-emerald-400 flex items-center gap-2 mb-4">
+                            <Check size={16} /> Created &ldquo;{result.name}&rdquo; — {result.matched} added, {result.skipped} skipped.
+                        </div>
+                        {result.missing.length > 0 && (
+                            <div className="mb-4">
+                                <p className="text-xs font-semibold text-[var(--foreground-muted)] mb-2">Not found in our catalog ({result.missing.length})</p>
+                                <div className="max-h-40 overflow-y-auto rounded-lg bg-[var(--surface)] p-3 space-y-1">
+                                    {result.missing.slice(0, 100).map((m, i) => (
+                                        <p key={i} className="text-xs text-[var(--foreground-muted)] truncate">{m}</p>
+                                    ))}
+                                </div>
                             </div>
                         )}
-                        {loading ? (
-                            <div className="flex items-center justify-center py-10"><Loader2 size={24} className="animate-spin text-[var(--accent)]" /></div>
-                        ) : playlists.length === 0 ? (
-                            <p className="text-sm text-[var(--foreground-muted)] text-center py-10">No playlists found on your Spotify account.</p>
-                        ) : (
-                            playlists.map(pl => {
-                                const isThis = imp.running && imp.playlistId === pl.id;
-                                return (
-                                    <div key={pl.id} className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-[var(--surface-hover)] transition-colors">
-                                        <div className="w-11 h-11 rounded-md overflow-hidden bg-[var(--surface)] flex-shrink-0">
-                                            {pl.image ? <img src={pl.image} alt="" className="w-full h-full object-cover" /> : <Music size={16} className="text-[var(--foreground-muted)] m-auto mt-3" />}
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-sm font-medium text-[var(--foreground)] truncate">{pl.name}</p>
-                                            <p className="text-xs text-[var(--foreground-muted)] truncate">
-                                                {isThis ? `Matching ${imp.matched + imp.skipped}/${imp.total}…` : `${pl.trackCount} tracks`}
-                                            </p>
-                                        </div>
-                                        <button
-                                            onClick={() => importPlaylist(pl)}
-                                            disabled={imp.running}
-                                            className="px-3 py-1.5 rounded-full bg-[var(--foreground)] text-[var(--background)] text-xs font-semibold hover:opacity-90 disabled:opacity-40 flex items-center gap-1.5"
-                                        >
-                                            {isThis ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
-                                            Import
-                                        </button>
-                                    </div>
-                                );
-                            })
-                        )}
+                        <div className="flex gap-2">
+                            <button onClick={reset} className="flex-1 py-2.5 rounded-full bg-[var(--surface)] hover:bg-[var(--surface-hover)] text-sm font-medium text-[var(--foreground)]">Import another</button>
+                            <button onClick={handleClose} className="flex-1 py-2.5 rounded-full bg-[var(--foreground)] text-[var(--background)] text-sm font-semibold hover:opacity-90">Done</button>
+                        </div>
                     </div>
+                ) : (
+                    <>
+                        {/* Mode toggle */}
+                        <div className="flex gap-2 mb-4">
+                            <button onClick={() => setMode('paste')} className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-colors ${mode === 'paste' ? 'bg-[var(--foreground)] text-[var(--background)]' : 'bg-[var(--surface)] text-[var(--foreground-secondary)] hover:bg-[var(--surface-hover)]'}`}>
+                                <ClipboardList size={15} /> Paste list
+                            </button>
+                            <button onClick={() => setMode('csv')} className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-colors ${mode === 'csv' ? 'bg-[var(--foreground)] text-[var(--background)]' : 'bg-[var(--surface)] text-[var(--foreground-secondary)] hover:bg-[var(--surface-hover)]'}`}>
+                                <FileUp size={15} /> Upload CSV
+                            </button>
+                        </div>
+
+                        {mode === 'paste' ? (
+                            <>
+                                <textarea
+                                    value={pasteText}
+                                    onChange={e => setPasteText(e.target.value)}
+                                    placeholder={"One song per line, e.g.\nPerfect - Ed Sheeran\nKesariya - Arijit Singh"}
+                                    rows={7}
+                                    className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-xl p-3 text-sm text-[var(--foreground)] placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--accent)]/50 resize-none"
+                                />
+                            </>
+                        ) : (
+                            <div>
+                                <label className="flex flex-col items-center justify-center gap-2 py-8 rounded-xl border border-dashed border-[var(--border)] bg-[var(--surface)] cursor-pointer hover:bg-[var(--surface-hover)] transition-colors">
+                                    <FileUp size={22} className="text-[var(--foreground-muted)]" />
+                                    <span className="text-sm text-[var(--foreground)]">{csvName || 'Choose a .csv file'}</span>
+                                    <span className="text-xs text-[var(--foreground-muted)]">{csvTracks.length > 0 ? `${csvTracks.length} tracks detected` : 'Exportify export works great'}</span>
+                                    <input type="file" accept=".csv,text/csv" className="hidden" onChange={e => e.target.files?.[0] && onCsvFile(e.target.files[0])} />
+                                </label>
+                                <p className="text-[11px] text-[var(--foreground-muted)] mt-2 leading-relaxed">
+                                    Tip: open <span className="text-[var(--foreground-secondary)]">exportify.net</span>, sign in with your
+                                    own Spotify, export a playlist to CSV, then upload it here.
+                                </p>
+                            </div>
+                        )}
+
+                        <input
+                            type="text"
+                            value={playlistName}
+                            onChange={e => setPlaylistName(e.target.value)}
+                            placeholder="New playlist name"
+                            className="w-full mt-4 bg-[var(--surface)] border border-[var(--border)] rounded-xl px-4 py-3 text-sm text-[var(--foreground)] placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--accent)]/50"
+                        />
+
+                        {error && <p className="text-sm text-red-400 mt-3">{error}</p>}
+
+                        <button
+                            onClick={runImport}
+                            disabled={running || pasteCount === 0}
+                            className="w-full mt-4 flex items-center justify-center gap-2 py-3 rounded-full bg-[var(--accent)] text-[#04161a] font-semibold text-sm disabled:opacity-40 transition-all"
+                        >
+                            {running ? (
+                                <><Loader2 size={16} className="animate-spin" /> Matching {progress.done}/{progress.total}…</>
+                            ) : (
+                                <><ListMusic size={16} /> Import {pasteCount > 0 ? `${pasteCount} ` : ''}songs</>
+                            )}
+                        </button>
+                    </>
                 )}
             </div>
         </div>

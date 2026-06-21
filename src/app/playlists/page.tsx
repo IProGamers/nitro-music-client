@@ -29,14 +29,6 @@ export default function PlaylistsPage() {
         }
     }, [user]);
 
-    // Auto-open the import modal after returning from the Spotify OAuth redirect.
-    useEffect(() => {
-        if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('spotify') === 'connected') {
-            setShowSpotify(true);
-            window.history.replaceState({}, '', '/playlists');
-        }
-    }, []);
-
     // Refresh playlists after an import closes.
     const closeSpotify = () => {
         setShowSpotify(false);
@@ -122,7 +114,7 @@ export default function PlaylistsPage() {
                         className="flex items-center justify-center gap-2 bg-[var(--surface)] hover:bg-[var(--surface-hover)] text-[var(--foreground)] px-5 py-2.5 rounded-full font-semibold text-sm transition-all border border-[var(--border)]"
                     >
                         <Download size={16} />
-                        Import from Spotify
+                        Import playlist
                     </button>
                     <button
                         onClick={handleCreate}
