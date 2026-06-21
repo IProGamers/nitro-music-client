@@ -5,6 +5,33 @@ export function cn(...inputs: ClassValue[]) {
     return twMerge(clsx(inputs))
 }
 
+const NAMED_ENTITIES: Record<string, string> = {
+    quot: '"', apos: "'", amp: '&', lt: '<', gt: '>', nbsp: ' ',
+    '#39': "'", '#34': '"', '#038': '&', '#160': ' ',
+};
+
+/**
+ * Decode HTML entities in API-provided text (e.g. JioSaavn returns titles like
+ * `PERFECT (From &quot;Sunny&quot;)`). SSR-safe — pure string work, no DOM — so it
+ * can be used anywhere a song/album/artist name is displayed.
+ */
+export function decodeHtml(text: unknown): string {
+    if (text == null) return '';
+    let s = String(text);
+    if (s.indexOf('&') === -1) return s;
+    s = s.replace(/&(#x?[0-9a-fA-F]+|[a-zA-Z]+);/g, (match, code: string) => {
+        if (code[0] === '#') {
+            const num = code[1] === 'x' || code[1] === 'X'
+                ? parseInt(code.slice(2), 16)
+                : parseInt(code.slice(1), 10);
+            return Number.isFinite(num) ? String.fromCodePoint(num) : match;
+        }
+        const named = NAMED_ENTITIES[code.toLowerCase()];
+        return named !== undefined ? named : match;
+    });
+    return s;
+}
+
 type TrackLike = {
     id?: string;
     songId?: string;

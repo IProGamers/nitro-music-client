@@ -2,6 +2,7 @@
 
 import { Music, Play } from 'lucide-react';
 import SongContextMenu from './SongContextMenu';
+import { decodeHtml } from '@/lib/utils';
 
 interface SongCardProps {
     song: any;
@@ -47,8 +48,8 @@ export function SongCard({ song, queue, getImg, getName, getArtist, playTrack }:
                 </div>
             </div>
             <div className="px-0.5">
-                <h3 className="font-semibold text-sm md:text-[15px] text-[var(--foreground)] truncate leading-snug mb-1">{getName(song)}</h3>
-                <p className="text-xs md:text-[13px] text-[var(--foreground-muted)] truncate">{getArtist(song) || 'Unknown Artist'}</p>
+                <h3 className="font-semibold text-sm md:text-[15px] text-[var(--foreground)] truncate leading-snug mb-1">{decodeHtml(getName(song))}</h3>
+                <p className="text-xs md:text-[13px] text-[var(--foreground-muted)] truncate">{decodeHtml(getArtist(song)) || 'Unknown Artist'}</p>
             </div>
         </div>
     );
@@ -73,8 +74,8 @@ export function RecentSongCard({ song, queue, getImg, getName, getArtist, playTr
                 </div>
             </div>
             <div className="flex-1 min-w-0">
-                <h3 className="font-medium text-sm text-[var(--foreground)] truncate">{getName(song)}</h3>
-                <p className="text-xs text-[var(--foreground-muted)] truncate mt-0.5">{getArtist(song)}</p>
+                <h3 className="font-medium text-sm text-[var(--foreground)] truncate">{decodeHtml(getName(song))}</h3>
+                <p className="text-xs text-[var(--foreground-muted)] truncate mt-0.5">{decodeHtml(getArtist(song))}</p>
             </div>
             <div className="opacity-0 md:group-hover:opacity-100 max-md:opacity-100 transition-opacity pr-1" onClick={e => e.stopPropagation()}>
                 <SongContextMenu song={song} queue={queue} />

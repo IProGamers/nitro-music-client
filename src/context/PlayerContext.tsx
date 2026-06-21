@@ -16,7 +16,7 @@ interface PlayerContextType {
     isPlaying: boolean;
     isLoadingSong: boolean;
     queue: any[];
-    playTrack: (song: any, queue?: any[]) => void;
+    playTrack: (song: any, queue?: any[], opts?: { radio?: boolean }) => void;
     playNext: (song: any) => void;
     togglePlay: () => void;
     next: () => void;
@@ -501,7 +501,7 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
         return 'Unknown';
     };
 
-    const playTrack = async (song: any, newQueue?: any[]) => {
+    const playTrack = async (song: any, newQueue?: any[], opts?: { radio?: boolean }) => {
         // Any explicit play cancels an in-flight DJ crossfade and restores volume.
         cancelCrossfade();
         // Check free user play limit
@@ -530,9 +530,30 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
         // Show loading indicator immediately
         setIsLoadingSong(true);
 
-        if (newQueue) {
-            // Check if this is the same queue (navigating within existing queue via next/prev)
-            // If same queue, don't reset the index - it's already set by next() or prev()
+        // Build a diversified, taste-based "radio" around the seed (more from this
+        // artist, your favourite artists, same mood/language, a little discovery —
+        // never name-twins of the seed). Used for explicit single-song plays.
+        const buildRadioQueue = (seed: any) => {
+            setQueue([seed]);
+            setCurrentIndex(0);
+            (async () => {
+                try {
+                    const similarSongs = await fetchMoreSongsForAutoplay(seed);
+                    if (similarSongs.length > 0) {
+                        setQueue(prev => (prev.length === 1 ? [...prev, ...similarSongs] : prev));
+                    }
+                } catch (e) {
+                    console.log('Could not fetch radio:', e);
+                }
+            })();
+        };
+
+        if (opts?.radio) {
+            // Explicit "play this song" (search tap, song card) → fresh personalized radio,
+            // NOT the list it was clicked from.
+            buildRadioQueue(song);
+        } else if (newQueue) {
+            // Playing within a context (album / playlist / section): keep that as the queue.
             const isSameQueue = newQueue === queue || (
                 newQueue.length === queue.length &&
                 newQueue.length > 0 &&
@@ -540,35 +561,16 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
             );
 
             if (!isSameQueue) {
-                // This is a genuinely new queue - update both queue and index
                 setQueue(newQueue);
                 const foundIndex = newQueue.findIndex(s => String(s.songId || s.id) === trackId);
                 setCurrentIndex(foundIndex >= 0 ? foundIndex : 0);
             }
             // If same queue, the queue and index are already correct - do nothing
         } else {
-            // When playing a single song without a queue, auto-fetch similar songs
-            // This only happens when directly clicking on a song (not from next/prev which pass queue)
+            // No queue context (e.g. internal re-play) — only build a radio if we don't
+            // already have a real queue (so queue management / removeFromQueue is unaffected).
             if (queue.length === 0 || (queue.length === 1 && String(queue[0]?.songId || queue[0]?.id) !== trackId)) {
-                setQueue([song]);
-                setCurrentIndex(0);
-
-                // Fetch a diversified, taste-based "radio" for this song (same engine as
-                // end-of-queue autoplay): more from this artist, your favourites, same
-                // mood/language, a little discovery — and never name-twins of the seed.
-                const fetchSimilarSongs = async () => {
-                    try {
-                        const similarSongs = await fetchMoreSongsForAutoplay(song);
-                        if (similarSongs.length > 0) {
-                            setQueue(prev => (prev.length === 1 ? [...prev, ...similarSongs] : prev));
-                        }
-                    } catch (e) {
-                        console.log('Could not fetch similar songs:', e);
-                    }
-                };
-
-                // Don't await - let it run in background
-                fetchSimilarSongs();
+                buildRadioQueue(song);
             }
         }
 

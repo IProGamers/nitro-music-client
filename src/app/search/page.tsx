@@ -9,6 +9,7 @@ import { useMusicData } from '@/context/MusicDataContext';
 import { getDidYouMeanSuggestions, preprocessQuery } from '@/lib/fuzzySearch';
 import { processSearchResults, rankByRelevance, type ProcessedSong, type GroupedSearchResults } from '@/lib/searchUtils';
 import { reRankByTrending, getTopResultConfidence, getTrendingSongForQuery } from '@/lib/trendingSongs';
+import { decodeHtml } from '@/lib/utils';
 
 type SearchResults = {
     songs: { results: any[] };
@@ -324,10 +325,12 @@ export default function SearchPage() {
         });
     };
 
-    // Play song from search results AND save to search history
-    const playFromSearch = (song: any, queue: any[]) => {
+    // Play song from search results AND save to search history.
+    // Plays as a personalized radio (similar songs) rather than queueing the other
+    // search results, matching Spotify.
+    const playFromSearch = (song: any, _queue: any[]) => {
         saveToSearchHistory(song);
-        playTrack(song, queue);
+        playTrack(song, undefined, { radio: true });
     };
 
     // Play song from search history (already saved, just play)
@@ -340,13 +343,7 @@ export default function SearchPage() {
             image: song.image,
             audioUrl: song.audioUrl
         };
-        playTrack(trackData, searchPlayedSongs.map(s => ({
-            id: s.id,
-            name: s.name,
-            artist: s.artist,
-            image: s.image,
-            audioUrl: s.audioUrl
-        })));
+        playTrack(trackData, undefined, { radio: true });
     };
     // Removed direct doSearch to use debounced useEffect above
     const clearSearch = () => {
@@ -366,11 +363,14 @@ export default function SearchPage() {
     };
 
     const getArtistName = (t: any) => {
-        if (t.artists?.primary?.length) return t.artists.primary[0].name;
-        if (t.primaryArtists) return t.primaryArtists;
-        if (t.artist) return t.artist;
+        if (t.artists?.primary?.length) return decodeHtml(t.artists.primary[0].name);
+        if (t.primaryArtists) return decodeHtml(t.primaryArtists);
+        if (t.artist) return decodeHtml(t.artist);
         return 'Unknown Artist';
     };
+
+    // Decoded display title for any result (handles &quot; etc. from the API).
+    const getName = (t: any) => decodeHtml(t?.title || t?.name || '');
 
     // Process and deduplicate songs
     const processedSongs = useMemo((): GroupedSearchResults => {
@@ -508,8 +508,8 @@ export default function SearchPage() {
                                                 </div>
                                             </div>
                                             <div className="flex-1 overflow-hidden">
-                                                <h3 className="font-medium text-sm text-[var(--foreground)] truncate">{song.name}</h3>
-                                                <p className="text-xs text-[var(--foreground-muted)] truncate mt-0.5">{song.artist}</p>
+                                                <h3 className="font-medium text-sm text-[var(--foreground)] truncate">{decodeHtml(song.name)}</h3>
+                                                <p className="text-xs text-[var(--foreground-muted)] truncate mt-0.5">{decodeHtml(song.artist)}</p>
                                             </div>
                                             <button
                                                 onClick={(e) => { e.stopPropagation(); removeSearchPlayedSong(song.id); }}
@@ -643,12 +643,12 @@ export default function SearchPage() {
                                             {/* Large Album Art for Mobile */}
                                             <img
                                                 src={getImg(topSong)}
-                                                alt={topSong.title || topSong.name}
+                                                alt={getName(topSong)}
                                                 className="w-20 h-20 rounded-xl object-cover shadow-xl"
                                             />
                                             <div className="flex-1 flex flex-col justify-center min-w-0">
                                                 <h2 className="text-xl font-black text-[var(--foreground)] truncate">
-                                                    {topSong.title || topSong.name}
+                                                    {getName(topSong)}
                                                 </h2>
                                                 <p className="text-sm text-[var(--foreground-muted)] truncate mt-0.5">
                                                     {getArtistName(topSong)}
@@ -678,13 +678,13 @@ export default function SearchPage() {
                                                     <div className="relative flex-shrink-0">
                                                         <img
                                                             src={getImg(topSong)}
-                                                            alt={topSong.title || topSong.name}
+                                                            alt={getName(topSong)}
                                                             className="w-28 h-28 rounded-lg object-cover shadow-2xl"
                                                         />
                                                     </div>
                                                     <div className="flex-1 pb-1">
                                                         <h2 className="text-3xl font-black text-[var(--foreground)] line-clamp-2 mb-1">
-                                                            {topSong.title || topSong.name}
+                                                            {getName(topSong)}
                                                         </h2>
                                                         <div className="flex items-center gap-2 flex-wrap">
                                                             <span className="text-sm text-[var(--foreground-muted)]">
@@ -718,7 +718,7 @@ export default function SearchPage() {
                                                     >
                                                         <img src={getImg(ps.song)} className="w-10 h-10 rounded object-cover" />
                                                         <div className="flex-1 min-w-0">
-                                                            <p className="text-sm font-medium text-[var(--foreground)] truncate">{ps.song.title || ps.song.name}</p>
+                                                            <p className="text-sm font-medium text-[var(--foreground)] truncate">{getName(ps.song)}</p>
                                                             <p className="text-xs text-[var(--foreground-muted)] truncate">{ps.artistName}</p>
                                                         </div>
                                                         <div className="opacity-0 group-hover/item:opacity-100 transition-opacity">
@@ -761,7 +761,7 @@ export default function SearchPage() {
                                             <div className="relative aspect-square w-full mb-3 rounded-full overflow-hidden bg-[#181818] shadow-2xl transition-transform duration-300 group-hover:scale-105">
                                                 <img src={getImg(artist)} className="w-full h-full object-cover" />
                                             </div>
-                                            <h3 className="font-bold text-sm md:text-base text-[var(--foreground)] group-hover:underline transition-colors truncate w-full">{artist.title || artist.name}</h3>
+                                            <h3 className="font-bold text-sm md:text-base text-[var(--foreground)] group-hover:underline transition-colors truncate w-full">{getName(artist)}</h3>
                                             <p className="text-xs text-[var(--foreground-muted)] mt-1">Artist</p>
                                         </div>
                                     ))}
@@ -806,7 +806,7 @@ export default function SearchPage() {
                                                     <img src={getImg(ps.song)} className="w-full h-full rounded object-cover shadow-lg" />
                                                 </div>
                                                 <div className="flex-1 overflow-hidden">
-                                                    <h3 className="font-bold text-sm text-[var(--foreground)] truncate">{ps.song.title || ps.song.name}</h3>
+                                                    <h3 className="font-bold text-sm text-[var(--foreground)] truncate">{getName(ps.song)}</h3>
                                                     <p className="text-xs text-[var(--foreground-muted)] truncate mt-0.5">
                                                         {ps.artistName}
                                                     </p>
@@ -846,7 +846,7 @@ export default function SearchPage() {
                                             <div className="relative aspect-square w-full mb-3 rounded-full overflow-hidden bg-[var(--surface)] shadow-lg transition-transform duration-300 group-hover:scale-105">
                                                 <img src={getImg(artist)} className="w-full h-full object-cover" />
                                             </div>
-                                            <h3 className="font-semibold text-sm text-[var(--foreground)] group-hover:underline truncate w-full">{artist.title || artist.name}</h3>
+                                            <h3 className="font-semibold text-sm text-[var(--foreground)] group-hover:underline truncate w-full">{getName(artist)}</h3>
                                             <p className="text-xs text-[var(--foreground-muted)] mt-0.5">Artist</p>
                                         </div>
                                     ))}
@@ -873,7 +873,7 @@ export default function SearchPage() {
                                             <div className="relative aspect-square mb-3 overflow-hidden rounded-md bg-[#181818] shadow-2xl transition-transform duration-300 group-hover:scale-105">
                                                 <img src={getImg(album)} className="w-full h-full object-cover" />
                                             </div>
-                                            <h3 className="font-bold text-sm md:text-base text-[var(--foreground)] group-hover:underline transition-colors truncate">{album.title || album.name}</h3>
+                                            <h3 className="font-bold text-sm md:text-base text-[var(--foreground)] group-hover:underline transition-colors truncate">{getName(album)}</h3>
                                             <p className="text-xs text-[var(--foreground-muted)] truncate mt-1">{album.artist || album.year}</p>
                                         </div>
                                     ))}
@@ -905,7 +905,7 @@ export default function SearchPage() {
                                             <div className="relative aspect-square mb-3 overflow-hidden rounded-md bg-[#181818] shadow-2xl transition-transform duration-300 group-hover:scale-105">
                                                 <img src={getImg(playlist)} className="w-full h-full object-cover" />
                                             </div>
-                                            <h3 className="font-bold text-sm md:text-base text-[var(--foreground)] group-hover:underline transition-colors truncate">{playlist.title || playlist.name}</h3>
+                                            <h3 className="font-bold text-sm md:text-base text-[var(--foreground)] group-hover:underline transition-colors truncate">{getName(playlist)}</h3>
                                             <p className="text-xs text-[var(--foreground-muted)] truncate mt-1 line-clamp-2" dangerouslySetInnerHTML={{ __html: playlist.description }}></p>
                                         </div>
                                     ))}

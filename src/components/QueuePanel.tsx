@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { usePlayer } from '@/context/PlayerContext';
 import { ListMusic, Play, Trash2, X, GripVertical, Music } from 'lucide-react';
+import { decodeHtml } from '@/lib/utils';
 
 export default function QueuePanel({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
     const {
@@ -98,10 +99,10 @@ export default function QueuePanel({ isOpen, onClose }: { isOpen: boolean; onClo
                             />
                             <div className="flex-1 min-w-0">
                                 <p className="font-bold text-sm text-[var(--foreground)] truncate">
-                                    {currentSong.name || currentSong.title}
+                                    {decodeHtml(currentSong.name || currentSong.title)}
                                 </p>
                                 <p className="text-[10px] text-[var(--foreground-muted)] truncate">
-                                    {currentSong.artists?.primary?.[0]?.name || currentSong.artist || 'Unknown'}
+                                    {decodeHtml(currentSong.artists?.primary?.[0]?.name || currentSong.artist || 'Unknown')}
                                 </p>
                             </div>
                             <div className="w-3 h-3 rounded-full bg-cyan-400 animate-pulse" />
@@ -164,10 +165,10 @@ export default function QueuePanel({ isOpen, onClose }: { isOpen: boolean; onClo
                                             </div>
                                             <div className="flex-1 min-w-0">
                                                 <p className={`text-xs font-medium truncate ${isCurrent ? 'text-cyan-400' : 'text-[var(--foreground)]'}`}>
-                                                    {song.name || song.title}
+                                                    {decodeHtml(song.name || song.title)}
                                                 </p>
                                                 <p className="text-[9px] text-[var(--foreground-muted)] truncate">
-                                                    {song.artists?.primary?.[0]?.name || song.artist || 'Unknown'}
+                                                    {decodeHtml(song.artists?.primary?.[0]?.name || song.artist || 'Unknown')}
                                                 </p>
                                             </div>
                                         </div>
