@@ -194,20 +194,30 @@ export default function Sidebar() {
 
             {/* Mobile Drawer Removed */}
 
-            {/* Mobile Bottom Nav */}
-            <div className="md:hidden fixed bottom-0 left-0 w-full h-16 bg-[var(--background)]/95 backdrop-blur-lg border-t border-[var(--border)] flex justify-around items-center z-40 pb-safe transition-all duration-300">
-                {links.filter(l => !l.desktopOnly).map(l => {
-                    const Icon = l.icon;
-                    const active = pathname === l.href;
-                    if (pathname === '/upgrade' || pathname === '/auth' || userProfile?.arihantMode) return null;
-                    return (
-                        <Link key={l.name} href={l.href} className={`flex flex-col items-center gap-1 py-2 px-4 rounded-lg transition-colors ${active ? 'text-cyan-400' : 'text-[var(--foreground-muted)]'}`}>
-                            <Icon size={22} strokeWidth={active ? 2.5 : 2} />
-                            <span className="text-[10px] font-medium">{l.name}</span>
-                        </Link>
-                    )
-                })}
-            </div>
+            {/* Mobile Bottom Nav — Home, Search, Library, Profile (Spotify-style) */}
+            {pathname !== '/auth' && !userProfile?.arihantMode && (
+                <div className="md:hidden fixed bottom-0 left-0 w-full h-16 bg-[var(--background)]/95 backdrop-blur-lg border-t border-[var(--border)] flex justify-around items-center z-40 pb-safe">
+                    {[
+                        { name: 'Home', href: '/', icon: Home },
+                        { name: 'Search', href: '/search', icon: Search },
+                        { name: 'Library', href: '/playlists', icon: ListMusic },
+                        { name: 'Profile', href: mounted && user ? '/profile' : '/auth', icon: User },
+                    ].map(l => {
+                        const Icon = l.icon;
+                        const active = pathname === l.href;
+                        return (
+                            <Link
+                                key={l.name}
+                                href={l.href}
+                                className={`flex flex-col items-center gap-1 py-2 px-4 rounded-lg transition-colors ${active ? 'text-[var(--accent)]' : 'text-[var(--foreground-muted)]'}`}
+                            >
+                                <Icon size={22} strokeWidth={active ? 2.5 : 2} />
+                                <span className="text-[10px] font-medium">{l.name}</span>
+                            </Link>
+                        );
+                    })}
+                </div>
+            )}
 
             {/* Friends Panel Modal */}
             <FriendsPanel isOpen={showFriendsPanel} onClose={() => setShowFriendsPanel(false)} />
