@@ -10,6 +10,7 @@ import { getDidYouMeanSuggestions, preprocessQuery } from '@/lib/fuzzySearch';
 import { processSearchResults, rankByRelevance, type ProcessedSong, type GroupedSearchResults } from '@/lib/searchUtils';
 import { reRankByTrending, getTopResultConfidence, getTrendingSongForQuery } from '@/lib/trendingSongs';
 import { decodeHtml } from '@/lib/utils';
+import { fetchLastfmSimilarSongs } from '@/lib/recommendations';
 
 type SearchResults = {
     songs: { results: any[] };
@@ -62,6 +63,8 @@ export default function SearchPage() {
     const [didYouMeanOptions, setDidYouMeanOptions] = useState<{ query: string; artist: string; confidence: number }[]>([]);
     // Typo-correction pill: when we auto-correct the query before searching.
     const [correctedFrom, setCorrectedFrom] = useState<{ from: string; to: string } | null>(null);
+    // Last.fm "You might also like" — similar to the top search result.
+    const [similarSongs, setSimilarSongs] = useState<any[]>([]);
 
     // Debounce query — short delay so results feel live as you type.
     useEffect(() => {
@@ -379,6 +382,18 @@ export default function SearchPage() {
         }
         return processSearchResults(results.songs.results);
     }, [results?.songs?.results]);
+
+    // Fetch "You might also like" (Last.fm similar to the top result). Runs once per
+    // result set; no-op / empty when Last.fm isn't configured.
+    useEffect(() => {
+        const top = processedSongs.songs[0]?.song;
+        if (!top) { setSimilarSongs([]); return; }
+        let cancelled = false;
+        fetchLastfmSimilarSongs(top)
+            .then(songs => { if (!cancelled) setSimilarSongs(songs.slice(0, 12)); })
+            .catch(() => { if (!cancelled) setSimilarSongs([]); });
+        return () => { cancelled = true; };
+    }, [processedSongs.songs[0]?.song?.id]);
 
     const handleArtistClick = (artistId: string) => {
         router.push(`/artist/${artistId}`);
@@ -822,6 +837,35 @@ export default function SearchPage() {
                                         <div className="animate-spin w-6 h-6 border-2 border-cyan-400 border-t-transparent rounded-full"></div>
                                     </div>
                                 )}
+                            </section>
+                        )}
+
+                        {/* You might also like — Last.fm similar to the top result */}
+                        {activeTab === 'all' && similarSongs.length > 0 && (
+                            <section>
+                                <div className="flex items-center justify-between mb-4">
+                                    <h2 className="text-xl md:text-2xl font-bold text-[var(--foreground)] flex items-center gap-3">
+                                        <Sparkles className="text-cyan-400" size={22} /> You might also like
+                                    </h2>
+                                </div>
+                                <div className="flex gap-3 md:gap-4 overflow-x-auto no-scrollbar -mx-4 px-4 md:mx-0 md:px-0">
+                                    {similarSongs.map((s: any) => (
+                                        <div
+                                            key={`sim-${s.id || s.songId}`}
+                                            onClick={() => playFromSearch(s, similarSongs)}
+                                            className="group cursor-pointer w-36 md:w-44 flex-shrink-0"
+                                        >
+                                            <div className="relative aspect-square rounded-lg overflow-hidden mb-2.5 bg-[var(--surface)] shadow-lg">
+                                                <img src={getImg(s)} alt={getName(s)} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                                                <div className="absolute bottom-2 right-2 w-10 h-10 rounded-full flex items-center justify-center shadow-xl translate-y-2 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all" style={{ background: 'var(--accent)' }}>
+                                                    <Play size={16} fill="#04161a" className="ml-0.5 text-[#04161a]" />
+                                                </div>
+                                            </div>
+                                            <h3 className="font-semibold text-sm text-[var(--foreground)] truncate">{getName(s)}</h3>
+                                            <p className="text-xs text-[var(--foreground-muted)] truncate mt-0.5">{getArtistName(s)}</p>
+                                        </div>
+                                    ))}
+                                </div>
                             </section>
                         )}
 
