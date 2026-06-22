@@ -117,7 +117,7 @@ export default function FeatureGuidePage() {
     return (
         <div className="min-h-screen bg-[var(--background)]">
             {/* Header */}
-            <header className="sticky top-0 z-50 bg-[var(--background)]/80 backdrop-blur-xl border-b border-[var(--border)] px-4 py-4">
+            <header className="sticky top-16 md:top-0 z-50 bg-[var(--background)]/80 backdrop-blur-xl border-b border-[var(--border)] px-4 py-4">
                 <div className="max-w-2xl mx-auto flex items-center gap-4">
                     <button
                         onClick={() => router.back()}

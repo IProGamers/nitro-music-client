@@ -698,24 +698,8 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
                 }
             }
 
-            // Save to server history
-            const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
-            fetch(`${apiUrl}/api/history`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    songId: trackId,
-                    name: String(song.name || song.title || 'Unknown'),
-                    artist: String(getArtist(song)),
-                    image: String(getImg(song)),
-                    audioUrl: String(existingAudioUrl)
-                })
-            }).then(res => {
-                // Server history is optional - Firebase is primary storage
-                if (res.ok) console.log("Saved to history");
-            }).catch(() => { /* Ignore - Firebase is primary storage */ });
-
-            // Also save to Firebase for signed-in users
+            // Play history is stored in Firebase only (no server database).
+            // Save to Firebase for signed-in users
             if (user) {
                 saveToPlayHistory({
                     id: trackId,
@@ -762,22 +746,8 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
                         setIsPlaying(false);
                     }
 
-                    fetch(`${apiUrl}/api/history`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            songId: String(fullSong.id),
-                            name: String(fullSong.name),
-                            artist: String(getArtist(fullSong)),
-                            image: String(getImg(fullSong)),
-                            audioUrl: String(fullAudioUrl)
-                        })
-                    }).then(res => {
-                        // Server history is optional - Firebase is primary storage
-                        if (res.ok) console.log("Saved to history");
-                    }).catch(() => { /* Ignore - Firebase is primary storage */ });
-
-                    // Also save to Firebase for signed-in users
+                    // Play history is stored in Firebase only (no server database).
+                    // Save to Firebase for signed-in users
                     if (user) {
                         saveToPlayHistory({
                             id: String(fullSong.id),

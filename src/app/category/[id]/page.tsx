@@ -126,7 +126,7 @@ export default function CategoryPage() {
     return (
         <div className="min-h-screen bg-[var(--background)] pb-32">
             {/* Header */}
-            <div className="sticky top-0 z-40 bg-[var(--background)]/95 backdrop-blur-xl border-b border-[var(--border)]">
+            <div className="sticky top-16 md:top-0 z-40 bg-[var(--background)]/95 backdrop-blur-xl border-b border-[var(--border)]">
                 <div className="flex items-center gap-4 px-4 py-3.5 max-w-[1100px] mx-auto">
                     <button
                         onClick={() => router.back()}

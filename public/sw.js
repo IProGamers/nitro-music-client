@@ -186,34 +186,32 @@ async function handleRequest(request, url) {
 }
 
 async function handleNavigationRequest(request) {
+    // ONLINE → always serve the current app (no stale UI). But never hang on a slow
+    // connection: if the network hasn't answered in 3s, fall back to cache. OFFLINE →
+    // serve the cached shell so the app still opens (downloaded songs play from
+    // on-device storage, independent of this cache).
     try {
-        // Try network first
-        const networkResponse = await fetch(request);
+        const networkResponse = await Promise.race([
+            fetch(request),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('slow-network')), 3000)),
+        ]);
 
-        if (networkResponse.ok) {
-            // Cache the fresh response
+        if (networkResponse && networkResponse.ok) {
             const cache = await caches.open(CACHE_NAME);
             cache.put(request, networkResponse.clone());
+            return networkResponse;
         }
-
-        return networkResponse;
     } catch (error) {
-        // Network failed - try cache
-        const cachedResponse = await caches.match(request);
-        if (cachedResponse) {
-            console.log('[SW] 📱 Serving from cache:', request.url);
-            return cachedResponse;
-        }
-
-        // Try the offline page
-        const offlineResponse = await caches.match(OFFLINE_URL);
-        if (offlineResponse) {
-            return offlineResponse;
-        }
-
-        // Ultimate fallback
-        return createOfflineFallback();
+        // network failed or timed out — fall through to cache
     }
+
+    const cachedResponse = await caches.match(request);
+    if (cachedResponse) return cachedResponse;
+
+    const offlineResponse = await caches.match(OFFLINE_URL);
+    if (offlineResponse) return offlineResponse;
+
+    return createOfflineFallback();
 }
 
 async function handleStaticRequest(request, url) {

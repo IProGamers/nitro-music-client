@@ -25,7 +25,7 @@ export default function MobileHeader() {
 
     return (
         <>
-            <div className="md:hidden w-full h-16 bg-[var(--background)]/90 backdrop-blur-xl border-b border-[var(--border)] flex items-center justify-between px-4 shrink-0 z-40 transition-all duration-300">
+            <div className="md:hidden sticky top-0 w-full h-16 bg-[var(--background)]/90 backdrop-blur-xl border-b border-[var(--border)] flex items-center justify-between px-4 shrink-0 z-40 transition-all duration-300">
                 <Link href="/" className="flex items-center gap-3">
                     <img src="/logo.png" className="w-8 h-8 rounded-lg shadow-lg" alt="Logo" />
                     <div className="flex items-baseline gap-1.5">

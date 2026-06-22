@@ -77,7 +77,7 @@ function SectionContent() {
     return (
         <div className="min-h-screen bg-[var(--background)] pb-32">
             {/* Header with Back Button */}
-            <div className="sticky top-0 z-40 bg-[var(--background)]/95 backdrop-blur-xl border-b border-[var(--border)]">
+            <div className="sticky top-16 md:top-0 z-40 bg-[var(--background)]/95 backdrop-blur-xl border-b border-[var(--border)]">
                 <div className="flex items-center gap-4 px-4 py-4 max-w-[1600px] mx-auto">
                     <button
                         onClick={() => router.back()}
