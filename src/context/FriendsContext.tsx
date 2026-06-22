@@ -16,7 +16,11 @@ import {
     arrayRemove
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { io, Socket } from 'socket.io-client';
 import { useAuth, SubscriptionTier, UserStatus } from './AuthContext';
+
+// Realtime presence runs over the same Socket.IO server as Listen Together.
+const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3333';
 
 // Friend request status types
 export type FriendRequestStatus = 'pending' | 'accepted' | 'declined';
@@ -97,6 +101,7 @@ interface FriendsContextType {
     removeListener: (userId: string) => Promise<void>;
     banListener: (userId: string) => Promise<void>;
     roomInvites: { roomId: string; hostName: string; hostId: string }[];
+    dismissRoomInvite: (roomId: string) => Promise<void>;
     getFriendStatus: (userId: string) => 'none' | 'pending_sent' | 'pending_received' | 'friends';
     getOnlineFriends: () => Friend[];
     refreshFriends: () => Promise<void>;
@@ -139,6 +144,14 @@ export const FriendsProvider = ({ children }: { children: React.ReactNode }) => 
     const roomUnsubRef = useRef<(() => void) | null>(null);
     const lastSyncRef = useRef<number>(0);
     const friendsFetchedRef = useRef<boolean>(false);
+
+    // ---- Live presence (socket-driven) ----
+    // A friend is "online" only while they hold a live socket. This is the source
+    // of truth — it replaces the old Firestore `status === 'online'` flag, which
+    // got stuck "online" forever when a user closed the app without a clean logout.
+    const [onlineIds, setOnlineIds] = useState<Set<string>>(new Set());
+    const presenceSocketRef = useRef<Socket | null>(null);
+    const friendIdsRef = useRef<string[]>([]);
 
     // Binary access: any approved/admin user (i.e. anyone past the gate) can use it.
     const canUseListenTogether = useMemo(() => {
@@ -247,8 +260,6 @@ export const FriendsProvider = ({ children }: { children: React.ReactNode }) => 
                 if (friendSnap.exists()) {
                     const data = friendSnap.data();
                     const lastActive = data.lastActive?.toDate?.() || new Date();
-                    const isOnline = data.status === 'online' ||
-                        (Date.now() - lastActive.getTime() < 5 * 60 * 1000);
 
                     const friend: Friend = {
                         id: friendId,
@@ -259,7 +270,8 @@ export const FriendsProvider = ({ children }: { children: React.ReactNode }) => 
                         tier: data.tier || 'NITRO_CORE',
                         nowPlaying: data.nowPlaying || null,
                         lastActive: lastActive,
-                        isOnline
+                        // Real online state comes from the presence socket (onlineIds overlay below).
+                        isOnline: false
                     };
 
                     friendsData.push(friend);
@@ -286,6 +298,73 @@ export const FriendsProvider = ({ children }: { children: React.ReactNode }) => 
             setLoadingFriends(false);
         }
     }, [user?.uid, refreshFriends]);
+
+    // ========== LIVE PRESENCE SOCKET ==========
+    // Open a lightweight socket purely for presence. It's separate from the Listen
+    // Together socket (RoomContext) so neither feature can break the other.
+    useEffect(() => {
+        if (!user) {
+            if (presenceSocketRef.current) {
+                presenceSocketRef.current.disconnect();
+                presenceSocketRef.current = null;
+            }
+            setOnlineIds(new Set());
+            return;
+        }
+
+        const s = io(SOCKET_URL, {
+            transports: ['websocket', 'polling'],
+            reconnection: true,
+            reconnectionDelay: 2000,
+        });
+        presenceSocketRef.current = s;
+
+        s.on('connect', () => {
+            s.emit('presence:hello', { userId: user.uid, friendIds: friendIdsRef.current });
+        });
+        s.on('presence:state', (data: { online?: string[] }) => {
+            setOnlineIds(new Set(Array.isArray(data?.online) ? data.online : []));
+        });
+        s.on('presence:update', (data: { userId?: string; online?: boolean }) => {
+            if (!data || typeof data.userId !== 'string') return;
+            setOnlineIds(prev => {
+                const next = new Set(prev);
+                if (data.online) next.add(data.userId!);
+                else next.delete(data.userId!);
+                return next;
+            });
+        });
+
+        let loggedErr = false;
+        s.on('connect_error', (err) => {
+            // Presence is optional — if the realtime server is asleep/unreachable,
+            // everyone just shows offline (honest) instead of falsely online.
+            if (!loggedErr) {
+                console.log(`[Presence] server unreachable at ${SOCKET_URL} (${err.message})`);
+                loggedErr = true;
+            }
+        });
+
+        return () => {
+            s.disconnect();
+            presenceSocketRef.current = null;
+        };
+    }, [user?.uid]);
+
+    // Keep the server's watch list in sync as our friend list changes.
+    useEffect(() => {
+        const ids = friends.map(f => f.id);
+        friendIdsRef.current = ids;
+        const s = presenceSocketRef.current;
+        if (s && s.connected) s.emit('presence:watch', { friendIds: ids });
+    }, [friends]);
+
+    // Overlay live presence onto the friends list so every consumer sees accurate
+    // online state without each one having to know about the socket.
+    const friendsView = useMemo(
+        () => friends.map(f => ({ ...f, isOnline: onlineIds.has(f.id) })),
+        [friends, onlineIds]
+    );
 
     // ========== LISTEN ROOM LISTENER ==========
     useEffect(() => {
@@ -368,23 +447,31 @@ export const FriendsProvider = ({ children }: { children: React.ReactNode }) => 
             return;
         }
 
-        const fetchInvites = async () => {
-            try {
-                const invitesRef = collection(db, 'users', user.uid, 'roomInvites');
-                const snapshot = await getDocs(invitesRef);
-                const invites = snapshot.docs.map(doc => ({
-                    roomId: doc.id,
-                    hostName: doc.data().hostName,
-                    hostId: doc.data().hostId
-                }));
-                setRoomInvites(invites);
-            } catch (error) {
-                if (!isQuotaError(error)) console.error('Error fetching room invites:', error);
-            }
-        };
-
-        fetchInvites();
+        // Real-time so an invite appears instantly and PERSISTS until the friend
+        // joins or dismisses it (no auto-expiry / no need to re-invite).
+        const invitesRef = collection(db, 'users', user.uid, 'roomInvites');
+        const unsub = onSnapshot(invitesRef, (snapshot) => {
+            setRoomInvites(snapshot.docs.map(doc => ({
+                roomId: doc.id,
+                hostName: doc.data().hostName,
+                hostId: doc.data().hostId
+            })));
+        }, (error) => {
+            if (!isQuotaError(error)) console.error('Error watching room invites:', error);
+        });
+        return () => unsub();
     }, [user?.uid, canUseListenTogether]);
+
+    // Clear an invite once it's been joined or dismissed.
+    const dismissRoomInvite = useCallback(async (roomId: string) => {
+        if (!user) return;
+        try {
+            await deleteDoc(doc(db, 'users', user.uid, 'roomInvites', roomId));
+            setRoomInvites(prev => prev.filter(i => i.roomId !== roomId));
+        } catch (error) {
+            if (!isQuotaError(error)) console.error('Error dismissing room invite:', error);
+        }
+    }, [user]);
 
     // ========== FRIEND REQUEST ACTIONS ==========
     const sendFriendRequest = useCallback(async (toUserId: string, toUserName: string) => {
@@ -692,11 +779,11 @@ export const FriendsProvider = ({ children }: { children: React.ReactNode }) => 
     }, [friends, sentRequests, pendingRequests]);
 
     const getOnlineFriends = useCallback(() => {
-        return friends.filter(f => f.isOnline && f.status !== 'invisible');
-    }, [friends]);
+        return friendsView.filter(f => f.isOnline && f.status !== 'invisible');
+    }, [friendsView]);
 
     const value = useMemo(() => ({
-        friends,
+        friends: friendsView,
         loadingFriends,
         pendingRequests,
         sentRequests,
@@ -718,15 +805,16 @@ export const FriendsProvider = ({ children }: { children: React.ReactNode }) => 
         removeListener,
         banListener,
         roomInvites,
+        dismissRoomInvite,
         getFriendStatus,
         getOnlineFriends,
         refreshFriends
     }), [
-        friends, loadingFriends, pendingRequests, sentRequests, loadingRequests,
+        friendsView, loadingFriends, pendingRequests, sentRequests, loadingRequests,
         sendFriendRequest, acceptFriendRequest, declineFriendRequest, cancelFriendRequest, removeFriend,
         activeRoom, isInRoom, canUseListenTogether, createListenRoom, joinListenRoom, leaveListenRoom,
         syncPlayback, inviteFriendToRoom, transferHost, removeListener, banListener,
-        roomInvites, getFriendStatus, getOnlineFriends, refreshFriends
+        roomInvites, dismissRoomInvite, getFriendStatus, getOnlineFriends, refreshFriends
     ]);
 
     return (

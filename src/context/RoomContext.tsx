@@ -2,6 +2,8 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { useAuth } from './AuthContext';
+import { db } from '@/lib/firebase';
+import { doc, setDoc } from 'firebase/firestore';
 
 // Listen Room interface
 export interface ListenRoom {
@@ -42,6 +44,7 @@ interface RoomContextType {
     transferHost: (newHostId: string) => Promise<void>;
     removeListener: (userId: string) => Promise<void>;
     banListener: (userId: string) => Promise<void>;
+    inviteToRoom: (friendId: string) => Promise<void>;
 
     // Admin
     getAllRooms: () => Promise<ListenRoom[]>;
@@ -313,6 +316,19 @@ export const RoomProvider = ({ children }: { children: React.ReactNode }) => {
         });
     }, [socket]);
 
+    // Invite a friend to the current room. Drops a Firestore "invite" doc on the
+    // friend (they aren't on the socket room yet) which they see in real time and
+    // join from. Persists until they join or dismiss it.
+    const inviteToRoom = useCallback(async (friendId: string): Promise<void> => {
+        if (!user || !activeRoom) throw new Error('No active room');
+        await setDoc(doc(db, 'users', friendId, 'roomInvites', activeRoom.id), {
+            roomId: activeRoom.id,
+            hostName: userProfile?.displayName || activeRoom.hostName || 'A friend',
+            hostId: user.uid,
+            createdAt: new Date()
+        });
+    }, [user, userProfile, activeRoom]);
+
     // Get All Rooms (Admin)
     const getAllRooms = useCallback(async (): Promise<ListenRoom[]> => {
         if (!socket) return [];
@@ -337,12 +353,13 @@ export const RoomProvider = ({ children }: { children: React.ReactNode }) => {
         transferHost,
         removeListener,
         banListener,
+        inviteToRoom,
         getAllRooms,
         getRoomInfo
     }), [
         isConnected, activeRoom, isInRoom, isHost,
         createRoom, joinRoom, leaveRoom, syncPlayback,
-        transferHost, removeListener, banListener, getAllRooms, getRoomInfo
+        transferHost, removeListener, banListener, inviteToRoom, getAllRooms, getRoomInfo
     ]);
 
     return (

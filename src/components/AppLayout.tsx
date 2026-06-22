@@ -7,6 +7,7 @@ import UsernameGuard from "@/components/UsernameGuard";
 import ApprovalGuard from "@/components/ApprovalGuard";
 import ArihantGuard from "@/components/ArihantGuard";
 import Player from "@/components/Player";
+import RoomInviteNotifications from "@/components/RoomInviteNotifications";
 import React from "react";
 
 /**
@@ -54,6 +55,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       
       {/* Global Persistence Components */}
       <Player />
+      <RoomInviteNotifications />
     </div>
   );
 }

@@ -44,7 +44,7 @@ export default function FriendsPanel({ isOpen, onClose }: FriendsPanelProps) {
     } = useFriends();
 
     // Get activeRoom from RoomContext (Socket.io)
-    const { activeRoom, isInRoom } = useRoom();
+    const { activeRoom, isInRoom, inviteToRoom } = useRoom();
 
     const [activeTab, setActiveTab] = useState<Tab>('friends');
     const [searchQuery, setSearchQuery] = useState('');
@@ -125,19 +125,23 @@ export default function FriendsPanel({ isOpen, onClose }: FriendsPanelProps) {
         }
     };
 
-    // Invite by copying room link (Socket.io based - no Firebase invite)
+    // Real in-app invite: drops a persistent invite the friend sees live and joins
+    // from (falls back to copying the link if the invite write fails).
     const handleInviteToRoom = async (friendId: string) => {
         if (!activeRoom) return;
         setActionLoading(`invite_${friendId}`);
         try {
-            // Copy room link to clipboard
-            const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
-            const shareUrl = `${baseUrl}/join/${activeRoom.id}`;
-            await navigator.clipboard.writeText(shareUrl);
+            await inviteToRoom(friendId);
             setInviteSuccess(friendId);
             setTimeout(() => setInviteSuccess(null), 2000);
-        } catch (err: any) {
-            alert('Link copied! Share it with your friend.');
+        } catch (err) {
+            console.error('Invite failed, copying link instead:', err);
+            try {
+                const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+                await navigator.clipboard.writeText(`${baseUrl}/join/${activeRoom.id}`);
+                setInviteSuccess(friendId);
+                setTimeout(() => setInviteSuccess(null), 2000);
+            } catch { /* noop */ }
         } finally {
             setActionLoading(null);
         }
