@@ -545,9 +545,8 @@ export default function AdminPage() {
     // Stats calculation
     const stats = {
         totalUsers: users.length,
-        coreUsers: users.filter(u => u.tier === 'NITRO_CORE').length,
-        eliteUsers: users.filter(u => u.tier === 'NITRO_ELITE').length,
-        supremeUsers: users.filter(u => u.tier === 'NITRO_SUPREME').length,
+        approvedUsers: users.filter(u => u.isApproved && !u.isAdmin).length,
+        pendingUsers: users.filter(u => !u.isApproved && !u.isAdmin).length,
         adminUsers: users.filter(u => u.isAdmin).length,
         totalPlaylists: playlists.length,
         publicPlaylists: playlists.filter(p => p.isPublic).length,
@@ -669,7 +668,7 @@ export default function AdminPage() {
                 {activeTab === 'overview' && (
                     <div className="space-y-8">
                         {/* Stats Grid */}
-                        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 md:gap-4">
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
                             <div className="p-4 md:p-6 bg-[var(--card)] border border-[var(--border)] rounded-2xl">
                                 <div className="flex items-center gap-2 mb-2 md:mb-3">
                                     <Users size={16} className="text-cyan-400 md:w-5 md:h-5" />
@@ -677,66 +676,26 @@ export default function AdminPage() {
                                 </div>
                                 <p className="text-xl md:text-3xl font-bold text-[var(--foreground)]">{stats.totalUsers}</p>
                             </div>
-                            <div className="p-4 md:p-6 bg-[var(--card)] border border-[var(--border)] rounded-2xl">
+                            <div className="p-4 md:p-6 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl">
                                 <div className="flex items-center gap-2 mb-2 md:mb-3">
-                                    <Star size={16} className="text-[var(--foreground-muted)] md:w-5 md:h-5" />
-                                    <span className="text-[var(--foreground-muted)] text-[10px] md:text-sm">Core Plan</span>
+                                    <Check size={16} className="text-emerald-400 md:w-5 md:h-5" />
+                                    <span className="text-[var(--foreground-muted)] text-[10px] md:text-sm">Approved</span>
                                 </div>
-                                <p className="text-xl md:text-3xl font-bold text-zinc-400">{stats.coreUsers}</p>
-                            </div>
-                            <div className="p-4 md:p-6 bg-purple-500/10 border border-purple-500/20 rounded-2xl">
-                                <div className="flex items-center gap-2 mb-2 md:mb-3">
-                                    <Zap size={16} className="text-purple-400 md:w-5 md:h-5" />
-                                    <span className="text-[var(--foreground-muted)] text-[10px] md:text-sm">Elite Plan</span>
-                                </div>
-                                <p className="text-xl md:text-3xl font-bold text-purple-400">{stats.eliteUsers}</p>
+                                <p className="text-xl md:text-3xl font-bold text-emerald-400">{stats.approvedUsers}</p>
                             </div>
                             <div className="p-4 md:p-6 bg-amber-500/10 border border-amber-500/20 rounded-2xl">
                                 <div className="flex items-center gap-2 mb-2 md:mb-3">
-                                    <Crown size={16} className="text-amber-400 md:w-5 md:h-5" />
-                                    <span className="text-[var(--foreground-muted)] text-[10px] md:text-sm">Supreme Plan</span>
+                                    <Clock size={16} className="text-amber-400 md:w-5 md:h-5" />
+                                    <span className="text-[var(--foreground-muted)] text-[10px] md:text-sm">Pending</span>
                                 </div>
-                                <p className="text-xl md:text-3xl font-bold text-amber-400">{stats.supremeUsers}</p>
+                                <p className="text-xl md:text-3xl font-bold text-amber-400">{stats.pendingUsers}</p>
                             </div>
-                            <div className="p-4 md:p-6 bg-cyan-500/10 border border-cyan-500/20 rounded-2xl col-span-2 md:col-span-1">
+                            <div className="p-4 md:p-6 bg-cyan-500/10 border border-cyan-500/20 rounded-2xl">
                                 <div className="flex items-center gap-2 mb-2 md:mb-3">
                                     <Shield size={16} className="text-cyan-400 md:w-5 md:h-5" />
                                     <span className="text-[var(--foreground-muted)] text-[10px] md:text-sm">System Admins</span>
                                 </div>
                                 <p className="text-xl md:text-3xl font-bold text-cyan-400">{stats.adminUsers}</p>
-                            </div>
-                        </div>
-
-                        {/* Tier Distribution */}
-                        <div className="p-6 bg-[var(--card)] border border-[var(--border)] rounded-2xl">
-                            <h3 className="text-lg font-bold text-[var(--foreground)] mb-4 flex items-center gap-2">
-                                <TrendingUp size={20} className="text-cyan-400" />
-                                Subscription Distribution
-                            </h3>
-                            <div className="space-y-4">
-                                {(['NITRO_CORE', 'NITRO_ELITE', 'NITRO_SUPREME'] as SubscriptionTier[]).map(tier => {
-                                    const info = TIER_INFO[tier];
-                                    const count = users.filter(u => u.tier === tier).length;
-                                    const percentage = stats.totalUsers > 0 ? (count / stats.totalUsers) * 100 : 0;
-
-                                    return (
-                                        <div key={tier}>
-                                            <div className="flex items-center justify-between mb-2">
-                                                <div className="flex items-center gap-2">
-                                                    {info.icon}
-                                                    <span className={`font-medium ${info.color}`}>{info.name}</span>
-                                                </div>
-                                                <span className="text-[var(--foreground-muted)] text-sm">{count} users ({percentage.toFixed(1)}%)</span>
-                                            </div>
-                                            <div className="h-2 bg-[var(--border)] rounded-full overflow-hidden">
-                                                <div
-                                                    className={`h-full bg-gradient-to-r ${info.gradient} transition-all duration-500`}
-                                                    style={{ width: `${percentage}%` }}
-                                                />
-                                            </div>
-                                        </div>
-                                    );
-                                })}
                             </div>
                         </div>
 

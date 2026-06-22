@@ -1,8 +1,11 @@
 "use client"
 import React, { createContext, useContext, useState, useRef, useEffect, useCallback } from 'react';
+import { ALL_SCENES } from '@/lib/sceneLibrary';
 
 // Audio Effect Types
-export type SceneMode = 'none' | 'stadium' | 'lofi' | 'club' | 'concert' | 'underwater' | 'cave' | 'jazz_club' | 'bedroom' | 'car' | 'forest' | 'theater';
+// A scene is identified by its id from the scene library ('none' = no effect).
+// Keeping this as a string lets every one of the 100+ library scenes be applied.
+export type SceneMode = string;
 export type VocalMode = 'normal' | 'reduced' | 'karaoke' | 'bass_boost';
 
 interface AudioFXContextType {
@@ -377,80 +380,22 @@ export const AudioFXProvider = ({ children }: { children: React.ReactNode }) => 
         midFilter.gain.value = 0;
         highFilter.gain.value = 0;
 
-        // Default to wet/dry mix
-        dryGain.gain.setTargetAtTime(mode === 'none' ? 1 : 0.4, ctx.currentTime, 0.1);
-        wetGain.gain.setTargetAtTime(mode === 'none' ? 0 : 0.8, ctx.currentTime, 0.1);
+        // 'none' (or an unknown id) = pure dry signal, no reverb.
+        const scene = mode === 'none' ? null : ALL_SCENES.find(s => s.id === mode);
 
-        switch (mode) {
-            case 'stadium':
-                lowFilter.gain.value = 5;
-                midFilter.gain.value = -4;
-                highFilter.gain.value = 4;
-                convolver.buffer = createImpulseResponse(ctx, 4.5, 1.2);
-                break;
-            case 'lofi':
-                lowFilter.gain.value = 5;
-                midFilter.gain.value = -6;
-                highFilter.gain.value = -12;
-                convolver.buffer = createImpulseResponse(ctx, 0.1, 10);
-                break;
-            case 'club':
-                lowFilter.gain.value = 10;
-                midFilter.gain.value = 2;
-                highFilter.gain.value = 6;
-                convolver.buffer = createImpulseResponse(ctx, 0.5, 3);
-                break;
-            case 'concert':
-                lowFilter.gain.value = 3;
-                midFilter.gain.value = 1;
-                highFilter.gain.value = 5;
-                convolver.buffer = createImpulseResponse(ctx, 2.0, 2.5);
-                break;
-            case 'underwater':
-                lowFilter.gain.value = 8;
-                midFilter.gain.value = -10;
-                highFilter.gain.value = -24;
-                convolver.buffer = createImpulseResponse(ctx, 1.5, 0.5, true);
-                break;
-            case 'cave':
-                midFilter.gain.value = 6;
-                convolver.buffer = createImpulseResponse(ctx, 4.0, 0.8);
-                break;
-            case 'jazz_club':
-                lowFilter.gain.value = 4;
-                midFilter.gain.value = 3;
-                highFilter.gain.value = 2;
-                convolver.buffer = createImpulseResponse(ctx, 1.2, 3.5);
-                break;
-            case 'bedroom':
-                lowFilter.gain.value = 2;
-                midFilter.gain.value = -2;
-                highFilter.gain.value = -3;
-                convolver.buffer = createImpulseResponse(ctx, 0.3, 6);
-                break;
-            case 'car':
-                lowFilter.gain.value = 8;
-                midFilter.gain.value = 4;
-                highFilter.gain.value = 5;
-                convolver.buffer = createImpulseResponse(ctx, 0.15, 8);
-                break;
-            case 'forest':
-                lowFilter.gain.value = 3;
-                midFilter.gain.value = 1;
-                highFilter.gain.value = 4;
-                convolver.buffer = createImpulseResponse(ctx, 2.5, 1.8);
-                break;
-            case 'theater':
-                lowFilter.gain.value = 4;
-                midFilter.gain.value = 2;
-                highFilter.gain.value = 3;
-                convolver.buffer = createImpulseResponse(ctx, 3.0, 1.5);
-                break;
-            case 'none':
-            default:
-                // Just dry signal (already handled by gains above)
-                break;
+        if (!scene) {
+            dryGain.gain.setTargetAtTime(1, ctx.currentTime, 0.1);
+            wetGain.gain.setTargetAtTime(0, ctx.currentTime, 0.1);
+            return;
         }
+
+        // Generic application: any library scene's tuned EQ + reverb + wet/dry mix.
+        lowFilter.gain.value = scene.eq.bass;
+        midFilter.gain.value = scene.eq.mid;
+        highFilter.gain.value = scene.eq.treble;
+        convolver.buffer = createImpulseResponse(ctx, scene.reverb.duration, scene.reverb.decay, scene.reverb.reverse);
+        dryGain.gain.setTargetAtTime(scene.mix.dry, ctx.currentTime, 0.1);
+        wetGain.gain.setTargetAtTime(scene.mix.wet, ctx.currentTime, 0.1);
     }, []);
 
     // Apply vocal mode

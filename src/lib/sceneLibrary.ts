@@ -158,6 +158,70 @@ export const ALL_SCENES: ScenePreset[] = [
     { id: 'dimension', name: 'Another Dimension', emoji: '🌀', description: 'Reality warped', color: 'text-fuchsia-500', category: 'experimental', eq: { bass: 6, mid: -8, treble: 6 }, reverb: { duration: 4.0, decay: 0.6, reverse: true }, mix: { dry: 0.25, wet: 0.9 } },
     { id: 'heaven', name: 'Heaven', emoji: '😇', description: 'Celestial chorus', color: 'text-[var(--accent-cyan)]', category: 'experimental', eq: { bass: -4, mid: 4, treble: 8 }, reverb: { duration: 5.0, decay: 0.5 }, mix: { dry: 0.2, wet: 0.95 } },
     { id: 'hell', name: 'Underworld', emoji: '😈', description: 'Demonic resonance', color: 'text-red-700', category: 'experimental', eq: { bass: 12, mid: -6, treble: -10 }, reverb: { duration: 4.0, decay: 0.8 }, mix: { dry: 0.3, wet: 0.85 } },
+
+    // ═══════════════════════ EXPANSION PACK (70+ more) ═══════════════════════
+    // — Live Venues —
+    { id: 'coliseum', name: 'Coliseum', emoji: '🏟️', description: 'Roman arena roar', color: 'text-orange-400', category: 'live_venues', eq: { bass: 6, mid: -3, treble: 4 }, reverb: { duration: 4.0, decay: 1.0 }, mix: { dry: 0.35, wet: 0.85 } },
+    { id: 'pub', name: 'Irish Pub', emoji: '🍻', description: 'Warm tavern buzz', color: 'text-amber-500', category: 'live_venues', eq: { bass: 5, mid: 1, treble: -2 }, reverb: { duration: 0.6, decay: 4.5 }, mix: { dry: 0.55, wet: 0.55 } },
+    { id: 'ballroom', name: 'Ballroom', emoji: '💃', description: 'Elegant dance hall', color: 'text-pink-300', category: 'live_venues', eq: { bass: 3, mid: 3, treble: 4 }, reverb: { duration: 2.8, decay: 1.6 }, mix: { dry: 0.35, wet: 0.8 } },
+    { id: 'basement_show', name: 'Basement Show', emoji: '🎸', description: 'Raw underground gig', color: 'text-stone-400', category: 'live_venues', eq: { bass: 8, mid: 2, treble: 1 }, reverb: { duration: 0.8, decay: 3.5 }, mix: { dry: 0.5, wet: 0.65 } },
+    { id: 'school_gym', name: 'School Gym', emoji: '🏀', description: 'Boomy gymnasium', color: 'text-yellow-500', category: 'live_venues', eq: { bass: 5, mid: -4, treble: 2 }, reverb: { duration: 2.2, decay: 1.5 }, mix: { dry: 0.4, wet: 0.75 } },
+    { id: 'planetarium', name: 'Planetarium', emoji: '🪐', description: 'Domed cosmic space', color: 'text-indigo-400', category: 'live_venues', eq: { bass: 2, mid: 1, treble: 5 }, reverb: { duration: 4.5, decay: 0.9 }, mix: { dry: 0.3, wet: 0.85 } },
+    { id: 'drive_in', name: 'Drive-In', emoji: '🚘', description: 'Open-air cinema lot', color: 'text-red-300', category: 'live_venues', eq: { bass: 4, mid: 0, treble: 2 }, reverb: { duration: 1.2, decay: 3.5 }, mix: { dry: 0.5, wet: 0.6 } },
+
+    // — Nature —
+    { id: 'canyon', name: 'Canyon', emoji: '🏜️', description: 'Vast echoing gorge', color: 'text-orange-300', category: 'nature', eq: { bass: 3, mid: 0, treble: 4 }, reverb: { duration: 4.8, decay: 0.7 }, mix: { dry: 0.3, wet: 0.85 } },
+    { id: 'glacier', name: 'Glacier', emoji: '🧊', description: 'Crystalline ice field', color: 'text-cyan-200', category: 'nature', eq: { bass: 1, mid: -2, treble: 7 }, reverb: { duration: 3.2, decay: 1.2 }, mix: { dry: 0.35, wet: 0.8 } },
+    { id: 'volcano', name: 'Volcano', emoji: '🌋', description: 'Deep molten rumble', color: 'text-red-500', category: 'nature', eq: { bass: 11, mid: -3, treble: -4 }, reverb: { duration: 3.5, decay: 1.0 }, mix: { dry: 0.35, wet: 0.8 } },
+    { id: 'swamp', name: 'Swamp', emoji: '🐸', description: 'Murky bayou', color: 'text-lime-700', category: 'nature', eq: { bass: 6, mid: -3, treble: -5 }, reverb: { duration: 1.8, decay: 2.2 }, mix: { dry: 0.45, wet: 0.7 } },
+    { id: 'savanna', name: 'Savanna', emoji: '🦓', description: 'Wide open plains', color: 'text-amber-400', category: 'nature', eq: { bass: 2, mid: 0, treble: 6 }, reverb: { duration: 1.0, decay: 4.0 }, mix: { dry: 0.55, wet: 0.55 } },
+    { id: 'coral_reef', name: 'Coral Reef', emoji: '🐚', description: 'Vivid underwater world', color: 'text-teal-400', category: 'nature', eq: { bass: 7, mid: -8, treble: -14 }, reverb: { duration: 1.8, decay: 0.8 }, mix: { dry: 0.35, wet: 0.85 } },
+    { id: 'tundra', name: 'Tundra', emoji: '🌨️', description: 'Frozen silent expanse', color: 'text-sky-200', category: 'nature', eq: { bass: 3, mid: -5, treble: -4 }, reverb: { duration: 2.0, decay: 2.0 }, mix: { dry: 0.4, wet: 0.75 } },
+    { id: 'geyser', name: 'Geyser', emoji: '♨️', description: 'Steamy hot springs', color: 'text-cyan-300', category: 'nature', eq: { bass: 5, mid: -2, treble: 2 }, reverb: { duration: 1.5, decay: 2.5 }, mix: { dry: 0.45, wet: 0.7 } },
+
+    // — Rooms —
+    { id: 'attic', name: 'Attic', emoji: '🪜', description: 'Dusty wooden loft', color: 'text-amber-600', category: 'rooms', eq: { bass: 3, mid: 2, treble: -3 }, reverb: { duration: 0.7, decay: 4.0 }, mix: { dry: 0.5, wet: 0.6 } },
+    { id: 'studio_booth', name: 'Studio Booth', emoji: '🎙️', description: 'Dry vocal booth', color: 'text-rose-300', category: 'rooms', eq: { bass: 2, mid: 2, treble: 3 }, reverb: { duration: 0.15, decay: 9.0 }, mix: { dry: 0.7, wet: 0.35 } },
+
+    // — Moods —
+    { id: 'melancholy', name: 'Melancholy', emoji: '🌧️', description: 'Soft wistful haze', color: 'text-blue-400', category: 'moods', eq: { bass: 4, mid: -2, treble: -4 }, reverb: { duration: 2.5, decay: 1.5 }, mix: { dry: 0.4, wet: 0.75 } },
+    { id: 'hypnotic', name: 'Hypnotic', emoji: '🌀', description: 'Deep trance pull', color: 'text-purple-400', category: 'moods', eq: { bass: 7, mid: -2, treble: 3 }, reverb: { duration: 2.8, decay: 1.4 }, mix: { dry: 0.35, wet: 0.8 } },
+    { id: 'tense', name: 'Suspense', emoji: '😰', description: 'Edgy cinematic tension', color: 'text-red-400', category: 'moods', eq: { bass: 6, mid: 4, treble: -3 }, reverb: { duration: 3.0, decay: 1.2 }, mix: { dry: 0.35, wet: 0.8 } },
+    { id: 'blissful', name: 'Blissful', emoji: '☁️', description: 'Calm weightless peace', color: 'text-sky-300', category: 'moods', eq: { bass: 2, mid: 1, treble: 5 }, reverb: { duration: 3.5, decay: 1.0 }, mix: { dry: 0.3, wet: 0.85 } },
+
+    // — Vehicles —
+    { id: 'airplane_cabin', name: 'Airplane Cabin', emoji: '✈️', description: 'Muffled jet hum', color: 'text-slate-300', category: 'vehicles', eq: { bass: 6, mid: -5, treble: -8 }, reverb: { duration: 0.3, decay: 6.0 }, mix: { dry: 0.55, wet: 0.55 } },
+    { id: 'sports_car', name: 'Sports Car', emoji: '🏎️', description: 'Tuned cabin punch', color: 'text-orange-500', category: 'vehicles', eq: { bass: 10, mid: 3, treble: 4 }, reverb: { duration: 0.12, decay: 9.0 }, mix: { dry: 0.6, wet: 0.45 } },
+
+    // — Genres —
+    { id: 'trap', name: 'Trap House', emoji: '🔊', description: 'Sub-heavy 808s', color: 'text-purple-500', category: 'genres', eq: { bass: 12, mid: 0, treble: 5 }, reverb: { duration: 0.4, decay: 4.0 }, mix: { dry: 0.55, wet: 0.55 } },
+    { id: 'house', name: 'House', emoji: '🏠', description: 'Four-on-the-floor groove', color: 'text-cyan-400', category: 'genres', eq: { bass: 9, mid: 1, treble: 6 }, reverb: { duration: 0.8, decay: 3.0 }, mix: { dry: 0.5, wet: 0.65 } },
+    { id: 'dubstep', name: 'Dubstep', emoji: '🤖', description: 'Wobble bass drops', color: 'text-lime-400', category: 'genres', eq: { bass: 12, mid: -2, treble: 7 }, reverb: { duration: 0.6, decay: 3.5 }, mix: { dry: 0.5, wet: 0.6 } },
+    { id: 'bollywood_hall', name: 'Bollywood Hall', emoji: '🪔', description: 'Lush filmi acoustics', color: 'text-orange-400', category: 'genres', eq: { bass: 5, mid: 3, treble: 5 }, reverb: { duration: 2.2, decay: 1.8 }, mix: { dry: 0.4, wet: 0.75 } },
+    { id: 'ambient_void', name: 'Ambient Void', emoji: '🌑', description: 'Endless drifting space', color: 'text-slate-400', category: 'genres', eq: { bass: 2, mid: -2, treble: 3 }, reverb: { duration: 5.0, decay: 0.5 }, mix: { dry: 0.2, wet: 0.95 } },
+
+    // — Iconic Eras —
+    { id: 'vinyl_70s', name: "70s Vinyl", emoji: '🎶', description: 'Warm analog crackle', color: 'text-amber-500', category: 'iconic', eq: { bass: 6, mid: 2, treble: -6 }, reverb: { duration: 0.4, decay: 5.0 }, mix: { dry: 0.55, wet: 0.55 } },
+    { id: 'cassette_80s', name: "80s Cassette", emoji: '📼', description: 'Tape hiss nostalgia', color: 'text-pink-400', category: 'iconic', eq: { bass: 5, mid: -1, treble: -4 }, reverb: { duration: 0.3, decay: 6.0 }, mix: { dry: 0.55, wet: 0.55 } },
+    { id: 'gramophone', name: 'Gramophone', emoji: '🎙️', description: 'Antique horn tone', color: 'text-amber-700', category: 'iconic', eq: { bass: -6, mid: 7, treble: -8 }, reverb: { duration: 0.6, decay: 4.0 }, mix: { dry: 0.5, wet: 0.6 } },
+    { id: 'megaphone', name: 'Megaphone', emoji: '📢', description: 'Punchy bullhorn blast', color: 'text-red-400', category: 'iconic', eq: { bass: -8, mid: 10, treble: 4 }, reverb: { duration: 0.5, decay: 4.0 }, mix: { dry: 0.55, wet: 0.55 } },
+
+    // — Gaming —
+    { id: 'arcade', name: 'Arcade', emoji: '🕹️', description: 'Bright cabinet buzz', color: 'text-fuchsia-400', category: 'gaming', eq: { bass: 6, mid: 2, treble: 8 }, reverb: { duration: 0.6, decay: 3.5 }, mix: { dry: 0.5, wet: 0.6 } },
+    { id: 'retro_8bit', name: '8-Bit', emoji: '👾', description: 'Crunchy chiptune', color: 'text-green-400', category: 'gaming', eq: { bass: 2, mid: 4, treble: 9 }, reverb: { duration: 0.3, decay: 6.0 }, mix: { dry: 0.6, wet: 0.45 } },
+    { id: 'vr_world', name: 'VR World', emoji: '🥽', description: '360° immersive space', color: 'text-cyan-400', category: 'gaming', eq: { bass: 6, mid: 1, treble: 6 }, reverb: { duration: 2.5, decay: 1.5 }, mix: { dry: 0.35, wet: 0.8 } },
+    { id: 'boss_battle', name: 'Boss Battle', emoji: '⚔️', description: 'Epic orchestral tension', color: 'text-red-500', category: 'gaming', eq: { bass: 8, mid: 4, treble: 5 }, reverb: { duration: 2.8, decay: 1.4 }, mix: { dry: 0.35, wet: 0.8 } },
+    { id: 'racing_sim', name: 'Racing Sim', emoji: '🏁', description: 'High-speed engine roar', color: 'text-orange-500', category: 'gaming', eq: { bass: 10, mid: 2, treble: 4 }, reverb: { duration: 0.3, decay: 6.0 }, mix: { dry: 0.55, wet: 0.55 } },
+    { id: 'horror_game', name: 'Horror Game', emoji: '🎃', description: 'Creepy dread ambience', color: 'text-purple-600', category: 'gaming', eq: { bass: 7, mid: -3, treble: 2 }, reverb: { duration: 3.5, decay: 1.0 }, mix: { dry: 0.3, wet: 0.85 } },
+
+    // — Experimental —
+    { id: 'reverse_world', name: 'Reverse World', emoji: '🔁', description: 'Inverted swelling reverb', color: 'text-violet-400', category: 'experimental', eq: { bass: 4, mid: 0, treble: 4 }, reverb: { duration: 2.5, decay: 1.2, reverse: true }, mix: { dry: 0.3, wet: 0.85 } },
+    { id: 'slow_motion', name: 'Slow Motion', emoji: '🐢', description: 'Heavy languid space', color: 'text-blue-400', category: 'experimental', eq: { bass: 8, mid: -2, treble: -4 }, reverb: { duration: 4.0, decay: 0.7 }, mix: { dry: 0.3, wet: 0.85 } },
+    { id: 'dream_state', name: 'Dream State', emoji: '💭', description: 'Soft surreal blur', color: 'text-pink-300', category: 'experimental', eq: { bass: 3, mid: -1, treble: 6 }, reverb: { duration: 4.5, decay: 0.6 }, mix: { dry: 0.25, wet: 0.9 } },
+    { id: 'time_warp', name: 'Time Warp', emoji: '⏳', description: 'Bending temporal echo', color: 'text-indigo-400', category: 'experimental', eq: { bass: 6, mid: 2, treble: 5 }, reverb: { duration: 3.5, decay: 1.0, reverse: true }, mix: { dry: 0.3, wet: 0.85 } },
+    { id: 'cosmic', name: 'Cosmic', emoji: '🌌', description: 'Infinite starfield', color: 'text-purple-400', category: 'experimental', eq: { bass: 4, mid: 0, treble: 7 }, reverb: { duration: 5.0, decay: 0.5 }, mix: { dry: 0.2, wet: 0.95 } },
+    { id: 'whisper', name: 'Whisper', emoji: '🤫', description: 'Intimate close-mic', color: 'text-rose-200', category: 'experimental', eq: { bass: 2, mid: 4, treble: 6 }, reverb: { duration: 0.2, decay: 8.0 }, mix: { dry: 0.7, wet: 0.35 } },
+    { id: 'wall_of_sound', name: 'Wall of Sound', emoji: '🧱', description: 'Dense layered roar', color: 'text-orange-500', category: 'experimental', eq: { bass: 9, mid: 6, treble: 7 }, reverb: { duration: 2.0, decay: 1.8 }, mix: { dry: 0.4, wet: 0.8 } },
 ];
 
 // Default starter scenes (shown by default in the Scene tab)

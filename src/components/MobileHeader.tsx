@@ -48,11 +48,6 @@ export default function MobileHeader() {
                                 {activeRoom && (
                                     <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-[var(--background)] animate-pulse" />
                                 )}
-                                {!canUseListenTogether && (
-                                    <span className="absolute -bottom-0.5 -right-0.5 p-0.5 bg-purple-500 rounded text-white">
-                                        <Zap size={8} />
-                                    </span>
-                                )}
                             </button>
 
                             {/* Friends Button */}

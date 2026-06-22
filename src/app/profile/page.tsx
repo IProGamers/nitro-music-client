@@ -28,6 +28,7 @@ import ListeningRoom from '@/components/ListeningRoom';
 import FriendSearch from '@/components/FriendSearch';
 import AvatarPicker from '@/components/AvatarPicker';
 import ProfileCustomization from '@/components/ProfileCustomization';
+import SongContextMenu from '@/components/SongContextMenu';
 import { PREMIUM_PROFILE_FEATURES } from '@/lib/avatarLibrary';
 
 // Tier configurations with unique badges
@@ -521,6 +522,9 @@ function ProfileContent() {
                                                 <div className="flex-1 overflow-hidden">
                                                     <h3 className="font-bold truncate text-sm text-[var(--foreground)] group-hover:text-cyan-400 transition-colors">{t.name}</h3>
                                                     <p className="text-[10px] text-[var(--foreground-muted)] font-bold uppercase tracking-tight mt-0.5">{t.artist}</p>
+                                                </div>
+                                                <div className="text-[var(--foreground-muted)] shrink-0" onClick={e => e.stopPropagation()}>
+                                                    <SongContextMenu song={t} queue={favorites} />
                                                 </div>
                                             </div>
                                         </div>

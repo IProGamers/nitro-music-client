@@ -1,7 +1,7 @@
 "use client"
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { usePlayer } from '@/context/PlayerContext';
-import { Search, Clock, X, Music, User, Disc, ListMusic, ChevronRight, Trash2, Play, Calendar, Sparkles } from 'lucide-react';
+import { Search, Clock, X, Music, User, Disc, ListMusic, ChevronRight, Trash2, Play, Sparkles, TrendingUp, Headphones, Heart, Moon, Flame } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import SongContextMenu from '@/components/SongContextMenu';
@@ -11,6 +11,7 @@ import { processSearchResults, rankByRelevance, type ProcessedSong, type Grouped
 import { reRankByTrending, getTopResultConfidence, getTrendingSongForQuery } from '@/lib/trendingSongs';
 import { decodeHtml } from '@/lib/utils';
 import { fetchSimilarSongs } from '@/lib/recommendations';
+import { fetchWithCache, CACHE_TTL } from '@/lib/apiCache';
 
 type SearchResults = {
     songs: { results: any[] };
@@ -65,6 +66,26 @@ export default function SearchPage() {
     const [correctedFrom, setCorrectedFrom] = useState<{ from: string; to: string } | null>(null);
     // Last.fm "You might also like" — similar to the top search result.
     const [similarSongs, setSimilarSongs] = useState<any[]>([]);
+    // "Trending now" rail for the empty/browse view — real songs from JioSaavn (like Home).
+    const [trendingNow, setTrendingNow] = useState<any[]>([]);
+
+    // Fetch trending songs once for the browse view (daily-rotating, cached like Home).
+    useEffect(() => {
+        let alive = true;
+        (async () => {
+            try {
+                const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+                const data = await fetchWithCache(
+                    `${apiUrl}/api/search/songs?query=${encodeURIComponent(`trending viral hits india ${new Date().getFullYear()}`)}&limit=15`,
+                    CACHE_TTL.TRENDING,
+                    { dailyKey: true }
+                );
+                const results = data?.success ? (data.data?.results || []) : [];
+                if (alive) setTrendingNow(results.slice(0, 12));
+            } catch { /* ignore — browse view just hides the rail */ }
+        })();
+        return () => { alive = false; };
+    }, []);
 
     // Debounce query — short delay so results feel live as you type.
     useEffect(() => {
@@ -415,33 +436,27 @@ export default function SearchPage() {
         { id: 'playlists', label: 'Playlists', icon: <ListMusic size={14} /> },
     ];
 
-    // "Start browsing" — large entry tiles (Spotify-style top of search)
-    const startBrowse = [
-        { id: 'music', title: 'Trending', color: '#22d3ee', dark: true, icon: <Music size={22} />, onClick: () => { setQuery('top trending hits 2025'); setActiveTab('songs'); } },
-        { id: 'newrel', title: 'New Releases', color: '#a855f7', dark: false, icon: <Disc size={22} />, onClick: () => { setQuery('new releases 2025'); setActiveTab('songs'); } },
-        { id: 'live', title: 'Live Events', color: '#ec4899', dark: false, icon: <Calendar size={22} />, onClick: () => { setQuery('live concert performance'); setActiveTab('songs'); } },
-        { id: 'made', title: 'Made for You', color: '#10b981', dark: true, icon: <Sparkles size={22} />, onClick: () => router.push('/') },
+    // Clean, monochrome browse categories — each opens a song search.
+    const browseCategories = [
+        { id: 'trending', title: 'Trending', icon: <Flame size={18} />, query: `top trending hits ${new Date().getFullYear()}` },
+        { id: 'new', title: 'New Releases', icon: <Disc size={18} />, query: `new releases ${new Date().getFullYear()}` },
+        { id: 'charts', title: 'Top Charts', icon: <TrendingUp size={18} />, query: 'top charts global' },
+        { id: 'hindi', title: 'Hindi', icon: <Music size={18} />, query: 'hindi bollywood hits' },
+        { id: 'punjabi', title: 'Punjabi', icon: <Music size={18} />, query: 'punjabi hits' },
+        { id: 'pop', title: 'Pop', icon: <Sparkles size={18} />, query: 'pop hits' },
+        { id: 'hip-hop', title: 'Hip Hop', icon: <Music size={18} />, query: 'hip hop' },
+        { id: 'rock', title: 'Rock', icon: <Music size={18} />, query: 'rock' },
+        { id: 'edm', title: 'Dance / EDM', icon: <Headphones size={18} />, query: 'edm dance' },
+        { id: 'romance', title: 'Romance', icon: <Heart size={18} />, query: 'romantic love songs' },
+        { id: 'party', title: 'Party', icon: <Sparkles size={18} />, query: 'party hits' },
+        { id: 'focus', title: 'Focus', icon: <Headphones size={18} />, query: 'lofi study focus' },
+        { id: 'chill', title: 'Chill', icon: <Moon size={18} />, query: 'chill vibes' },
+        { id: 'sleep', title: 'Sleep', icon: <Moon size={18} />, query: 'sleep music' },
+        { id: 'devotional', title: 'Devotional', icon: <Music size={18} />, query: 'devotional bhajan' },
+        { id: 'jazz', title: 'Jazz', icon: <Music size={18} />, query: 'jazz' },
+        { id: 'classical', title: 'Classical', icon: <Music size={18} />, query: 'indian classical' },
     ];
 
-    // Browse-all category tiles — each opens a song search.
-    const categories = [
-        { id: 'new', title: 'New Releases', color: '#7c3aed', dark: false, query: 'new releases 2025' },
-        { id: 'charts', title: 'Charts', color: '#0e7490', dark: false, query: 'top charts global' },
-        { id: 'hindi', title: 'Hindi', color: '#be185d', dark: false, query: 'hindi bollywood hits' },
-        { id: 'punjabi', title: 'Punjabi', color: '#b45309', dark: false, query: 'punjabi hits' },
-        { id: 'pop', title: 'Pop', color: '#db2777', dark: false, query: 'pop hits' },
-        { id: 'hip-hop', title: 'Hip Hop', color: '#c2410c', dark: false, query: 'hip hop' },
-        { id: 'rock', title: 'Rock', color: '#b91c1c', dark: false, query: 'rock' },
-        { id: 'edm', title: 'Dance / EDM', color: '#6d28d9', dark: false, query: 'edm dance' },
-        { id: 'romance', title: 'Romance', color: '#9d174d', dark: false, query: 'romantic love songs' },
-        { id: 'party', title: 'Party', color: '#155e3a', dark: false, query: 'party hits' },
-        { id: 'focus', title: 'Focus', color: '#1e3a8a', dark: false, query: 'lofi study focus' },
-        { id: 'chill', title: 'Chill', color: '#0f766e', dark: false, query: 'chill vibes' },
-        { id: 'sleep', title: 'Sleep', color: '#1e293b', dark: false, query: 'sleep music' },
-        { id: 'devotional', title: 'Devotional', color: '#a16207', dark: false, query: 'devotional bhajan' },
-        { id: 'jazz', title: 'Jazz', color: '#854d0e', dark: false, query: 'jazz' },
-        { id: 'classical', title: 'Classical', color: '#065f46', dark: false, query: 'indian classical' },
-    ];
 
     return (
         <div className="p-4 md:p-6 lg:p-8 pb-32 pt-4 md:pt-8 min-h-screen max-w-[1700px] mx-auto overflow-x-hidden">
@@ -493,7 +508,7 @@ export default function SearchPage() {
                 <div className="mt-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
                     {isFocused ? (
                         /* Search History - Shown ONLY when focused */
-                        <div>
+                        <div key="recent" className="animate-slide-up">
                             <div className="flex items-center justify-between mb-5">
                                 <h2 className="text-lg font-bold flex items-center gap-2.5 text-[var(--foreground)]">
                                     <Clock className="text-[var(--foreground-muted)]" size={18} /> Recent
@@ -544,44 +559,77 @@ export default function SearchPage() {
                             )}
                         </div>
                     ) : (
-                        /* Browse wall — Spotify-style colour category tiles, shown by default */
-                        <div className="space-y-7">
-                            {/* Start browsing */}
-                            <div>
-                                <h2 className="text-xl md:text-2xl font-bold text-[var(--foreground)] mb-4">Start browsing</h2>
-                                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
-                                    {startBrowse.map((c) => (
-                                        <button
-                                            key={c.id}
-                                            onClick={c.onClick}
-                                            style={{ background: c.color }}
-                                            className="relative h-24 md:h-28 rounded-xl overflow-hidden group active:scale-[0.98] transition-transform text-left"
-                                        >
-                                            <h3 className="absolute top-3 left-3 z-10 text-[15px] md:text-lg font-extrabold leading-tight max-w-[68%]" style={{ color: c.dark ? '#04161a' : '#fff' }}>{c.title}</h3>
-                                            <div className="absolute -right-3 -bottom-3 w-16 h-16 md:w-20 md:h-20 rounded-md rotate-[25deg] shadow-lg shadow-black/40 flex items-center justify-center group-hover:rotate-[18deg] transition-transform duration-500" style={{ background: 'rgba(0,0,0,0.28)' }}>
-                                                <span style={{ color: c.dark ? 'rgba(0,0,0,0.55)' : 'rgba(255,255,255,0.85)' }}>{c.icon}</span>
+                        /* Clean, personalised browse — recent plays + monochrome categories */
+                        <div key="browse" className="space-y-8 animate-slide-down">
+                            {/* Recently played (personalised) */}
+                            {searchPlayedSongs.length > 0 && (
+                                <div>
+                                    <div className="flex items-center justify-between mb-2">
+                                        <h2 className="text-lg font-bold text-[var(--foreground)]">Recently played</h2>
+                                        <button onClick={clearSearchHistory} className="text-xs font-medium text-[var(--foreground-muted)] hover:text-[var(--foreground)] transition-colors">Clear</button>
+                                    </div>
+                                    <div>
+                                        {searchPlayedSongs.slice(0, 6).map((song) => (
+                                            <div
+                                                key={song.id}
+                                                onClick={() => playFromHistory(song)}
+                                                className="flex items-center gap-3 py-1.5 px-1.5 rounded-lg hover:bg-[var(--surface-hover)] cursor-pointer group transition-colors"
+                                            >
+                                                <img src={song.image} className="w-12 h-12 rounded-md object-cover flex-shrink-0 bg-[var(--card)]" alt="" />
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="font-semibold text-[15px] text-[var(--foreground)] truncate leading-tight">{song.name}</p>
+                                                    <p className="text-[13px] text-[var(--foreground-muted)] truncate mt-0.5">{song.artist}</p>
+                                                </div>
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); removeSearchPlayedSong(song.id); }}
+                                                    aria-label="Remove"
+                                                    className="p-1.5 text-[var(--foreground-muted)] hover:text-[var(--foreground)] shrink-0 opacity-0 group-hover:opacity-100 max-md:opacity-100 transition-all"
+                                                >
+                                                    <X size={16} />
+                                                </button>
                                             </div>
-                                        </button>
-                                    ))}
+                                        ))}
+                                    </div>
                                 </div>
-                            </div>
+                            )}
 
-                            {/* Browse all */}
+                            {/* Trending now — real JioSaavn songs, compact rail (tap a tile to play) */}
+                            {trendingNow.length > 0 && (
+                                <div>
+                                    <h2 className="text-lg font-bold text-[var(--foreground)] mb-3">Trending now</h2>
+                                    <div className="flex gap-3 overflow-x-auto no-scrollbar -mx-4 px-4 pb-1">
+                                        {trendingNow.map((song) => (
+                                            <button
+                                                key={song.id}
+                                                onClick={() => playFromSearch(song, trendingNow)}
+                                                className="w-[108px] shrink-0 text-left group"
+                                            >
+                                                <div className="relative w-[108px] h-[108px] rounded-lg overflow-hidden bg-[var(--card)] shadow-sm">
+                                                    <img src={getImg(song)} className="w-full h-full object-cover" alt="" loading="lazy" />
+                                                    <div className="absolute bottom-1.5 right-1.5 w-8 h-8 rounded-full bg-[var(--foreground)] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-lg">
+                                                        <Play size={14} className="text-[var(--background)] ml-0.5" fill="currentColor" />
+                                                    </div>
+                                                </div>
+                                                <p className="text-[13px] font-semibold text-[var(--foreground)] truncate mt-1.5">{getName(song)}</p>
+                                                <p className="text-[11px] text-[var(--foreground-muted)] truncate">{getArtistName(song)}</p>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Browse — clean monochrome categories (no rainbow tiles) */}
                             <div>
-                                <h2 className="text-xl md:text-2xl font-bold text-[var(--foreground)] mb-4">Browse all</h2>
-                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-4">
-                                    {categories.map((cat) => (
+                                <h2 className="text-lg font-bold text-[var(--foreground)] mb-3">Browse</h2>
+                                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5">
+                                    {browseCategories.map((cat) => (
                                         <button
                                             key={cat.id}
-                                            onClick={() => { setQuery(cat.query); setActiveTab('songs'); }}
-                                            style={{ background: cat.color }}
-                                            className="relative h-24 md:h-28 rounded-xl overflow-hidden group active:scale-[0.98] transition-transform text-left"
+                                            onClick={() => router.push(`/category/${cat.id}`)}
+                                            className="flex items-center gap-3 p-3.5 rounded-xl bg-[var(--card)] border border-[var(--border)] hover:bg-[var(--card-hover)] hover:border-[var(--border-hover)] active:scale-[0.98] transition-all text-left"
                                         >
-                                            <h3 className="absolute top-3 left-3 z-10 text-[15px] md:text-lg font-extrabold leading-tight max-w-[68%]" style={{ color: cat.dark ? '#04161a' : '#fff' }}>{cat.title}</h3>
-                                            {/* Rotated corner thumbnail (abstract, image-free) */}
-                                            <div className="absolute -right-3 -bottom-3 w-16 h-16 md:w-20 md:h-20 rounded-md rotate-[25deg] shadow-lg shadow-black/40 flex items-center justify-center group-hover:rotate-[18deg] transition-transform duration-500" style={{ background: 'rgba(0,0,0,0.28)' }}>
-                                                <Music size={22} style={{ color: cat.dark ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.8)' }} />
-                                            </div>
+                                            <span className="text-[var(--foreground-muted)] shrink-0">{cat.icon}</span>
+                                            <span className="text-sm font-semibold text-[var(--foreground)] truncate">{cat.title}</span>
                                         </button>
                                     ))}
                                 </div>
@@ -653,7 +701,11 @@ export default function SearchPage() {
                             const _norm = (s: string) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
                             const _q = _norm(query);
                             const _t = _norm(getName(topSong));
-                            const strongMatch = !!_q && !!_t && (_t === _q || _t.startsWith(_q) || _t.includes(_q) || _q.includes(_t));
+                            // "Strong" = the query clearly points at THIS title: exact, or one is a
+                            // prefix of the other (you're typing the song's name). Loose mid-string
+                            // matches are excluded so the Top Result never feels random — matching
+                            // songs still appear first in the list below regardless.
+                            const strongMatch = !!_q && !!_t && (_t === _q || _t.startsWith(_q) || _q.startsWith(_t));
                             if (query.trim().length < 3 || !strongMatch) return null;
 
                             return (

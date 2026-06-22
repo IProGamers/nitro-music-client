@@ -2,13 +2,34 @@
 import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { usePlayer } from '@/context/PlayerContext';
 import { useAuth } from '@/context/AuthContext';
-import { useSettings } from '@/context/SettingsContext';
 import { useMusicData } from '@/context/MusicDataContext';
-import { Play, Music, Heart, Mic2, Sparkles, Zap, Crown, TrendingUp, Clock, Disc3, ArrowUpCircle, ChevronRight, ChevronLeft } from 'lucide-react';
+import { Play, Music, Heart, Mic2, Sparkles, Zap, Crown, TrendingUp, Clock, Disc3, ChevronRight, ChevronLeft } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import SongContextMenu from '@/components/SongContextMenu';
 import FeatureDiscoveryCards from '@/components/FeatureDiscoveryCards';
+import RecommendedSection from '@/components/RecommendedSection';
+import { FeaturedCard, NumberedMixTile, RadioCard } from '@/components/HomeCards';
 import { fetchWithCache, CACHE_TTL, preloadCriticalData } from '@/lib/apiCache';
+
+// Vibrant solid backgrounds for radio station cards (cycled by index)
+const RADIO_BGS: { bg: string; dark: boolean }[] = [
+  { bg: '#d6f24f', dark: true },
+  { bg: '#9be7d6', dark: true },
+  { bg: '#c7b6ff', dark: true },
+  { bg: '#ffb4c6', dark: true },
+  { bg: '#1d2a55', dark: false },
+  { bg: '#5b3a8e', dark: false },
+];
+
+// Accent classes for numbered Daily/Nitro mix tiles (cycled by index)
+const MIX_ACCENTS: { cls: string; light: boolean }[] = [
+  { cls: 'bg-cyan-400', light: true },
+  { cls: 'bg-purple-500', light: false },
+  { cls: 'bg-pink-500', light: false },
+  { cls: 'bg-emerald-400', light: true },
+  { cls: 'bg-amber-400', light: true },
+  { cls: 'bg-blue-500', light: false },
+];
 
 // Decode HTML entities
 const decodeHtml = (html: string): string => {
@@ -53,7 +74,6 @@ const shuffleWithSeed = <T,>(array: T[], seed: number): T[] => {
 export default function Home() {
   const { playTrack } = usePlayer();
   const { user, userProfile, getUserPlaylists, getRecentPlays } = useAuth();
-  const { tier } = useSettings();
   const router = useRouter();
   const { homeData, setHomeData, hasLoadedHome, setHasLoadedHome } = useMusicData();
 
@@ -73,13 +93,18 @@ export default function Home() {
   const [madeForYou, setMadeForYou] = useState<any[]>(homeData?.madeForYou || []);
   const [loading, setLoading] = useState(!hasLoadedHome);
   const [userPlaylists, setUserPlaylists] = useState<any[]>([]);
-  const [greeting] = useState(getGreeting());
+  // Greeting + date are time-based, so compute them AFTER mount to avoid a
+  // server/client hydration mismatch (server TZ may differ from the user's).
+  const [greeting, setGreeting] = useState('');
+  const [todayLabel, setTodayLabel] = useState('');
+  useEffect(() => {
+    setGreeting(getGreeting());
+    setTodayLabel(new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }));
+  }, []);
   const [heroSlide, setHeroSlide] = useState(0);
   const heroIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const userName = userProfile?.displayName?.split(' ')[0] || '';
-  const isSupreme = tier === 'NITRO_SUPREME' || (tier as string) === 'NITRO_ULTRA';
-  const isElite = tier === 'NITRO_ELITE';
 
   useEffect(() => {
     const fetchData = async () => {
@@ -99,19 +124,19 @@ export default function Home() {
         // Daily rotating keywords for fresh content every day
         const dayOfWeek = new Date().getDay(); // 0-6
         const trendingKeywords = [
-          'trending india new 2025',
+          'trending india new 2026',
           'viral hits india bollywood',
-          'top chartbusters 2025 hindi',
+          'top chartbusters 2026 hindi',
           'latest bollywood punjabi hits',
           'new release songs india',
-          'hot trending music 2025',
+          'hot trending music 2026',
           'popular songs india today'
         ][dayOfWeek];
 
         const partyKeywords = [
           'party anthems bollywood dance',
           'club hits indian remix',
-          'dance floor bangers 2025',
+          'dance floor bangers 2026',
           'dj mix bollywood party',
           'bass boosted hindi songs',
           'night party songs indian',
@@ -155,10 +180,10 @@ export default function Home() {
           // Rotating content with dailyKey for fresh songs every day
           fetchWithCache(`${apiUrl}/api/search/songs?query=${encodeURIComponent(trendingKeywords)}&limit=40`, CACHE_TTL.TRENDING, { dailyKey: true }),
           fetchWithCache(`${apiUrl}/api/search/songs?query=${encodeURIComponent(partyKeywords)}&limit=50`, CACHE_TTL.SEARCH, { dailyKey: true }),
-          fetchWithCache(`${apiUrl}/api/search/songs?query=billboard+hot+100+western+hits+2025&limit=40`, CACHE_TTL.SEARCH, { dailyKey: true }),
-          fetchWithCache(`${apiUrl}/api/search/songs?query=global+pop+superstars+2025&limit=40`, CACHE_TTL.SEARCH, { dailyKey: true }),
+          fetchWithCache(`${apiUrl}/api/search/songs?query=billboard+hot+100+western+hits+2026&limit=40`, CACHE_TTL.SEARCH, { dailyKey: true }),
+          fetchWithCache(`${apiUrl}/api/search/songs?query=global+pop+superstars+2026&limit=40`, CACHE_TTL.SEARCH, { dailyKey: true }),
           Promise.resolve({ success: true, data: firebaseHistory }), // Firebase history (already fetched)
-          fetchWithCache(`${apiUrl}/api/search/songs?query=bollywood+top+romantic+dance+sad+hits+2025&limit=50`, CACHE_TTL.SEARCH, { dailyKey: true }),
+          fetchWithCache(`${apiUrl}/api/search/songs?query=bollywood+top+romantic+dance+sad+hits+2026&limit=50`, CACHE_TTL.SEARCH, { dailyKey: true }),
           // Iconic English songs - Rotating artists each day
           fetchWithCache(`${apiUrl}/api/search/songs?query=${encodeURIComponent(englishArtists)}&limit=30`, CACHE_TTL.SEARCH, { dailyKey: true }),
           // Iconic Hindi songs - Rotating songs each day
@@ -322,7 +347,7 @@ export default function Home() {
             }
 
             // Secondary: Genre/mood based
-            if (hasHindi) queries.push('latest hindi bollywood hits 2025');
+            if (hasHindi) queries.push('latest hindi bollywood hits 2026');
             if (hasPunjabi) queries.push('punjabi trending songs');
             if (hasEnglish) queries.push('top english pop songs');
             if (hasSad) queries.push('emotional hindi songs');
@@ -511,12 +536,12 @@ export default function Home() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl md:text-3xl font-bold text-[var(--foreground)]">
-              {greeting}{userName ? `, ${userName}` : ''}
+              {greeting || 'Welcome'}{userName ? `, ${userName}` : ''}
             </h1>
           </div>
           <div className="flex items-center gap-2">
             <Clock size={14} className="text-[var(--foreground-muted)]" />
-            <span className="text-xs text-[var(--foreground-muted)]">{new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</span>
+            <span className="text-xs text-[var(--foreground-muted)]">{todayLabel}</span>
           </div>
         </div>
 
@@ -553,6 +578,44 @@ export default function Home() {
 
         {/* Feature Discovery Cards - For New Users */}
         <FeatureDiscoveryCards />
+
+        {/* Last.fm-powered "Recommended for you" (renders only when there's a recent play) */}
+        <RecommendedSection />
+
+        {/* Personalised colour-tinted featured card (Spotify-style dynamic theming) */}
+        {(() => {
+          const mix = nitroMixes[0];
+          const feat = mix && mix.songs[0]
+            ? {
+              image: getImg(mix.songs[0]),
+              title: `${mix.name} Radio`,
+              subtitle: `Made for ${userName || 'you'}`,
+              description: mix.songs.slice(0, 5).map((s: any) => getArtist(s).split(',')[0]).filter(Boolean).join(', '),
+              onPlay: () => playTrack(mix.songs[0], mix.songs),
+            }
+            : trending[0]
+              ? {
+                image: getImg(trending[0]),
+                title: getName(trending[0]),
+                subtitle: getArtist(trending[0]),
+                description: 'Trending now on Nitro — press play to start the station.',
+                onPlay: () => playTrack(trending[0], trending),
+              }
+              : null;
+          if (!feat) return null;
+          return (
+            <section className="md:hidden">
+              <FeaturedCard
+                image={feat.image}
+                title={feat.title}
+                subtitle={feat.subtitle}
+                description={feat.description}
+                badge={user ? 'Made for you' : 'Featured'}
+                onPlay={feat.onPlay}
+              />
+            </section>
+          );
+        })()}
 
         {/* Hero Slider - Desktop Only */}
         {trending.length >= 3 && (
@@ -686,35 +749,51 @@ export default function Home() {
               <button onClick={() => router.push('/playlists')} className="text-xs font-medium text-cyan-400 hover:underline">See all</button>
             </div>
             <div className="flex gap-3 md:gap-4 overflow-x-auto pb-2 no-scrollbar -mx-4 px-4 md:mx-0 md:px-0">
-              {nitroMixes.map((mix) => (
-                <div
-                  key={mix.id}
-                  onClick={() => mix.songs[0] && playTrack(mix.songs[0], mix.songs)}
-                  className="group cursor-pointer w-[110px] md:w-[140px] flex-shrink-0"
-                >
-                  <div className={`relative aspect-square rounded-2xl overflow-hidden bg-gradient-to-br ${mix.gradient} shadow-xl mb-3`}>
-                    {/* 4-image grid */}
-                    <div className="absolute inset-0 grid grid-cols-2 opacity-60">
-                      {mix.songs.slice(0, 4).map((song: any, i: number) => (
-                        <div key={i} className="overflow-hidden">
-                          {getImg(song) && <img src={getImg(song)} className="w-full h-full object-cover" alt="" />}
-                        </div>
-                      ))}
-                    </div>
-                    {/* Overlay */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
-                    {/* Content */}
-                    <div className="absolute bottom-3 left-3 right-3">
-                      <h3 className="font-bold text-white text-sm drop-shadow-lg">{mix.name}</h3>
-                      <p className="text-[10px] text-white/70">{mix.desc}</p>
-                    </div>
-                    {/* Play button */}
-                    <button className="absolute top-3 right-3 w-10 h-10 bg-cyan-400 rounded-full flex items-center justify-center shadow-lg opacity-0 scale-90 group-hover:opacity-100 group-hover:scale-100 transition-all">
-                      <Play size={18} fill="black" className="ml-0.5 text-black" />
-                    </button>
-                  </div>
-                </div>
-              ))}
+              {nitroMixes.map((mix, idx) => {
+                const accent = MIX_ACCENTS[idx % MIX_ACCENTS.length];
+                return (
+                  <NumberedMixTile
+                    key={mix.id}
+                    name={mix.name}
+                    desc={mix.desc}
+                    covers={mix.songs.map((s: any) => getImg(s)).filter(Boolean)}
+                    index={idx + 1}
+                    accentClass={accent.cls}
+                    numberLight={accent.light}
+                    onPlay={() => mix.songs[0] && playTrack(mix.songs[0], mix.songs)}
+                  />
+                );
+              })}
+            </div>
+          </section>
+        )}
+
+        {/* Recommended Stations — radio cards seeded from your artists */}
+        {featuredArtists.length >= 3 && (
+          <section>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Disc3 size={18} className="text-cyan-400" />
+                <h2 className="text-lg md:text-xl font-bold text-[var(--foreground)]">Recommended stations</h2>
+              </div>
+            </div>
+            <div className="flex gap-3 md:gap-4 overflow-x-auto pb-2 no-scrollbar -mx-4 px-4 md:mx-0 md:px-0">
+              {featuredArtists.slice(0, 8).map((artist: any, idx: number) => {
+                const n = featuredArtists.length;
+                const covers = [artist, featuredArtists[(idx + 1) % n], featuredArtists[(idx + 2) % n]].map((a: any) => getImg(a)).filter(Boolean);
+                const style = RADIO_BGS[idx % RADIO_BGS.length];
+                return (
+                  <RadioCard
+                    key={`station-${artist.id || idx}`}
+                    title={getName(artist)}
+                    covers={covers}
+                    bg={style.bg}
+                    dark={style.dark}
+                    subtitle={`${getName(artist)}, ${getName(featuredArtists[(idx + 1) % n])} and more`}
+                    onPlay={() => router.push(`/artist/${artist.id}`)}
+                  />
+                );
+              })}
             </div>
           </section>
         )}
@@ -762,7 +841,7 @@ export default function Home() {
               <TrendingUp size={16} className="text-pink-400" />
               <h2 className="text-lg md:text-xl font-bold text-[var(--foreground)]">Trending now</h2>
             </div>
-            <button onClick={() => router.push('/section?title=trending+now&q=trending+viral+hits+2025')} className="text-xs font-medium text-cyan-400 hover:underline">See all</button>
+            <button onClick={() => router.push('/section?title=trending+now&q=trending+viral+hits+2026')} className="text-xs font-medium text-cyan-400 hover:underline">See all</button>
           </div>
           <div className="flex gap-3 md:gap-4 overflow-x-auto pb-2 no-scrollbar -mx-4 px-4 md:mx-0 md:px-0">
             {trending.slice(0, 20).map((song: any, idx: number) => (
@@ -770,92 +849,6 @@ export default function Home() {
             ))}
           </div>
         </section>
-
-        {/* Plans Advertisement Section — removed under the binary access model */}
-        {false && (
-          <section className="mb-10 px-1">
-            <div className="flex items-center gap-2 mb-4">
-              <Crown size={18} className="text-amber-400" />
-              <h2 className="text-lg md:text-xl font-bold text-[var(--foreground)]">Upgrade your experience</h2>
-            </div>
-
-            {/* Mobile: Single Elite Card */}
-            <div className="md:hidden">
-              <div
-                onClick={() => router.push('/upgrade')}
-                className="bg-gradient-to-br from-purple-500/20 to-indigo-500/20 border border-purple-500/40 rounded-2xl p-5 relative overflow-hidden cursor-pointer active:scale-[0.98] transition-transform"
-              >
-                <div className="absolute top-0 right-0 p-3 opacity-20">
-                  <Zap size={50} className="text-purple-400" />
-                </div>
-                <div className="flex items-center gap-2 mb-2">
-                  <Zap size={18} className="text-purple-400" />
-                  <h3 className="text-lg font-bold text-purple-400">Nitro Elite</h3>
-                  <span className="text-[9px] bg-purple-500 text-white px-2 py-0.5 rounded-full font-bold">POPULAR</span>
-                </div>
-                <p className="text-xs text-[var(--foreground-muted)] mb-3">Unlock 3D Audio, HD Streaming, and more</p>
-                <ul className="space-y-1.5 mb-4">
-                  <li className="flex items-center gap-2 text-xs text-[var(--foreground)]"><span className="text-purple-400">✓</span> 3D Spatial Audio</li>
-                  <li className="flex items-center gap-2 text-xs text-[var(--foreground)]"><span className="text-purple-400">✓</span> No Ads</li>
-                  <li className="flex items-center gap-2 text-xs text-[var(--foreground)]"><span className="text-purple-400">✓</span> Unlimited Audio FX</li>
-                </ul>
-                <button className="w-full py-2.5 bg-purple-500 hover:bg-purple-600 text-white rounded-xl text-sm font-bold transition-colors shadow-lg shadow-purple-500/30 flex items-center justify-center gap-2">
-                  <ArrowUpCircle size={16} />
-                  View All Plans
-                </button>
-              </div>
-            </div>
-
-            {/* Desktop: All 3 Cards */}
-            <div className="hidden md:grid md:grid-cols-3 gap-4" onClick={() => router.push('/upgrade')}>
-              {/* Nitro Core */}
-              <div className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-5 relative overflow-hidden group cursor-default">
-                <div className="absolute top-0 right-0 p-3 opacity-10">
-                  <Music size={40} />
-                </div>
-                <h3 className="text-lg font-bold text-zinc-400 mb-1">Nitro Core</h3>
-                <p className="text-xs text-[var(--foreground-muted)] mb-4 font-medium uppercase tracking-wider">The Standard</p>
-                <ul className="space-y-2 mb-4">
-                  <li className="flex items-center gap-2 text-xs text-[var(--foreground-muted)]"><span className="text-zinc-500">✓</span> Standard Audio</li>
-                  <li className="flex items-center gap-2 text-xs text-[var(--foreground-muted)]"><span className="text-zinc-500">✓</span> Ad-Supported</li>
-                </ul>
-                <div className="w-full py-2 bg-zinc-500/10 rounded-lg text-center text-xs font-bold text-zinc-400">Current Plan</div>
-              </div>
-
-              {/* Nitro Elite */}
-              <div className="bg-[var(--card)] border border-purple-500/30 rounded-2xl p-5 relative overflow-hidden group cursor-pointer hover:border-purple-500 transition-colors">
-                <div className="absolute top-0 right-0 p-3 opacity-10">
-                  <Zap size={40} className="text-purple-500" />
-                </div>
-                <div className="absolute -inset-0.5 bg-gradient-to-r from-purple-500 to-indigo-600 opacity-0 group-hover:opacity-10 transition-opacity" />
-                <h3 className="text-lg font-bold text-purple-400 mb-1">Nitro Elite</h3>
-                <p className="text-xs text-[var(--foreground-muted)] mb-4 font-medium uppercase tracking-wider">Most Popular</p>
-                <ul className="space-y-2 mb-4">
-                  <li className="flex items-center gap-2 text-xs text-[var(--foreground)]"><span className="text-purple-400">✓</span> 3D Spatial Audio</li>
-                  <li className="flex items-center gap-2 text-xs text-[var(--foreground)]"><span className="text-purple-400">✓</span> No Ads</li>
-                  <li className="flex items-center gap-2 text-xs text-[var(--foreground)]"><span className="text-purple-400">✓</span> HD Streaming</li>
-                </ul>
-                <button className="w-full py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg text-center text-xs font-bold transition-colors shadow-lg shadow-purple-500/20">Upgrade</button>
-              </div>
-
-              {/* Nitro Supreme */}
-              <div className="bg-[var(--card)] border border-amber-500/30 rounded-2xl p-5 relative overflow-hidden group cursor-pointer hover:border-amber-500 transition-colors md:col-span-1">
-                <div className="absolute top-0 right-0 p-3 opacity-10">
-                  <Crown size={40} className="text-amber-500" />
-                </div>
-                <div className="absolute -inset-0.5 bg-gradient-to-r from-amber-500 to-orange-600 opacity-0 group-hover:opacity-10 transition-opacity" />
-                <h3 className="text-lg font-bold text-amber-400 mb-1">Nitro Supreme</h3>
-                <p className="text-xs text-[var(--foreground-muted)] mb-4 font-medium uppercase tracking-wider">Ultimate Access</p>
-                <ul className="space-y-2 mb-4">
-                  <li className="flex items-center gap-2 text-xs text-[var(--foreground)]"><span className="text-amber-400">✓</span> Everything in Elite</li>
-                  <li className="flex items-center gap-2 text-xs text-[var(--foreground)]"><span className="text-amber-400">✓</span> Lossless Audio</li>
-                  <li className="flex items-center gap-2 text-xs text-[var(--foreground)]"><span className="text-amber-400">✓</span> Offline Downloads</li>
-                </ul>
-                <button className="w-full py-2 bg-gradient-to-r from-amber-500 to-orange-600 hover:opacity-90 text-white rounded-lg text-center text-xs font-bold transition-opacity shadow-lg shadow-amber-500/20">Go Supreme</button>
-              </div>
-            </div>
-          </section>
-        )}
 
         {/* Popular Artists - Circular */}
         {featuredArtists.length > 0 && (
@@ -865,7 +858,7 @@ export default function Home() {
                 <Mic2 size={16} className="text-purple-400" />
                 <h2 className="text-lg md:text-xl font-bold text-[var(--foreground)]">Popular artists</h2>
               </div>
-              <button onClick={() => router.push('/section?title=popular+artists&q=top+indian+western+artists+singers+2025')} className="text-xs font-medium text-cyan-400 hover:underline">See all</button>
+              <button onClick={() => router.push('/section?title=popular+artists&q=top+indian+western+artists+singers+2026')} className="text-xs font-medium text-cyan-400 hover:underline">See all</button>
             </div>
             <div className="flex gap-4 md:gap-6 overflow-x-auto pb-2 no-scrollbar -mx-4 px-4 md:mx-0 md:px-0">
               {featuredArtists.slice(0, 10).map((artist: any, idx: number) => (
@@ -902,7 +895,7 @@ export default function Home() {
                 <Disc3 size={16} className="text-emerald-400" />
                 <h2 className="text-lg md:text-xl font-bold text-[var(--foreground)]">New releases</h2>
               </div>
-              <button onClick={() => router.push('/section?title=new+releases&q=new+releases+2025')} className="text-xs font-medium text-cyan-400 hover:underline">See all</button>
+              <button onClick={() => router.push('/section?title=new+releases&q=new+releases+2026')} className="text-xs font-medium text-cyan-400 hover:underline">See all</button>
             </div>
             <div className="flex gap-3 md:gap-4 overflow-x-auto pb-2 no-scrollbar -mx-4 px-4 md:mx-0 md:px-0">
               {newReleases.slice(0, 20).map((album: any, idx: number) => (
@@ -936,7 +929,7 @@ export default function Home() {
           <section>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg md:text-xl font-bold text-[var(--foreground)]">Bollywood hits</h2>
-              <button onClick={() => router.push('/section?title=bollywood+hits&q=bollywood+hits+2025')} className="text-xs font-medium text-cyan-400 hover:underline">See all</button>
+              <button onClick={() => router.push('/section?title=bollywood+hits&q=bollywood+hits+2026')} className="text-xs font-medium text-cyan-400 hover:underline">See all</button>
             </div>
             <div className="flex gap-3 md:gap-4 overflow-x-auto pb-2 no-scrollbar -mx-4 px-4 md:mx-0 md:px-0">
               {bollywoodHits.slice(0, 20).map((song: any, idx: number) => (
@@ -1085,7 +1078,7 @@ export default function Home() {
           <section>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg md:text-xl font-bold text-[var(--foreground)]">International hits</h2>
-              <button onClick={() => router.push('/section?title=international+hits&q=billboard+hot+100+international+hits+2025')} className="text-xs font-medium text-cyan-400 hover:underline">See all</button>
+              <button onClick={() => router.push('/section?title=international+hits&q=billboard+hot+100+international+hits+2026')} className="text-xs font-medium text-cyan-400 hover:underline">See all</button>
             </div>
             <div className="flex gap-3 md:gap-4 overflow-x-auto pb-2 no-scrollbar -mx-4 px-4 md:mx-0 md:px-0">
               {internationalHits.slice(0, 20).map((song: any, idx: number) => (
@@ -1100,7 +1093,7 @@ export default function Home() {
           <section>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg md:text-xl font-bold text-[var(--foreground)]">Party mix</h2>
-              <button onClick={() => router.push('/section?title=party+mix&q=party+mix+dance+hits+2025')} className="text-xs font-medium text-cyan-400 hover:underline">See all</button>
+              <button onClick={() => router.push('/section?title=party+mix&q=party+mix+dance+hits+2026')} className="text-xs font-medium text-cyan-400 hover:underline">See all</button>
             </div>
             <div className="flex gap-3 md:gap-4 overflow-x-auto pb-2 no-scrollbar -mx-4 px-4 md:mx-0 md:px-0">
               {partyMix.slice(0, 20).map((song: any, idx: number) => (
@@ -1117,7 +1110,7 @@ export default function Home() {
               <div className="flex items-center gap-2">
                 <h2 className="text-lg md:text-xl font-bold text-[var(--foreground)]">Chill vibes</h2>
               </div>
-              <button onClick={() => router.push('/section?title=chill+vibes&q=chill+vibes+lofi+relaxing+2025')} className="text-xs font-medium text-blue-400 hover:underline">See all</button>
+              <button onClick={() => router.push('/section?title=chill+vibes&q=chill+vibes+lofi+relaxing+2026')} className="text-xs font-medium text-blue-400 hover:underline">See all</button>
             </div>
             <div className="flex gap-3 md:gap-4 overflow-x-auto pb-2 no-scrollbar">
               {globalPop.slice(0, 20).map((song: any, idx: number) => (

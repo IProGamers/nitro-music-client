@@ -1,13 +1,14 @@
 "use client"
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAudioFX, SceneMode, VocalMode } from '@/context/AudioFXContext';
 import { useSettings } from '@/context/SettingsContext';
 import {
     X, Waves, Mic, MicOff, Vibrate, Moon, Timer, Shuffle, Eye,
     BarChart3, Radio, Music2, CloudRain, Mountain, Sparkles,
     Volume2, Disc, CircleDot, PartyPopper, Droplets, Circle, Lock, Crown, Gauge,
-    Car, Home, TreePine, Theater, Music
+    Car, Home, TreePine, Theater, Music, Search, Star, Check
 } from 'lucide-react';
+import { ALL_SCENES, SCENE_CATEGORIES, type SceneCategory, type ScenePreset } from '@/lib/sceneLibrary';
 
 interface AudioFXPanelProps {
     isOpen: boolean;
@@ -71,6 +72,70 @@ export default function AudioFXPanel({ isOpen, onClose }: AudioFXPanelProps) {
     const { tier } = useSettings();
     const [activeTab, setActiveTab] = useState<'scene' | 'vocal' | 'effects' | 'visualizer' | 'timer'>('scene');
     const [customTimerMinutes, setCustomTimerMinutes] = useState<string>('10'); // For custom timer input
+
+    // ---- Scene browser: search, category filter, favourites ("My Scenes") ----
+    const [sceneSearch, setSceneSearch] = useState('');
+    const [sceneCat, setSceneCat] = useState<'all' | SceneCategory>('all');
+    const [browseScenes, setBrowseScenes] = useState(false); // false = compact "My Scenes" view
+    const [favScenes, setFavScenes] = useState<string[]>([]);
+
+    useEffect(() => {
+        const defaults = ['stadium', 'club', 'lofi', 'cave', 'jazz_club', 'concert'];
+        try {
+            const saved = localStorage.getItem('nitro_fav_scenes');
+            const parsed = saved ? JSON.parse(saved) : null;
+            // Guard against corrupted / legacy non-array data so later .includes/.filter never throw.
+            setFavScenes(Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === 'string') : defaults);
+        } catch {
+            setFavScenes(defaults);
+        }
+    }, []);
+
+    const toggleFavScene = (id: string) => {
+        setFavScenes(prev => {
+            const next = prev.includes(id) ? prev.filter(s => s !== id) : [...prev, id];
+            try { localStorage.setItem('nitro_fav_scenes', JSON.stringify(next)); } catch { /* ignore */ }
+            return next;
+        });
+    };
+
+    const filteredScenes = ALL_SCENES.filter(s => {
+        if (sceneCat !== 'all' && s.category !== sceneCat) return false;
+        if (sceneSearch.trim()) {
+            const q = sceneSearch.toLowerCase();
+            return s.name.toLowerCase().includes(q) || s.description.toLowerCase().includes(q);
+        }
+        return true;
+    });
+    const myScenes = ALL_SCENES.filter(s => favScenes.includes(s.id));
+
+    const renderScene = (s: ScenePreset) => {
+        const active = sceneMode === s.id;
+        const fav = favScenes.includes(s.id);
+        return (
+            <div
+                key={s.id}
+                onClick={() => setSceneMode(s.id)}
+                className={`relative p-3 rounded-xl border cursor-pointer transition-all ${active ? 'bg-cyan-500/10 border-cyan-400 shadow-lg shadow-cyan-500/10' : 'bg-[var(--card)] border-[var(--border)] hover:border-[var(--border-hover)] active:scale-[0.98]'}`}
+            >
+                <button
+                    onClick={(e) => { e.stopPropagation(); toggleFavScene(s.id); }}
+                    className="absolute top-1.5 right-1.5 p-1"
+                    aria-label={fav ? 'Unpin scene' : 'Pin to My Scenes'}
+                >
+                    <Star size={14} className={fav ? 'fill-amber-400 text-amber-400' : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)]'} />
+                </button>
+                <div className="text-2xl mb-1.5 leading-none">{s.emoji}</div>
+                <p className="text-[13px] font-bold text-[var(--foreground)] truncate pr-5">{s.name}</p>
+                <p className="text-[10px] text-[var(--foreground-muted)] truncate">{s.description}</p>
+                {active && (
+                    <div className="mt-1.5 inline-flex items-center gap-1 text-[9px] font-bold text-cyan-400 uppercase tracking-wider">
+                        <Check size={10} /> Active
+                    </div>
+                )}
+            </div>
+        );
+    };
 
     // Binary access model: approved users get every audio feature.
     const isEliteOrAbove = true;
@@ -164,56 +229,87 @@ export default function AudioFXPanel({ isOpen, onClose }: AudioFXPanelProps) {
                     {/* Scene Modes */}
                     {activeTab === 'scene' && (
                         <div className="space-y-4">
-                            {!features.scene ? (
-                                <div className="relative">
-                                    <div className="absolute inset-0 bg-[var(--background)]/60 backdrop-blur-sm z-10 flex flex-col items-center justify-center rounded-2xl">
-                                        <div className="p-3 bg-amber-500/20 rounded-full mb-3">
-                                            <Lock size={24} className="text-amber-400" />
-                                        </div>
-                                        <p className="text-[var(--foreground)] font-bold mb-1">Unlock Scene Effects</p>
-                                        <p className="text-xs text-[var(--foreground-muted)] mb-4 text-center px-4">Upgrade to Elite or Supreme to access AI-powered acoustic remastering</p>
-                                        <a href="/upgrade" className="px-6 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-black font-bold text-sm rounded-full flex items-center gap-2">
-                                            <Crown size={14} /> Upgrade Now
-                                        </a>
-                                    </div>
-                                    <div className="opacity-30 pointer-events-none">
-                                        <h3 className="text-sm font-bold text-[var(--foreground)] mb-4">🎭 Scene Remastering</h3>
-                                        <p className="text-xs text-[var(--foreground-muted)] mb-4">
-                                            Transform any song's environment with AI-powered acoustic remastering
-                                        </p>
-                                        <div className="grid grid-cols-2 gap-3">
-                                            {SCENE_MODES.slice(0, 4).map(mode => (
-                                                <div key={mode.id} className="p-4 rounded-2xl border-2 bg-[var(--card)] border-transparent">
-                                                    <div className={`mb-2 ${mode.color}`}>{mode.icon}</div>
-                                                    <p className="font-bold text-sm text-[var(--foreground)]">{mode.name}</p>
-                                                    <p className="text-[10px] text-[var(--foreground-muted)]">{mode.description}</p>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
+                            {/* Search across the whole scene library */}
+                            <div className="relative">
+                                <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--foreground-muted)]" />
+                                <input
+                                    value={sceneSearch}
+                                    onChange={(e) => { setSceneSearch(e.target.value); if (e.target.value) setBrowseScenes(true); }}
+                                    placeholder={`Search ${ALL_SCENES.length}+ scenes…`}
+                                    className="w-full bg-[var(--card)] border border-[var(--border)] rounded-xl py-2.5 pl-10 pr-9 text-sm text-[var(--foreground)] placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-cyan-400/50 transition-colors"
+                                />
+                                {sceneSearch && (
+                                    <button onClick={() => setSceneSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--foreground-muted)] hover:text-[var(--foreground)]">
+                                        <X size={15} />
+                                    </button>
+                                )}
+                            </div>
+
+                            {/* Original (effects off) */}
+                            <button
+                                onClick={() => setSceneMode('none')}
+                                className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all ${sceneMode === 'none' ? 'bg-cyan-500/10 border-cyan-400' : 'bg-[var(--card)] border-[var(--border)] hover:border-[var(--border-hover)]'}`}
+                            >
+                                <span className="text-xl leading-none">🎧</span>
+                                <div className="text-left flex-1">
+                                    <p className="text-sm font-bold text-[var(--foreground)]">Original</p>
+                                    <p className="text-[11px] text-[var(--foreground-muted)]">No effects — pure audio</p>
                                 </div>
-                            ) : (
+                                {sceneMode === 'none' && <Check size={16} className="text-cyan-400" />}
+                            </button>
+
+                            {(!browseScenes && !sceneSearch) ? (
+                                /* ===== Compact "My Scenes" view ===== */
                                 <>
-                                    <h3 className="text-sm font-bold text-[var(--foreground)] mb-4">🎭 Scene Remastering</h3>
-                                    <p className="text-xs text-[var(--foreground-muted)] mb-4">
-                                        Transform any song's environment with AI-powered acoustic remastering
-                                    </p>
-                                    <div className="grid grid-cols-2 gap-3">
-                                        {SCENE_MODES.map(mode => (
+                                    <div className="flex items-center justify-between">
+                                        <h3 className="text-xs font-bold uppercase tracking-widest text-[var(--foreground-muted)] flex items-center gap-1.5">
+                                            <Star size={12} className="fill-amber-400 text-amber-400" /> My Scenes
+                                        </h3>
+                                        <span className="text-[10px] text-[var(--foreground-muted)]">{myScenes.length} pinned</span>
+                                    </div>
+                                    {myScenes.length > 0 ? (
+                                        <div className="grid grid-cols-2 gap-2.5">
+                                            {myScenes.map(renderScene)}
+                                        </div>
+                                    ) : (
+                                        <p className="text-xs text-[var(--foreground-muted)] text-center py-4">Pin scenes with the ★ to keep them here.</p>
+                                    )}
+                                    <button
+                                        onClick={() => setBrowseScenes(true)}
+                                        className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-dashed border-[var(--border-hover)] text-sm font-semibold text-cyan-400 hover:bg-cyan-500/5 active:scale-[0.99] transition-all"
+                                    >
+                                        <Sparkles size={16} /> Add More Scenes · Browse {ALL_SCENES.length}+
+                                    </button>
+                                </>
+                            ) : (
+                                /* ===== Full searchable / categorised browser ===== */
+                                <>
+                                    <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1 -mx-1 px-1">
+                                        {([{ id: 'all', name: 'All', emoji: '✨' }, ...SCENE_CATEGORIES] as { id: string; name: string; emoji: string }[]).map(c => (
                                             <button
-                                                key={mode.id}
-                                                onClick={() => setSceneMode(mode.id)}
-                                                className={`p-4 rounded-2xl border-2 transition-all text-left ${sceneMode === mode.id
-                                                    ? 'bg-cyan-500/10 border-cyan-400'
-                                                    : 'bg-[var(--card)] border-transparent hover:border-[var(--border)]'
-                                                    }`}
+                                                key={c.id}
+                                                onClick={() => setSceneCat(c.id as 'all' | SceneCategory)}
+                                                className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${sceneCat === c.id ? 'bg-cyan-400 text-black' : 'bg-[var(--card)] text-[var(--foreground-muted)] hover:text-[var(--foreground)]'}`}
                                             >
-                                                <div className={`mb-2 ${mode.color}`}>{mode.icon}</div>
-                                                <p className="font-bold text-sm text-[var(--foreground)]">{mode.name}</p>
-                                                <p className="text-[10px] text-[var(--foreground-muted)]">{mode.description}</p>
+                                                <span>{c.emoji}</span>{c.name}
                                             </button>
                                         ))}
                                     </div>
+
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-[11px] text-[var(--foreground-muted)]">{filteredScenes.length} scene{filteredScenes.length === 1 ? '' : 's'}</span>
+                                        {!sceneSearch && (
+                                            <button onClick={() => { setBrowseScenes(false); setSceneCat('all'); }} className="text-[11px] font-bold text-cyan-400">Done</button>
+                                        )}
+                                    </div>
+
+                                    {filteredScenes.length > 0 ? (
+                                        <div className="grid grid-cols-2 gap-2.5">
+                                            {filteredScenes.map(renderScene)}
+                                        </div>
+                                    ) : (
+                                        <p className="text-center text-xs text-[var(--foreground-muted)] py-10">No scenes match “{sceneSearch}”.</p>
+                                    )}
                                 </>
                             )}
                         </div>

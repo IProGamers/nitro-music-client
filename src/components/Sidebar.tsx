@@ -44,6 +44,17 @@ export default function Sidebar() {
         ? [...links, { name: 'Admin', href: '/admin', icon: Shield }]
         : links;
 
+    // Keep a nav item highlighted on its sub-pages too. "Your Library" owns the
+    // playlist detail pages, Liked Songs and Downloads, so opening a playlist
+    // shouldn't drop the Library highlight.
+    const isLinkActive = (href: string) => {
+        if (href === '/') return pathname === '/';
+        if (href === '/playlists') {
+            return pathname.startsWith('/playlist') || pathname === '/liked' || pathname === '/downloads';
+        }
+        return pathname === href || pathname.startsWith(href + '/');
+    };
+
     const toggleDrawer = () => setIsOpen(!isOpen);
 
     const handleSignOut = async () => {
@@ -76,7 +87,7 @@ export default function Sidebar() {
                     {allLinks.map(l => {
 
                         const Icon = l.icon;
-                        const active = pathname === l.href;
+                        const active = isLinkActive(l.href);
                         const isAdminLink = l.name === 'Admin';
                         return (
                             <Link
@@ -132,11 +143,6 @@ export default function Sidebar() {
                                 <Headphones size={18} className={`transition-colors ${activeRoom ? 'text-purple-400' : 'text-[var(--foreground-muted)] group-hover:text-[var(--foreground)]'
                                     }`} />
                                 <span className="text-sm tracking-wide">Listen Together</span>
-                                {!canUseListenTogether && (
-                                    <span className="ml-auto text-[10px] px-1.5 py-0.5 bg-purple-500/20 text-purple-400 rounded flex items-center gap-0.5">
-                                        <Zap size={10} /> Elite
-                                    </span>
-                                )}
                                 {activeRoom && (
                                     <span className="ml-auto w-2 h-2 bg-green-500 rounded-full animate-pulse" />
                                 )}
@@ -193,28 +199,57 @@ export default function Sidebar() {
 
             {/* Mobile Drawer Removed */}
 
-            {/* Mobile Bottom Nav — Home, Search, Library, Profile (Spotify-style) */}
+            {/* Mobile Bottom Nav — personalised Nitro tab bar */}
             {pathname !== '/auth' && !userProfile?.arihantMode && (
-                <div className="md:hidden fixed bottom-0 left-0 w-full h-16 bg-[var(--background)]/95 backdrop-blur-lg border-t border-[var(--border)] flex justify-around items-center z-40 pb-safe">
-                    {[
-                        { name: 'Home', href: '/', icon: Home },
-                        { name: 'Search', href: '/search', icon: Search },
-                        { name: 'Library', href: '/playlists', icon: ListMusic },
-                    ].map(l => {
-                        const Icon = l.icon;
-                        const active = pathname === l.href;
-                        return (
-                            <Link
-                                key={l.name}
-                                href={l.href}
-                                className={`flex flex-col items-center gap-1 py-2 px-4 rounded-lg transition-colors ${active ? 'text-[var(--accent)]' : 'text-[var(--foreground-muted)]'}`}
-                            >
-                                <Icon size={22} strokeWidth={active ? 2.5 : 2} />
-                                <span className="text-[10px] font-medium">{l.name}</span>
-                            </Link>
-                        );
-                    })}
-                </div>
+                <nav className="md:hidden fixed bottom-0 left-0 w-full bg-[var(--background)]/90 backdrop-blur-2xl border-t border-[var(--border)] z-40 pb-safe">
+                    <div className="flex justify-around items-stretch h-[58px]">
+                        {[
+                            { name: 'Home', href: '/', icon: Home },
+                            { name: 'Search', href: '/search', icon: Search },
+                            { name: 'Library', href: '/playlists', icon: ListMusic },
+                        ].map(l => {
+                            const Icon = l.icon;
+                            const active = isLinkActive(l.href);
+                            return (
+                                <Link
+                                    key={l.name}
+                                    href={l.href}
+                                    className="relative flex flex-col items-center justify-center gap-1 flex-1 group"
+                                >
+                                    {active && <span className="absolute top-0 w-8 h-[3px] rounded-full bg-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.6)]" />}
+                                    <Icon
+                                        size={23}
+                                        strokeWidth={active ? 2.6 : 2}
+                                        className={`transition-colors ${active ? 'text-cyan-400' : 'text-[var(--foreground-muted)] group-active:text-[var(--foreground)]'}`}
+                                    />
+                                    <span className={`text-[10px] tracking-tight transition-colors ${active ? 'text-cyan-400 font-semibold' : 'text-[var(--foreground-muted)] font-medium'}`}>{l.name}</span>
+                                </Link>
+                            );
+                        })}
+
+                        {/* Profile tab — uses the user's own avatar (personalised) */}
+                        {(() => {
+                            const profileHref = mounted && user ? '/profile' : '/auth';
+                            const active = pathname === profileHref || pathname === '/profile';
+                            const initial = userProfile?.displayName?.[0]?.toUpperCase() || 'U';
+                            return (
+                                <Link href={profileHref} className="relative flex flex-col items-center justify-center gap-1 flex-1 group">
+                                    {active && <span className="absolute top-0 w-8 h-[3px] rounded-full bg-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.6)]" />}
+                                    <div className={`w-[26px] h-[26px] rounded-full overflow-hidden flex items-center justify-center transition-all ${active ? 'ring-2 ring-cyan-400' : 'ring-1 ring-[var(--border)]'}`}>
+                                        {mounted && user && userProfile?.photoURL ? (
+                                            <img src={userProfile.photoURL} className="w-full h-full object-cover" alt="" />
+                                        ) : mounted && user ? (
+                                            <div className="w-full h-full bg-gradient-to-br from-cyan-500 to-purple-600 flex items-center justify-center text-white text-[11px] font-bold">{initial}</div>
+                                        ) : (
+                                            <User size={16} className={active ? 'text-cyan-400' : 'text-[var(--foreground-muted)]'} />
+                                        )}
+                                    </div>
+                                    <span className={`text-[10px] tracking-tight transition-colors ${active ? 'text-cyan-400 font-semibold' : 'text-[var(--foreground-muted)] font-medium'}`}>{mounted && user ? 'You' : 'Sign in'}</span>
+                                </Link>
+                            );
+                        })()}
+                    </div>
+                </nav>
             )}
 
             {/* Friends Panel Modal */}

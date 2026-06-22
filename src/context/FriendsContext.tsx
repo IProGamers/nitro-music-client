@@ -478,7 +478,7 @@ export const FriendsProvider = ({ children }: { children: React.ReactNode }) => 
     // ========== LISTEN ROOM ACTIONS ==========
     const createListenRoom = useCallback(async () => {
         if (!user || !userProfile) throw new Error('Not authenticated');
-        if (!canUseListenTogether) throw new Error('Elite plan required');
+        if (!canUseListenTogether) throw new Error('Account approval required');
 
         const roomId = generateSimpleCode();
 
@@ -512,7 +512,7 @@ export const FriendsProvider = ({ children }: { children: React.ReactNode }) => 
 
     const joinListenRoom = useCallback(async (inputCode: string, isAdminSecret: boolean = false) => {
         if (!user || !userProfile) throw new Error('Not authenticated');
-        if (!canUseListenTogether) throw new Error('Elite plan required');
+        if (!canUseListenTogether) throw new Error('Account approval required');
 
         const roomId = inputCode.trim().toUpperCase().replace(/[\s-]/g, '');
 

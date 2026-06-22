@@ -266,7 +266,8 @@ export default function ListenTogetherPanel({ isOpen, onClose }: ListenTogetherP
     };
 
     const onlineFriends = getOnlineFriends();
-    const eliteFriends = onlineFriends.filter(f => f.tier === 'NITRO_ELITE' || f.tier === 'NITRO_SUPREME');
+    // Access is binary now — any online friend can join, no plan filter.
+    const eliteFriends = onlineFriends;
 
     if (!isOpen) return null;
 
@@ -295,19 +296,19 @@ export default function ListenTogetherPanel({ isOpen, onClose }: ListenTogetherP
                     </div>
 
                     <h2 className="text-xl font-bold text-[var(--foreground)] mb-2">
-                        Elite Feature
+                        Approval required
                     </h2>
                     <p className="text-sm text-[var(--foreground-muted)] mb-6">
                         Listen Together lets you sync music playback with friends in real-time.
-                        Upgrade to Elite or Supreme to unlock this feature!
+                        Your account needs admin approval to use it.
                     </p>
 
                     <Link
-                        href="/upgrade"
-                        className="flex items-center justify-center gap-2 w-full py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold rounded-xl hover:opacity-90 transition-opacity"
+                        href="/"
+                        className="flex items-center justify-center gap-2 w-full py-3 bg-gradient-to-r from-cyan-500 to-purple-500 text-white font-bold rounded-xl hover:opacity-90 transition-opacity"
                     >
-                        <Zap size={18} />
-                        Upgrade to Elite
+                        <Headphones size={18} />
+                        Back to Home
                         <ChevronRight size={16} />
                     </Link>
                 </motion.div>
@@ -694,12 +695,6 @@ export default function ListenTogetherPanel({ isOpen, onClose }: ListenTogetherP
                                                                         ? 'text-cyan-400'
                                                                         : 'text-[var(--foreground)]'
                                                             }`}>
-                                                            {details?.tier === 'NITRO_SUPREME' && !isParticipantHost && (
-                                                                <span className="text-amber-500">Supreme • </span>
-                                                            )}
-                                                            {details?.tier === 'NITRO_ELITE' && !isParticipantHost && (
-                                                                <span className="text-purple-500">Elite • </span>
-                                                            )}
                                                             {details?.displayName?.split(' ')[0] || 'User'}
                                                             {isMe && ' (You)'}
                                                         </p>
@@ -727,10 +722,10 @@ export default function ListenTogetherPanel({ isOpen, onClose }: ListenTogetherP
                                             <div className="text-center py-6">
                                                 <Sparkles size={24} className="text-[var(--foreground-muted)]/30 mx-auto mb-2" />
                                                 <p className="text-xs text-[var(--foreground-muted)]">
-                                                    No Elite friends online
+                                                    No friends online
                                                 </p>
                                                 <p className="text-[10px] text-[var(--foreground-muted)]/60 mt-1">
-                                                    Friends need Elite plan to join
+                                                    Share the room code to invite anyone
                                                 </p>
                                             </div>
                                         ) : (
@@ -754,8 +749,8 @@ export default function ListenTogetherPanel({ isOpen, onClose }: ListenTogetherP
                                                             <p className="text-xs font-medium text-[var(--foreground)] truncate">
                                                                 {friend.displayName}
                                                             </p>
-                                                            <p className="text-[9px] text-purple-400 flex items-center gap-0.5">
-                                                                <Zap size={8} /> {friend.tier === 'NITRO_SUPREME' ? 'Supreme' : 'Elite'}
+                                                            <p className="text-[9px] text-emerald-400 flex items-center gap-0.5">
+                                                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" /> Online
                                                             </p>
                                                         </div>
                                                         <button
@@ -820,7 +815,7 @@ export default function ListenTogetherPanel({ isOpen, onClose }: ListenTogetherP
                                             </button>
 
                                             <p className="text-[9px] text-[var(--foreground-muted)]/60 text-center">
-                                                Anyone with the link can join if they have Elite plan
+                                                Anyone with the link can join
                                             </p>
                                         </div>
                                     </div>

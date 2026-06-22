@@ -248,3 +248,53 @@ h1, h2, h3, h4 {
 .animate-fade-in {
   animation: fade-in 0.4s ease both;
 }
+
+/* Search view transitions — slide up (focus) / slide down (back) */
+@keyframes slide-up-in {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slide-down-in {
+  from {
+    opacity: 0;
+    transform: translateY(-24px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-up {
+  animation: slide-up-in 0.34s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.animate-slide-down {
+  animation: slide-down-in 0.34s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Now-playing title marquee — scrolls long song titles instead of clipping */
+@keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-marquee {
+  animation-name: marquee;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}

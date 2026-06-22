@@ -26,7 +26,7 @@ const decodeHtml = (html: string): string => {
 
 export default function SongContextMenu({ song, queue, children, className = '', onStartRadio }: SongContextMenuProps) {
     const { playTrack, playNext, addToQueue } = usePlayer();
-    const { user, addLikedSong, isLikedSong } = useAuth();
+    const { user, addLikedSong, removeLikedSong, isLikedSong } = useAuth();
     const { isDownloaded, downloadSong, removeSong, isDownloading, currentDownloadId } = useOffline();
     const router = useRouter();
     const [isOpen, setIsOpen] = useState(false);
@@ -94,15 +94,20 @@ export default function SongContextMenu({ song, queue, children, className = '',
         if (!user) return;
 
         try {
-            await addLikedSong({
-                id: String(song.id || song.songId),
-                name: song.name || song.title || 'Unknown',
-                artist: song.artists?.primary?.[0]?.name || song.artist || 'Unknown',
-                image: typeof song.image === 'string' ? song.image : song.image?.[song.image.length - 1]?.url || ''
-            });
-            setIsLiked(true);
+            if (isLiked) {
+                await removeLikedSong(String(song.id || song.songId));
+                setIsLiked(false);
+            } else {
+                await addLikedSong({
+                    id: String(song.id || song.songId),
+                    name: song.name || song.title || 'Unknown',
+                    artist: song.artists?.primary?.[0]?.name || song.artist || 'Unknown',
+                    image: typeof song.image === 'string' ? song.image : song.image?.[song.image.length - 1]?.url || ''
+                });
+                setIsLiked(true);
+            }
         } catch (e) {
-            console.error("Failed to like song:", e);
+            console.error("Failed to toggle like:", e);
         }
         setIsOpen(false);
     };
@@ -234,7 +239,7 @@ export default function SongContextMenu({ song, queue, children, className = '',
                             }`}
                     >
                         <Heart size={16} className={isLiked ? 'fill-rose-400' : ''} />
-                        <span className="font-medium">{isLiked ? 'Liked' : 'Add to Favorites'}</span>
+                        <span className="font-medium">{isLiked ? 'Remove from Liked' : 'Add to Favorites'}</span>
                     </button>
                 )}
 

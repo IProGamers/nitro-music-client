@@ -444,28 +444,6 @@ export default function FriendsPanel({ isOpen, onClose }: FriendsPanelProps) {
                     </AnimatePresence>
                 </div>
 
-                {/* Elite Promo Banner */}
-                {!canUseListenTogether && (
-                    <div className="p-4 border-t border-[var(--border)] shrink-0">
-                        <Link
-                            href="/upgrade"
-                            className="flex items-center gap-3 p-3 bg-gradient-to-r from-purple-500/10 to-amber-500/10 rounded-xl border border-purple-500/20 hover:border-purple-500/40 transition-colors"
-                        >
-                            <div className="p-2 bg-purple-500/20 rounded-lg">
-                                <Sparkles size={16} className="text-purple-400" />
-                            </div>
-                            <div className="flex-1">
-                                <p className="text-xs font-bold text-[var(--foreground)]">
-                                    Unlock Listen Together
-                                </p>
-                                <p className="text-[10px] text-[var(--foreground-muted)]">
-                                    Upgrade to Elite to sync music with friends in real-time
-                                </p>
-                            </div>
-                            <ChevronRight size={16} className="text-purple-400" />
-                        </Link>
-                    </div>
-                )}
             </motion.div>
         </motion.div>
     );
@@ -534,7 +512,7 @@ function FriendCard({
 
             {/* Actions */}
             <div className="flex items-center gap-1.5">
-                {onInvite && canInvite && friend.tier !== 'NITRO_CORE' && (
+                {onInvite && canInvite && (
                     <button
                         onClick={onInvite}
                         disabled={isLoading}
@@ -552,11 +530,6 @@ function FriendCard({
                             <Headphones size={14} />
                         )}
                     </button>
-                )}
-                {onInvite && canInvite && friend.tier === 'NITRO_CORE' && (
-                    <span className="p-2 rounded-lg bg-[var(--card)] text-[var(--foreground-muted)]" title="Friend needs Elite plan">
-                        <Lock size={14} />
-                    </span>
                 )}
                 <button
                     onClick={onRemove}

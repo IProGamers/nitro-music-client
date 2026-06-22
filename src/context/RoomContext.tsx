@@ -53,7 +53,10 @@ interface RoomContextType {
 const RoomContext = createContext<RoomContextType | undefined>(undefined);
 
 // Use separate socket server URL (for Render deployment) or fall back to API URL (local dev)
-const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+// The realtime "Listen Together" server is a separate Socket.IO service (default port 3333),
+// NOT the REST API (3000). Falling back to the API port connects to a server that speaks no
+// socket protocol, so the connection silently fails. Default to the socket port instead.
+const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3333';
 
 export const RoomProvider = ({ children }: { children: React.ReactNode }) => {
     const { user, userProfile } = useAuth();
@@ -99,6 +102,17 @@ export const RoomProvider = ({ children }: { children: React.ReactNode }) => {
 
         newSocket.on('disconnect', () => {
             console.log('[Socket] Disconnected');
+            setIsConnected(false);
+        });
+
+        let loggedConnError = false;
+        newSocket.on('connect_error', (err) => {
+            // Listen Together is optional — if the realtime server is down, fail quietly.
+            // Log once at info level (not warn/error) so it doesn't flood the dev issues panel.
+            if (!loggedConnError) {
+                console.log(`[Socket] Listen Together server unreachable at ${SOCKET_URL} (${err.message}) — feature disabled.`);
+                loggedConnError = true;
+            }
             setIsConnected(false);
         });
 

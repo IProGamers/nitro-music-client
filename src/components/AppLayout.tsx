@@ -49,8 +49,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
       </main>
       
-      {/* Premium Visual Overlays */}
-      <div className="pointer-events-none fixed bottom-0 left-0 w-full h-64 bg-gradient-to-t from-black via-black/80 to-transparent z-[45]" />
+      {/* Premium Visual Overlays — desktop only (on mobile it would cover the bottom nav) */}
+      <div className="hidden md:block pointer-events-none fixed bottom-0 left-0 w-full h-64 bg-gradient-to-t from-black via-black/80 to-transparent z-[45]" />
       
       {/* Global Persistence Components */}
       <Player />

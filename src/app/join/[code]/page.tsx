@@ -232,14 +232,14 @@ export default function JoinRoomPage() {
                 ) : !canUseListenTogether ? (
                     <div className="space-y-3">
                         <Link
-                            href="/upgrade"
+                            href="/"
                             className="w-full py-4 bg-gradient-to-r from-violet-500 to-purple-600 text-white rounded-2xl font-bold flex items-center justify-center gap-3 hover:opacity-90 transition-opacity shadow-lg shadow-purple-500/20"
                         >
-                            <Zap size={20} />
-                            Upgrade to Elite to Join
+                            <Headphones size={20} />
+                            Go Home
                         </Link>
                         <p className="text-xs text-center text-[var(--foreground-muted)]">
-                            Listen Together requires Elite or Supreme plan
+                            Your account needs admin approval to join rooms
                         </p>
                     </div>
                 ) : (

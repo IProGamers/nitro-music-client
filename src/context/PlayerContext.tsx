@@ -4,6 +4,7 @@ import { useSettings } from './SettingsContext';
 import { useAuth } from './AuthContext';
 import { useAudioFX } from './AudioFXContext';
 import { useRouter } from 'next/navigation';
+import { decodeHtml } from '@/lib/utils';
 import { getSong as getOfflineSong } from '@/lib/offlineDb';
 import { dedupeSongs, createSongKey, normalizeSongTitle } from '@/lib/searchUtils';
 import { recordListen, recordSkip, buildAutoplayQueries, buildQueuePools, rankByTaste, fetchLastfmSimilarSongs, fetchJioSaavnSuggestions } from '@/lib/recommendations';
@@ -352,10 +353,15 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
         const safe = (action: MediaSessionAction, handler: MediaSessionActionHandler | null) => {
             try { ms.setActionHandler(action, handler); } catch { /* unsupported action */ }
         };
-        safe('play', () => { audioRef.current?.play().catch(() => {}); setIsPlaying(true); });
+        // Car / lock-screen buttons can fire while the page is backgrounded, where the
+        // Web Audio graph is often suspended — resume it first so the skip actually plays.
+        const resumeCtx = () => {
+            try { if (audioContextRef.current?.state === 'suspended') audioContextRef.current.resume().catch(() => {}); } catch { /* noop */ }
+        };
+        safe('play', () => { resumeCtx(); audioRef.current?.play().catch(() => {}); setIsPlaying(true); });
         safe('pause', () => { audioRef.current?.pause(); setIsPlaying(false); });
-        safe('previoustrack', () => mediaHandlersRef.current.prev());
-        safe('nexttrack', () => mediaHandlersRef.current.next());
+        safe('previoustrack', () => { resumeCtx(); mediaHandlersRef.current.prev(); });
+        safe('nexttrack', () => { resumeCtx(); mediaHandlersRef.current.next(); });
         safe('stop', () => { audioRef.current?.pause(); setIsPlaying(false); });
         safe('seekto', (details) => {
             if (audioRef.current && details.seekTime != null) {
@@ -387,7 +393,9 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
     useEffect(() => {
         if (typeof navigator === 'undefined' || !('mediaSession' in navigator) || !currentSong) return;
 
-        const title = currentSong.name || currentSong.title || 'Unknown Track';
+        // Decode HTML entities so the car / lock-screen display shows clean text
+        // (JioSaavn titles contain things like &amp;, &#39;, &quot;).
+        const title = decodeHtml(currentSong.name || currentSong.title || 'Unknown Track');
 
         let artist = 'Unknown Artist';
         if (currentSong.artists?.primary?.length) {
@@ -397,8 +405,9 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
         } else if (currentSong.primaryArtists) {
             artist = currentSong.primaryArtists;
         }
+        artist = decodeHtml(artist);
 
-        const album = currentSong.album?.name || currentSong.album || '';
+        const album = decodeHtml(currentSong.album?.name || currentSong.album || '');
 
         let artwork = '';
         if (typeof currentSong.image === 'string') {
@@ -655,11 +664,13 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
                     const fullAudioUrl = getAudio(fullSong) || '';
 
                     setCurrentSong(fullSong);
-                    setIsPlaying(true);
                     setIsLoadingSong(false);
 
-                    // Immediately set audio source and play
+                    // Only enter the playing state when there is a real source. Otherwise the
+                    // <audio> element stays empty and a later play() throws NotSupportedError
+                    // ("The element has no supported sources").
                     if (audioRef.current && fullAudioUrl) {
+                        setIsPlaying(true);
                         audioRef.current.src = fullAudioUrl;
                         audioRef.current.crossOrigin = "anonymous";
                         const playPromise = audioRef.current.play();
@@ -673,6 +684,9 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
                         if (audioContextRef.current?.state === 'suspended') {
                             audioContextRef.current.resume();
                         }
+                    } else {
+                        console.log('No playable audio source for track', trackId);
+                        setIsPlaying(false);
                     }
 
                     fetch(`${apiUrl}/api/history`, {
@@ -700,13 +714,13 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
                         });
                     }
                 } else {
-                    console.error("Could not fetch song details, trying to play with existing data");
-                    setIsPlaying(true);
+                    console.log("Could not fetch song details — no audio source available");
+                    setIsPlaying(false);
                     setIsLoadingSong(false);
                 }
             } catch (e) {
-                console.error("Failed to fetch song, trying to play with existing data", e);
-                setIsPlaying(true);
+                console.log("Failed to fetch song details — no audio source available", e);
+                setIsPlaying(false);
                 setIsLoadingSong(false);
             }
         }
@@ -1093,11 +1107,14 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
             recentlyPlayedRef.current = [artist, ...recentlyPlayedRef.current.slice(0, 9)];
         }
 
-        // If repeat one, replay current song
+        // If repeat one, replay current song (guard against an empty/invalid source so
+        // play() can't throw the uncaught NotSupportedError "no supported sources").
         if (repeatMode === 'one') {
-            if (audioRef.current) {
-                audioRef.current.currentTime = 0;
-                audioRef.current.play();
+            const el = audioRef.current;
+            if (el && el.getAttribute('src')) {
+                el.currentTime = 0;
+                const p = el.play();
+                if (p !== undefined) p.catch(() => { /* autoplay / no source */ });
             }
             return;
         }
@@ -1374,6 +1391,16 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
                     maybeCrossfade(currentTime, dur);
                 }}
                 onEnded={next}
+                onError={(e) => {
+                    const el = e.currentTarget;
+                    // Ignore the benign empty-element case (no src set yet / cleared).
+                    if (!el.getAttribute('src')) return;
+                    // A real source failed to load (404, unsupported format, expired URL).
+                    // Don't get stuck in a broken "playing" state.
+                    console.log('[Audio] Source failed to load:', el.currentSrc || el.src);
+                    setIsLoadingSong(false);
+                    setIsPlaying(false);
+                }}
             />
             {/* Secondary element used only for DJ-mode crossfade (not wired to Web Audio) */}
             <audio ref={crossfadeAudioRef} crossOrigin="anonymous" preload="auto" playsInline {...{ 'webkit-playsinline': 'true' }} />
