@@ -6,13 +6,15 @@ import { usePlayer } from '@/context/PlayerContext';
 import {
     Play, Pause, Heart, Clock, MoreHorizontal,
     Trash2, Globe, Lock, Share2, ArrowLeft,
-    Edit2, Plus, Loader2, Music, Shuffle, Download, Check
+    Edit2, Plus, Loader2, Music, Shuffle, Download, Check, ArrowUpDown
 } from 'lucide-react';
 import { useOffline } from '@/context/OfflineContext';
 import { fetchJioSaavnPlaylist } from '@/lib/homeData';
 import { getTrackImageUrl, getTrackArtistName, decodeHtml, normalizeTrack } from '@/lib/utils';
 import { fetchJioSaavnSuggestions, rankByTaste } from '@/lib/recommendations';
 import PlaylistCover from '@/components/PlaylistCover';
+import SongContextMenu from '@/components/SongContextMenu';
+import { extractAccent, rgbString, type AccentColor } from '@/lib/colorExtract';
 
 // Format a duration that may be raw seconds (e.g. 249) or already "m:ss".
 const formatDuration = (d: any): string => {
@@ -32,12 +34,14 @@ export default function PlaylistDetailPage() {
     const { playTrack, currentSong, isPlaying } = usePlayer();
     const { downloadPlaylist, playlistDownloadProgress, isDownloaded } = useOffline();
     const [playlist, setPlaylist] = useState<Playlist | null>(null);
+    const [headerTint, setHeaderTint] = useState<AccentColor | null>(null);
     const [loading, setLoading] = useState(true);
     const [isEditing, setIsEditing] = useState(false);
     const [editName, setEditName] = useState('');
     const [editDesc, setEditDesc] = useState('');
     const [editPublic, setEditPublic] = useState(false);
     const [editCover, setEditCover] = useState('');
+    const [songSort, setSongSort] = useState<'custom' | 'title' | 'artist'>('custom');
     const [isDownloadingPlaylist, setIsDownloadingPlaylist] = useState(false);
     // JioSaavn (external) playlist support
     const [isExternal, setIsExternal] = useState(false);
@@ -46,6 +50,15 @@ export default function PlaylistDetailPage() {
     // Taste-based "Recommended Songs" (Spotify-style auto-suggest)
     const [recommended, setRecommended] = useState<any[]>([]);
     const [loadingRecs, setLoadingRecs] = useState(false);
+
+    // Tint the header with a colour pulled from the cover art (Spotify-style).
+    const headerCover = playlist?.coverImage || playlist?.songs?.[0]?.image || '';
+    useEffect(() => {
+        if (!headerCover) { setHeaderTint(null); return; }
+        let alive = true;
+        extractAccent(headerCover).then(c => { if (alive) setHeaderTint(c); });
+        return () => { alive = false; };
+    }, [headerCover]);
     const [addingId, setAddingId] = useState<string | null>(null);
 
     useEffect(() => {
@@ -92,7 +105,7 @@ export default function PlaylistDetailPage() {
                     description: decodeHtml(ext.description || ''),
                     isPublic: true,
                     ownerId: '',
-                    ownerName: ext.artists?.[0]?.name ? decodeHtml(ext.artists[0].name) : 'JioSaavn',
+                    ownerName: ext.artists?.[0]?.name ? decodeHtml(ext.artists[0].name) : 'Nitro',
                     songs: (ext.songs || []).map((s: any) => ({
                         ...s,
                         id: String(s.id || s.songId),
@@ -116,7 +129,7 @@ export default function PlaylistDetailPage() {
         if (!playlist || !user || saving || saved) return;
         setSaving(true);
         try {
-            const newId = await createPlaylist(playlist.name, playlist.description || 'Saved from JioSaavn', false);
+            const newId = await createPlaylist(playlist.name, playlist.description || 'Saved from Nitro', false);
             for (const s of playlist.songs) {
                 try { await addSongToPlaylist(newId, s); } catch { /* skip a failed song */ }
             }
@@ -204,8 +217,8 @@ export default function PlaylistDetailPage() {
         }
     };
 
-    const handleRemoveSong = async (songId: string, e: React.MouseEvent) => {
-        e.stopPropagation();
+    const handleRemoveSong = async (songId: string, e?: React.MouseEvent) => {
+        e?.stopPropagation();
         if (!playlist) return;
         try {
             await removeSongFromPlaylist(playlist.id, songId);
@@ -269,6 +282,24 @@ export default function PlaylistDetailPage() {
 
     const isOwner = user?.uid === playlist.ownerId;
 
+    // Songs in the chosen view order (sort is view-only; never mutates the saved order).
+    const displaySongs = songSort === 'custom'
+        ? playlist.songs
+        : [...playlist.songs].sort((a, b) =>
+            songSort === 'title'
+                ? decodeHtml(a.name || '').localeCompare(decodeHtml(b.name || ''))
+                : decodeHtml(a.artist || '').localeCompare(decodeHtml(b.artist || '')));
+    const sortLabel = songSort === 'title' ? 'Title' : songSort === 'artist' ? 'Artist' : 'Custom order';
+    const cycleSongSort = () => setSongSort(s => (s === 'custom' ? 'title' : s === 'title' ? 'artist' : 'custom'));
+
+    // Total run time (only counts songs that report a duration).
+    const totalSecs = playlist.songs.reduce((acc, s: any) => acc + (Number(s.duration) || 0), 0);
+    const fmtTotal = (secs: number) => {
+        const h = Math.floor(secs / 3600);
+        const m = Math.round((secs % 3600) / 60);
+        return h ? `${h} hr ${m} min` : `${m} min`;
+    };
+
     return (
         <div className="px-4 md:px-12 pt-4 pb-32 md:py-8 max-w-7xl mx-auto space-y-6">
             {/* Back to Library */}
@@ -281,16 +312,26 @@ export default function PlaylistDetailPage() {
 
             {/* Header section */}
             <header className="flex flex-col md:flex-row gap-6 md:gap-8 md:items-end p-5 md:p-10 rounded-2xl md:rounded-[3rem] bg-gradient-to-b from-[var(--background)] to-transparent border border-[var(--border)] relative overflow-hidden group">
+                {/* Cover-derived colour tint */}
+                <div
+                    aria-hidden
+                    className="absolute inset-0 z-0 pointer-events-none transition-opacity duration-700"
+                    style={{
+                        background: headerTint
+                            ? `linear-gradient(to bottom, ${rgbString(headerTint, 0.55)} 0%, ${rgbString(headerTint, 0.14)} 45%, transparent 100%)`
+                            : undefined,
+                    }}
+                />
                 <PlaylistCover
                     coverImage={playlist.coverImage}
                     songs={playlist.songs}
-                    className="w-40 h-40 md:w-64 md:h-64 shadow-2xl shrink-0 border border-[var(--border)] mx-auto md:mx-0"
+                    className="w-40 h-40 md:w-64 md:h-64 shadow-2xl shrink-0 border border-[var(--border)] mx-auto md:mx-0 relative z-[1]"
                     rounded="rounded-2xl md:rounded-[2.5rem]"
                 />
 
-                <div className="flex-1 space-y-3 text-center md:text-left">
+                <div className="flex-1 space-y-3 text-center md:text-left relative z-[1]">
                     <div className="flex items-center justify-center md:justify-start gap-2">
-                        <span className="text-[10px] font-bold uppercase tracking-[0.4em] text-cyan-400">Playlist</span>
+                        <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--foreground-secondary)]">Playlist</span>
                         {playlist.isPublic ? <Globe size={10} className="text-[var(--foreground-muted)]" /> : <Lock size={10} className="text-[var(--foreground-muted)]" />}
                     </div>
 
@@ -314,7 +355,7 @@ export default function PlaylistDetailPage() {
                                 <div className="flex items-center gap-3">
                                     <div className="w-14 h-14 rounded-lg overflow-hidden bg-[var(--card)] border border-[var(--border)] shrink-0">
                                         {(editCover || playlist.songs[0]?.image) ? (
-                                            <img src={editCover || playlist.songs[0]?.image} alt="" className="w-full h-full object-cover" />
+                                            <img src={editCover || playlist.songs[0]?.image} alt="" className="w-full h-full object-cover" onError={(e)=>{(e.currentTarget as HTMLImageElement).src='/logo.png'}} />
                                         ) : <div className="w-full h-full flex items-center justify-center text-[var(--foreground-muted)]"><Music size={20} /></div>}
                                     </div>
                                     <input
@@ -331,7 +372,7 @@ export default function PlaylistDetailPage() {
                                     <div className="flex gap-2 overflow-x-auto no-scrollbar">
                                         {playlist.songs.slice(0, 12).map((s: any, i: number) => s.image && (
                                             <button key={i} onClick={() => setEditCover(s.image)} className={`w-10 h-10 rounded-md overflow-hidden shrink-0 border-2 transition-all ${editCover === s.image ? 'border-cyan-400' : 'border-transparent hover:border-[var(--border)]'}`}>
-                                                <img src={s.image} alt="" className="w-full h-full object-cover" />
+                                                <img src={s.image} alt="" className="w-full h-full object-cover" onError={(e)=>{(e.currentTarget as HTMLImageElement).src='/logo.png'}} />
                                             </button>
                                         ))}
                                     </div>
@@ -352,32 +393,38 @@ export default function PlaylistDetailPage() {
                         </div>
                     ) : (
                         <div className="space-y-1">
-                            <h1 className="text-3xl md:text-7xl font-bold text-[var(--foreground)] uppercase tracking-tighter leading-none shrink-0 truncate max-w-2xl px-2 md:px-0">
+                            <h1 className="text-3xl md:text-7xl font-bold text-[var(--foreground)] tracking-tight leading-none shrink-0 truncate max-w-2xl px-2 md:px-0">
                                 {playlist.name}
                             </h1>
                             <p className="text-[var(--foreground-muted)] font-medium max-w-xl line-clamp-2 text-xs md:text-base opacity-80">
                                 {playlist.description || "No description provided."}
                             </p>
                             <div className="flex items-center justify-center md:justify-start gap-4 pt-2">
-                                <span className="text-xs md:text-sm font-bold text-[var(--foreground)] uppercase">{playlist.ownerName}</span>
-                                <span className="text-[var(--foreground-muted)] font-bold">•</span>
-                                <span className="text-xs md:text-sm font-bold text-[var(--foreground-muted)] uppercase">{playlist.songs.length} Tracks</span>
+                                <span className="text-xs md:text-sm font-semibold text-[var(--foreground)]">{playlist.ownerName}</span>
+                                <span className="text-[var(--foreground-muted)]">•</span>
+                                <span className="text-xs md:text-sm font-medium text-[var(--foreground-muted)]">{playlist.songs.length} songs</span>
+                                {totalSecs > 0 && (
+                                    <>
+                                        <span className="text-[var(--foreground-muted)]">•</span>
+                                        <span className="text-xs md:text-sm font-medium text-[var(--foreground-muted)]">{fmtTotal(totalSecs)}</span>
+                                    </>
+                                )}
                             </div>
                         </div>
                     )}
                 </div>
 
-                <div className="flex flex-row md:flex-row items-center justify-center gap-3 mt-4 md:mt-0 w-full md:w-auto px-4 md:px-0">
+                <div className="flex flex-row md:flex-row items-center justify-center gap-3 mt-4 md:mt-0 w-full md:w-auto px-4 md:px-0 relative z-[1]">
                     <button
                         onClick={() => playlist.songs.length > 0 && playTrack(playlist.songs[0], playlist.songs)}
-                        className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-cyan-400 text-black px-6 md:px-10 py-3.5 md:py-5 rounded-xl md:rounded-[2rem] font-bold uppercase tracking-tight md:tracking-widest shadow-xl shadow-cyan-400/20 hover:scale-105 active:scale-95 transition-all text-xs md:text-sm"
+                        className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-cyan-400 text-black px-7 py-2.5 rounded-full font-bold uppercase tracking-tight md:tracking-widest shadow-lg shadow-cyan-400/20 hover:scale-105 active:scale-95 transition-all text-xs md:text-sm"
                     >
                         <Play size={18} fill="black" /> Play
                     </button>
                     <div className="flex items-center gap-2 md:gap-4 shrink-0">
                         <button
                             onClick={shufflePlay}
-                            className="p-3.5 md:p-5 bg-[var(--card-hover)] hover:bg-[var(--border)] rounded-xl md:rounded-[2rem] text-[var(--foreground)] transition-all hover:scale-110 active:scale-90 border border-[var(--border)]"
+                            className="p-3 bg-[var(--card-hover)] hover:bg-[var(--border)] rounded-full text-[var(--foreground)] transition-all hover:scale-110 active:scale-90 border border-[var(--border)]"
                             title="Shuffle Play"
                         >
                             <Shuffle size={18} className="md:w-6 md:h-6" />
@@ -385,7 +432,7 @@ export default function PlaylistDetailPage() {
                         <button
                             onClick={handleDownloadPlaylist}
                             disabled={isDownloadingPlaylist || allDownloaded || playlist.songs.length === 0}
-                            className={`p-3.5 md:p-5 rounded-xl md:rounded-[2rem] transition-all hover:scale-110 active:scale-90 border border-[var(--border)] relative ${allDownloaded
+                            className={`p-3 rounded-full transition-all hover:scale-110 active:scale-90 border border-[var(--border)] relative ${allDownloaded
                                 ? 'bg-green-500/20 text-green-400 border-green-500/30'
                                 : isDownloadingPlaylist
                                     ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30'
@@ -408,7 +455,7 @@ export default function PlaylistDetailPage() {
                             <button
                                 onClick={handleSaveToLibrary}
                                 disabled={saving || saved}
-                                className={`p-3.5 md:p-5 rounded-xl md:rounded-[2rem] transition-all hover:scale-110 active:scale-90 border ${saved
+                                className={`p-3 rounded-full transition-all hover:scale-110 active:scale-90 border ${saved
                                     ? 'bg-green-500/20 text-green-400 border-green-500/30'
                                     : 'bg-[var(--card-hover)] hover:bg-[var(--border)] text-[var(--foreground)] border-[var(--border)]'}`}
                                 title={saved ? 'Saved to your library' : 'Save to your library'}
@@ -421,14 +468,14 @@ export default function PlaylistDetailPage() {
                         {isOwner && (
                             <button
                                 onClick={() => setIsEditing(true)}
-                                className="p-3.5 md:p-5 bg-[var(--card-hover)] hover:bg-[var(--border)] rounded-xl md:rounded-[2rem] text-[var(--foreground)] transition-all hover:scale-110 active:scale-90 border border-[var(--border)]"
+                                className="p-3 bg-[var(--card-hover)] hover:bg-[var(--border)] rounded-full text-[var(--foreground)] transition-all hover:scale-110 active:scale-90 border border-[var(--border)]"
                             >
                                 <Edit2 size={18} className="md:w-6 md:h-6" />
                             </button>
                         )}
                         <button
                             onClick={handleShare}
-                            className="p-3.5 md:p-5 bg-[var(--card-hover)] hover:bg-[var(--border)] rounded-xl md:rounded-[2rem] text-[var(--foreground)] transition-all hover:scale-110 active:scale-90 border border-[var(--border)]"
+                            className="p-3 bg-[var(--card-hover)] hover:bg-[var(--border)] rounded-full text-[var(--foreground)] transition-all hover:scale-110 active:scale-90 border border-[var(--border)]"
                         >
                             <Share2 size={18} className="md:w-6 md:h-6" />
                         </button>
@@ -436,23 +483,46 @@ export default function PlaylistDetailPage() {
                 </div>
             </header>
 
-            {/* Song list */}
-            <div className="space-y-1">
-                <div className="grid grid-cols-[40px,1fr,1fr,auto] gap-4 px-6 py-4 border-b border-[var(--border)] text-[10px] font-bold text-[var(--foreground-muted)] uppercase tracking-widest hidden md:grid">
-                    <span>#</span>
-                    <span>Track</span>
-                    <span>Artist</span>
-                    <span className="text-right"><Clock size={14} className="ml-auto" /></span>
+            {/* Management toolbar — Add / Edit / Sort (Spotify-style) */}
+            {!isEditing && playlist.songs.length > 0 && (
+                <div className="flex items-center gap-2.5 px-2 md:px-4 overflow-x-auto no-scrollbar">
+                    {isOwner && (
+                        <>
+                            <button
+                                onClick={() => router.push('/search')}
+                                className="flex items-center gap-2 px-4 py-2 rounded-full bg-[var(--card-hover)] hover:bg-[var(--border)] text-[var(--foreground)] text-xs md:text-sm font-semibold transition-colors shrink-0 border border-[var(--border)]"
+                                title="Find songs to add"
+                            >
+                                <Plus size={16} /> Add songs
+                            </button>
+                            <button
+                                onClick={() => setIsEditing(true)}
+                                className="flex items-center gap-2 px-4 py-2 rounded-full bg-[var(--card-hover)] hover:bg-[var(--border)] text-[var(--foreground)] text-xs md:text-sm font-semibold transition-colors shrink-0 border border-[var(--border)]"
+                            >
+                                <Edit2 size={15} /> Edit
+                            </button>
+                        </>
+                    )}
+                    <button
+                        onClick={cycleSongSort}
+                        className="flex items-center gap-2 px-4 py-2 rounded-full bg-[var(--card-hover)] hover:bg-[var(--border)] text-[var(--foreground)] text-xs md:text-sm font-semibold transition-colors shrink-0 border border-[var(--border)]"
+                        title="Change sort order"
+                    >
+                        <ArrowUpDown size={15} /> Sort: {sortLabel}
+                    </button>
                 </div>
+            )}
 
-                {playlist.songs.length > 0 ? (
-                    playlist.songs.map((song, idx) => (
+            {/* Song list — compact Spotify-style rows */}
+            <div className="px-2 md:px-4">
+                {displaySongs.length > 0 ? (
+                    displaySongs.map((song, idx) => (
                         <div
                             key={song.id}
-                            className={`group grid grid-cols-[auto,1fr,auto] md:grid-cols-[40px,1fr,1fr,auto] gap-4 px-6 py-4 rounded-3xl hover:bg-[var(--card-hover)] transition-all cursor-pointer items-center border border-transparent hover:border-[var(--border)] ${currentSong?.id === song.id ? 'bg-cyan-400/5 border-cyan-400/10' : ''}`}
-                            onClick={() => playTrack(song, playlist.songs)}
+                            className={`group flex items-center gap-3 px-2 py-1.5 rounded-md hover:bg-[var(--card-hover)] transition-colors cursor-pointer ${currentSong?.id === song.id ? 'bg-cyan-400/5' : ''}`}
+                            onClick={() => playTrack(song, displaySongs)}
                         >
-                            <span className={`hidden md:inline font-bold text-sm ${currentSong?.id === song.id ? 'text-cyan-400' : 'text-[var(--foreground-muted)] group-hover:text-[var(--foreground)]'}`}>
+                            <span className={`hidden sm:flex w-5 justify-center text-[13px] tabular-nums shrink-0 ${currentSong?.id === song.id ? 'text-cyan-400' : 'text-[var(--foreground-muted)]'}`}>
                                 {currentSong?.id === song.id && isPlaying ? (
                                     <div className="flex gap-0.5 items-end h-3">
                                         <div className="w-0.5 h-full bg-cyan-400 animate-music-bar-1" />
@@ -462,35 +532,28 @@ export default function PlaylistDetailPage() {
                                 ) : idx + 1}
                             </span>
 
-                            <div className="flex items-center gap-4 min-w-0">
-                                <img
-                                    src={getTrackImageUrl(song) || (typeof song.image === 'string' ? song.image : '') || '/logo.png'}
-                                    onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/logo.png'; }}
-                                    alt=""
-                                    className="w-12 h-12 rounded-xl object-cover shrink-0 bg-[var(--surface)]"
-                                />
-                                <div className="min-w-0">
-                                    <p className={`font-bold uppercase tracking-tighter truncate ${currentSong?.id === song.id ? 'text-cyan-400' : 'text-[var(--foreground)]'}`}>
-                                        {decodeHtml(song.name)}
-                                    </p>
-                                    <p className="text-xs text-[var(--foreground-muted)] md:hidden">{decodeHtml(song.artist)}</p>
-                                </div>
+                            <img
+                                src={getTrackImageUrl(song) || (typeof song.image === 'string' ? song.image : '') || '/logo.png'}
+                                onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/logo.png'; }}
+                                alt=""
+                                className="w-11 h-11 rounded-md object-cover shrink-0 bg-[var(--surface)]"
+                            />
+                            <div className="flex-1 min-w-0">
+                                <p className={`font-semibold text-[15px] truncate leading-tight ${currentSong?.id === song.id ? 'text-cyan-400' : 'text-[var(--foreground)]'}`}>
+                                    {decodeHtml(song.name)}
+                                </p>
+                                <p className="text-[13px] text-[var(--foreground-muted)] truncate mt-0.5">{decodeHtml(song.artist)}</p>
                             </div>
 
-                            <span className="hidden md:inline text-[var(--foreground-muted)] font-medium truncate">{decodeHtml(song.artist)}</span>
-
-                            <div className="flex items-center gap-4">
-                                {isOwner && (
-                                    <button
-                                        onClick={(e) => handleRemoveSong(song.id, e)}
-                                        className="p-2 text-[var(--foreground-muted)] hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-all"
-                                    >
-                                        <Trash2 size={16} />
-                                    </button>
-                                )}
-                                <span className="text-[var(--foreground-muted)] font-bold tabular-nums text-xs">
-                                    {formatDuration(song.duration)}
-                                </span>
+                            <span className="hidden md:inline text-[var(--foreground-muted)] tabular-nums text-xs shrink-0">
+                                {formatDuration(song.duration)}
+                            </span>
+                            <div className="shrink-0 text-[var(--foreground-muted)]" onClick={e => e.stopPropagation()}>
+                                <SongContextMenu
+                                    song={song}
+                                    queue={displaySongs}
+                                    onRemoveFromPlaylist={isOwner ? () => handleRemoveSong(song.id) : undefined}
+                                />
                             </div>
                         </div>
                     ))

@@ -74,7 +74,7 @@ export default function LikedSongsPage() {
             </div>
 
             {/* Song list */}
-            <div className="px-2 md:px-8 mt-2">
+            <div className="px-2 md:px-8 lg:px-12 max-w-6xl mt-2">
                 {loading ? (
                     <div className="flex justify-center py-16"><Loader2 size={28} className="animate-spin text-[var(--accent)]" /></div>
                 ) : songs.length === 0 ? (
@@ -94,7 +94,7 @@ export default function LikedSongsPage() {
                                 <span className="w-5 text-center text-sm text-[var(--foreground-muted)] hidden md:block">{idx + 1}</span>
                                 <div className="relative w-11 h-11 flex-shrink-0">
                                     {song.image ? (
-                                        <img src={song.image} alt="" className="w-full h-full rounded-md object-cover" />
+                                        <img src={song.image} alt="" className="w-full h-full rounded-md object-cover" onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/logo.png'; }} />
                                     ) : <div className="w-full h-full rounded-md bg-[var(--surface)] flex items-center justify-center text-[var(--foreground-muted)]"><Music size={16} /></div>}
                                     <div className="absolute inset-0 rounded-md bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                                         <Play size={14} fill="white" className="text-white ml-0.5" />

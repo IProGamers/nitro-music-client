@@ -4,7 +4,7 @@ import { useAuth, Playlist } from '@/context/AuthContext';
 import { usePlayer } from '@/context/PlayerContext';
 import {
     Plus, Music, Globe, Lock, Loader2, Play,
-    Search, Clock, Download, Heart
+    Search, Clock, Download, Heart, ArrowUpDown, LayoutGrid, List
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -26,6 +26,8 @@ export default function PlaylistsPage() {
     const [showSpotify, setShowSpotify] = useState(false);
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [newName, setNewName] = useState('');
+    const [sortBy, setSortBy] = useState<'recent' | 'name' | 'count'>('recent');
+    const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
 
     useEffect(() => {
         if (user) {
@@ -100,6 +102,15 @@ export default function PlaylistsPage() {
         p.name.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
+    const sortedPlaylists = [...filteredPlaylists].sort((a, b) => {
+        if (sortBy === 'name') return a.name.localeCompare(b.name);
+        if (sortBy === 'count') return b.songs.length - a.songs.length;
+        return 0; // 'recent' — keep the order returned by the API
+    });
+
+    const sortLabel = sortBy === 'name' ? 'A–Z' : sortBy === 'count' ? 'Songs' : 'Recent';
+    const cycleSort = () => setSortBy(s => (s === 'recent' ? 'name' : s === 'name' ? 'count' : 'recent'));
+
     return (
         <div className="px-6 md:px-12 py-8 pb-32 max-w-7xl mx-auto space-y-12">
             <header className="flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -168,7 +179,7 @@ export default function PlaylistsPage() {
 
             {activeTab === 'downloaded' ? (
                 downloads.length > 0 ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-1">
                         {downloads.map((song: any, idx: number) => (
                             <div
                                 key={`dl-${song.id || song.songId || idx}`}
@@ -176,7 +187,7 @@ export default function PlaylistsPage() {
                                 className="group flex items-center gap-3.5 p-2.5 rounded-lg hover:bg-[var(--surface-hover)] cursor-pointer transition-colors"
                             >
                                 <div className="relative w-11 h-11 flex-shrink-0">
-                                    <img src={song.image || '/logo.png'} alt="" className="w-full h-full rounded-md object-cover shadow-sm shadow-black/30" />
+                                    <img src={song.image || '/logo.png'} alt="" className="w-full h-full rounded-md object-cover shadow-sm shadow-black/30" onError={(e)=>{(e.currentTarget as HTMLImageElement).src='/logo.png'}} />
                                     <div className="absolute inset-0 rounded-md bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                                         <Play size={14} fill="white" className="text-white ml-0.5" />
                                     </div>
@@ -197,7 +208,7 @@ export default function PlaylistsPage() {
                 )
             ) : activeTab === 'recent' ? (
                 recent.length > 0 ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-1">
                         {recent.map((song, idx) => (
                             <div
                                 key={`rec-${song.id || song.songId || idx}`}
@@ -205,7 +216,7 @@ export default function PlaylistsPage() {
                                 className="group flex items-center gap-3.5 p-2.5 rounded-lg hover:bg-[var(--surface-hover)] cursor-pointer transition-colors"
                             >
                                 <div className="relative w-11 h-11 flex-shrink-0">
-                                    <img src={song.image || '/logo.png'} alt="" className="w-full h-full rounded-md object-cover shadow-sm shadow-black/30" />
+                                    <img src={song.image || '/logo.png'} alt="" className="w-full h-full rounded-md object-cover shadow-sm shadow-black/30" onError={(e)=>{(e.currentTarget as HTMLImageElement).src='/logo.png'}} />
                                     <div className="absolute inset-0 rounded-md bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                                         <Play size={14} fill="white" className="text-white ml-0.5" />
                                     </div>
@@ -248,47 +259,78 @@ export default function PlaylistsPage() {
                 />
             </div>
 
-            {filteredPlaylists.length > 0 ? (
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 md:gap-8">
-                    {filteredPlaylists.map((p) => (
+            {/* Sort + view toggle */}
+            {filteredPlaylists.length > 0 && (
+                <div className="flex items-center justify-between -mb-4">
+                    <button
+                        onClick={cycleSort}
+                        className="flex items-center gap-1.5 text-xs font-semibold text-[var(--foreground-muted)] hover:text-[var(--foreground)] transition-colors"
+                        title="Change sort order"
+                    >
+                        <ArrowUpDown size={14} /> {sortLabel}
+                    </button>
+                    <div className="flex items-center gap-1">
+                        <button
+                            onClick={() => setViewMode('list')}
+                            className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${viewMode === 'list' ? 'bg-[var(--surface-hover)] text-[var(--foreground)]' : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)]'}`}
+                            title="List view"
+                        >
+                            <List size={16} />
+                        </button>
+                        <button
+                            onClick={() => setViewMode('grid')}
+                            className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${viewMode === 'grid' ? 'bg-[var(--surface-hover)] text-[var(--foreground)]' : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)]'}`}
+                            title="Grid view"
+                        >
+                            <LayoutGrid size={16} />
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {sortedPlaylists.length === 0 ? (
+                <div className="py-20 flex flex-col items-center justify-center text-center bg-[var(--card)] rounded-[3rem] border border-dashed border-[var(--border)]">
+                    <Music size={48} className="text-[var(--foreground-muted)] mb-6" />
+                    <p className="text-[var(--foreground-muted)] font-bold uppercase tracking-[0.2em]">No playlists found</p>
+                </div>
+            ) : viewMode === 'grid' ? (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                    {sortedPlaylists.map((p) => (
+                        <Link href={`/playlist/${p.id}`} key={p.id} className="group">
+                            <div className="aspect-square rounded-xl overflow-hidden bg-[var(--card)] border border-[var(--border)] mb-2 shadow-sm">
+                                <PlaylistCover coverImage={p.coverImage} songs={p.songs} className="w-full h-full" rounded="rounded-xl" />
+                            </div>
+                            <h3 className="font-semibold text-sm text-[var(--foreground)] truncate group-hover:text-cyan-400 transition-colors">{p.name}</h3>
+                            <p className="text-xs text-[var(--foreground-muted)] truncate mt-0.5">Playlist · {p.songs.length} {p.songs.length === 1 ? 'song' : 'songs'}</p>
+                        </Link>
+                    ))}
+                </div>
+            ) : (
+                <div>
+                    {sortedPlaylists.map((p) => (
                         <Link
                             href={`/playlist/${p.id}`}
                             key={p.id}
-                            className="group flex flex-col gap-4 animate-in fade-in zoom-in-95 duration-500"
+                            className="flex items-center gap-3 p-2 rounded-lg hover:bg-[var(--surface-hover)] transition-colors group"
                         >
-                            <div className="relative aspect-square rounded-[2.5rem] overflow-hidden bg-[var(--card)] border border-[var(--border)] group-hover:border-cyan-400/30 transition-all duration-500">
-                                <PlaylistCover coverImage={p.coverImage} songs={p.songs} className="absolute inset-0 w-full h-full" rounded="rounded-[2.5rem]" />
-
-                                {/* Hover Play Button */}
-                                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-500 scale-90 group-hover:scale-100">
-                                    <div className="w-16 h-16 bg-[var(--foreground)] rounded-full flex items-center justify-center shadow-2xl">
-                                        <Play size={24} fill="var(--background)" className="ml-1 text-[var(--background)]" />
-                                    </div>
-                                </div>
-
+                            <div className="w-14 h-14 rounded-lg overflow-hidden shrink-0 bg-[var(--card)] border border-[var(--border)]">
+                                <PlaylistCover coverImage={p.coverImage} songs={p.songs} className="w-full h-full" rounded="rounded-lg" />
                             </div>
-
-                            <div className="space-y-1">
-                                <h3 className="font-bold text-[var(--foreground)] uppercase tracking-tighter truncate group-hover:text-cyan-400 transition-colors">
+                            <div className="min-w-0 flex-1">
+                                <h3 className="font-semibold text-[15px] text-[var(--foreground)] truncate group-hover:text-cyan-400 transition-colors">
                                     {p.name}
                                 </h3>
-                                <div className="flex items-center gap-2">
-                                    <p className="text-[10px] font-bold text-[var(--foreground-muted)] uppercase tracking-widest">{p.songs.length} Tracks</p>
-                                    <div className="w-1 h-1 bg-[var(--foreground-muted)] rounded-full" />
+                                <div className="flex items-center gap-1.5 text-xs text-[var(--foreground-muted)] mt-0.5">
+                                    <span>Playlist · {p.songs.length} {p.songs.length === 1 ? 'song' : 'songs'}</span>
                                     {p.isPublic ? (
-                                        <Globe size={10} className="text-cyan-400/60" />
+                                        <Globe size={11} className="shrink-0" />
                                     ) : (
-                                        <Lock size={10} className="text-[var(--foreground-muted)]" />
+                                        <Lock size={11} className="shrink-0" />
                                     )}
                                 </div>
                             </div>
                         </Link>
                     ))}
-                </div>
-            ) : (
-                <div className="py-20 flex flex-col items-center justify-center text-center bg-[var(--card)] rounded-[3rem] border border-dashed border-[var(--border)]">
-                    <Music size={48} className="text-[var(--foreground-muted)] mb-6" />
-                    <p className="text-[var(--foreground-muted)] font-bold uppercase tracking-[0.2em]">No playlists found</p>
                 </div>
             )}
             </>

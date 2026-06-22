@@ -218,7 +218,7 @@ export default function DownloadsPage() {
                                 {/* Thumbnail with play overlay */}
                                 <div className="relative w-14 h-14 rounded-xl overflow-hidden shrink-0">
                                     {song.image ? (
-                                        <img src={song.image} alt={song.name} className="w-full h-full object-cover" />
+                                        <img src={song.image} alt={song.name} className="w-full h-full object-cover" onError={(e)=>{(e.currentTarget as HTMLImageElement).src='/logo.png'}} />
                                     ) : (
                                         <div className="w-full h-full bg-[var(--card-hover)] flex items-center justify-center">
                                             <Music2 className="w-6 h-6 text-[var(--foreground-muted)]" />

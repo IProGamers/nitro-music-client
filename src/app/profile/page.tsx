@@ -29,6 +29,8 @@ import FriendSearch from '@/components/FriendSearch';
 import AvatarPicker from '@/components/AvatarPicker';
 import ProfileCustomization from '@/components/ProfileCustomization';
 import SongContextMenu from '@/components/SongContextMenu';
+import HowToUseModal from '@/components/HowToUseModal';
+import { HelpCircle, ChevronRight } from 'lucide-react';
 import { PREMIUM_PROFILE_FEATURES } from '@/lib/avatarLibrary';
 
 // Tier configurations with unique badges
@@ -58,6 +60,7 @@ function ProfileContent() {
     const [history, setHistory] = useState<any[]>(profileData?.history || []);
     const [playlists, setPlaylists] = useState<any[]>(profileData?.playlists || []);
     const [activeTab, setActiveTab] = useState<'favorites' | 'history' | 'playlists' | 'downloads' | 'friends' | 'settings'>('favorites');
+    const [showHowTo, setShowHowTo] = useState(false);
     const searchParams = useSearchParams();
     // Never show loading if we have cached data
     const [loading, setLoading] = useState(!profileData && !hasLoadedProfile);
@@ -517,7 +520,7 @@ function ProfileContent() {
                                         >
                                             <div className="flex items-center gap-3 md:gap-5 relative z-10">
                                                 <div className="relative w-12 h-12 md:w-16 md:h-16 shrink-0 shadow-xl">
-                                                    <img src={t.image} className="w-full h-full rounded-xl object-cover" />
+                                                    <img src={t.image} className="w-full h-full rounded-xl object-cover" onError={(e)=>{(e.currentTarget as HTMLImageElement).src='/logo.png'}} />
                                                 </div>
                                                 <div className="flex-1 overflow-hidden">
                                                     <h3 className="font-bold truncate text-sm text-[var(--foreground)] group-hover:text-cyan-400 transition-colors">{t.name}</h3>
@@ -547,7 +550,7 @@ function ProfileContent() {
                                     {history.map((t: any) => (
                                         <div key={t.id} onClick={() => playTrack(t, history)} className="min-w-[160px] md:min-w-[200px] group cursor-pointer">
                                             <div className="relative aspect-square mb-3 md:mb-4 overflow-hidden rounded-2xl md:rounded-[2.5rem] bg-[var(--card)] border border-[var(--border)] shadow-xl md:shadow-2xl group-hover:border-cyan-400/50 transition-all duration-500">
-                                                <img src={t.image} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
+                                                <img src={t.image} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" onError={(e)=>{(e.currentTarget as HTMLImageElement).src='/logo.png'}} />
                                                 <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                                                     <Play size={24} fill="white" className="text-white scale-125 transition-transform group-hover:scale-100 md:w-8 md:h-8" />
                                                 </div>
@@ -575,7 +578,7 @@ function ProfileContent() {
                                         <Link key={p.id} href={`/playlist/${p.id}`} className="group cursor-pointer">
                                             <div className="relative aspect-square mb-3 md:mb-4 overflow-hidden rounded-2xl md:rounded-[2.5rem] bg-[var(--card)] border border-[var(--border)] shadow-xl md:shadow-2xl group-hover:border-cyan-400/50 transition-all duration-500">
                                                 {p.songs?.[0]?.image ? (
-                                                    <img src={p.songs[0].image} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
+                                                    <img src={p.songs[0].image} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" onError={(e)=>{(e.currentTarget as HTMLImageElement).src='/logo.png'}} />
                                                 ) : (
                                                     <div className="w-full h-full flex items-center justify-center text-[var(--foreground-muted)]"><Music size={32} className="md:w-10 md:h-10" /></div>
                                                 )}
@@ -650,7 +653,7 @@ function ProfileContent() {
                                         >
                                             <div className="flex items-center gap-3 md:gap-5 relative z-10">
                                                 <div className="relative w-12 h-12 md:w-16 md:h-16 shrink-0 shadow-xl">
-                                                    <img src={song.image} className="w-full h-full rounded-xl object-cover" />
+                                                    <img src={song.image} className="w-full h-full rounded-xl object-cover" onError={(e)=>{(e.currentTarget as HTMLImageElement).src='/logo.png'}} />
                                                     <div className="absolute bottom-0 right-0 p-1 bg-emerald-500 rounded-full">
                                                         <Check size={8} className="text-white" />
                                                     </div>
@@ -731,6 +734,21 @@ function ProfileContent() {
 
                     {activeTab === 'settings' && (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8 mb-20">
+
+                            {/* How to use Nitro — interactive feature guide */}
+                            <button
+                                onClick={() => setShowHowTo(true)}
+                                className="md:col-span-2 flex items-center gap-4 p-4 md:p-5 rounded-2xl bg-gradient-to-r from-cyan-500/10 to-purple-500/10 border border-cyan-400/20 hover:border-cyan-400/40 active:scale-[0.99] transition-all text-left"
+                            >
+                                <div className="w-12 h-12 rounded-xl bg-cyan-400/15 flex items-center justify-center shrink-0">
+                                    <HelpCircle size={24} className="text-cyan-400" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <h3 className="font-bold text-[var(--foreground)]">How to use Nitro</h3>
+                                    <p className="text-xs text-[var(--foreground-muted)] mt-0.5">A quick interactive tour of every feature</p>
+                                </div>
+                                <ChevronRight size={20} className="text-[var(--foreground-muted)] shrink-0" />
+                            </button>
 
                             {/* Username Section (Full Width) */}
                             <div className="md:col-span-2">
@@ -988,6 +1006,7 @@ function ProfileContent() {
 
             {/* Premium Feature Modals */}
             <WrappedModal isOpen={showWrapped} onClose={() => setShowWrapped(false)} />
+            <HowToUseModal isOpen={showHowTo} onClose={() => setShowHowTo(false)} />
             <PlaylistImportExport isOpen={showImportExport} onClose={() => setShowImportExport(false)} />
             <ListeningRoom isOpen={showListeningRoom} onClose={() => setShowListeningRoom(false)} />
 
