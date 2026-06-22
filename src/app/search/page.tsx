@@ -735,7 +735,13 @@ export default function SearchPage() {
                             // prefix of the other (you're typing the song's name). Loose mid-string
                             // matches are excluded so the Top Result never feels random — matching
                             // songs still appear first in the list below regardless.
-                            const strongMatch = !!_q && !!_t && (_t === _q || _t.startsWith(_q) || _q.startsWith(_t));
+                            // YouTube search is already relevance-ranked AND its titles carry
+                            // decorations ("(From …)", "(feat …)") that break the strict
+                            // prefix check — so for YouTube we trust the first result as the
+                            // Top Result (also accept a contains-match for either source).
+                            const strongMatch = musicSource === 'youtube'
+                                ? (!!_q && !!_t)
+                                : (!!_q && !!_t && (_t === _q || _t.startsWith(_q) || _q.startsWith(_t)));
                             if (query.trim().length < 3 || !strongMatch) return null;
 
                             return (
