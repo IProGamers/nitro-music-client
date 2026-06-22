@@ -81,5 +81,8 @@ export function normalizeTrack(raw: any) {
         language: raw.language,
         year: raw.year,
         label: raw.label,
+        // Which backend this song came from. JioSaavn payloads have no `source`
+        // field, so default to jiosaavn; YouTube payloads carry source:'youtube'.
+        source: raw.source === 'youtube' ? 'youtube' : 'jiosaavn',
     };
 }

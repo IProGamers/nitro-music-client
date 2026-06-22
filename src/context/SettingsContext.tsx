@@ -22,6 +22,10 @@ interface SettingsContextType {
     setRegion: (v: string) => void;
     crossfadeDuration: number;
     setCrossfadeDuration: (v: number) => void;
+    // Dual music source: where home/search/browse pull from. Playback of a song
+    // always follows that song's own `source`, not this global setting.
+    musicSource: 'jiosaavn' | 'youtube';
+    setMusicSource: (v: 'jiosaavn' | 'youtube') => void;
     tier: SubscriptionTier;
     isAdmin: boolean;
     refreshProfile: () => Promise<void>;
@@ -40,6 +44,7 @@ export const SettingsProvider = ({ children }: { children: React.ReactNode }) =>
     const [language, setLanguage] = useState('English');
     const [region, setRegion] = useState('Global');
     const [crossfadeDuration, setCrossfadeDuration] = useState(0); // 0 = off, 1-12 seconds
+    const [musicSource, setMusicSource] = useState<'jiosaavn' | 'youtube'>('jiosaavn');
 
     // Get tier and isAdmin from userProfile (Firebase)
     // Map legacy NITRO_ULTRA to NITRO_SUPREME for backward compatibility
@@ -60,7 +65,8 @@ export const SettingsProvider = ({ children }: { children: React.ReactNode }) =>
             viz: localStorage.getItem('nitro_setting_viz'),
             lang: localStorage.getItem('nitro_setting_lang'),
             region: localStorage.getItem('nitro_setting_region'),
-            crossfade: localStorage.getItem('nitro_setting_crossfade')
+            crossfade: localStorage.getItem('nitro_setting_crossfade'),
+            source: localStorage.getItem('nitro_setting_source')
         };
 
         if (saved.download) setEnableDownload(JSON.parse(saved.download));
@@ -71,6 +77,7 @@ export const SettingsProvider = ({ children }: { children: React.ReactNode }) =>
         if (saved.lang) setLanguage(saved.lang);
         if (saved.region) setRegion(saved.region);
         if (saved.crossfade) setCrossfadeDuration(parseInt(saved.crossfade, 10));
+        if (saved.source === 'youtube' || saved.source === 'jiosaavn') setMusicSource(saved.source);
     }, []);
 
     useEffect(() => {
@@ -82,7 +89,8 @@ export const SettingsProvider = ({ children }: { children: React.ReactNode }) =>
         localStorage.setItem('nitro_setting_lang', language);
         localStorage.setItem('nitro_setting_region', region);
         localStorage.setItem('nitro_setting_crossfade', crossfadeDuration.toString());
-    }, [enableDownload, enable3DAudio, audioQuality, autoPlay, visualizer, language, region, crossfadeDuration]);
+        localStorage.setItem('nitro_setting_source', musicSource);
+    }, [enableDownload, enable3DAudio, audioQuality, autoPlay, visualizer, language, region, crossfadeDuration, musicSource]);
 
     return (
         <SettingsContext.Provider value={{
@@ -94,6 +102,7 @@ export const SettingsProvider = ({ children }: { children: React.ReactNode }) =>
             language, setLanguage,
             region, setRegion,
             crossfadeDuration, setCrossfadeDuration,
+            musicSource, setMusicSource,
             tier, isAdmin, refreshProfile
         }}>
             {children}

@@ -1,6 +1,7 @@
 "use client"
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { usePlayer } from '@/context/PlayerContext';
+import { useSettings } from '@/context/SettingsContext';
 import { Search, Clock, X, Music, User, Disc, ListMusic, ChevronRight, Trash2, Play, Sparkles, TrendingUp, Headphones, Heart, Moon, Flame } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -45,6 +46,7 @@ const looksLikeTypoFix = (from: string, to: string): boolean => {
 
 export default function SearchPage() {
     const { playTrack } = usePlayer();
+    const { musicSource } = useSettings();
     const router = useRouter();
     const [query, setQuery] = useState('');
     const [results, setResults] = useState<SearchResults | null>(null);
@@ -143,6 +145,26 @@ export default function SearchPage() {
 
             try {
                 const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+
+                // YouTube source: hit the YouTube module and shape it like the
+                // unified JioSaavn response. Albums/artists/playlists come later.
+                if (musicSource === 'youtube') {
+                    const ytRes = await fetch(`${apiUrl}/api/youtube/search/songs?query=${encodeURIComponent(searchTerm)}&limit=30`, { signal: controller.signal });
+                    const ytData = await ytRes.json();
+                    const ytSongs = ytData?.success ? (ytData.data?.results || []) : [];
+                    const shaped: any = {
+                        songs: { results: ytSongs },
+                        albums: { results: [] },
+                        artists: { results: [] },
+                        playlists: { results: [] },
+                        topQuery: { results: ytSongs.slice(0, 1) }
+                    };
+                    setResults(shaped);
+                    searchCache.set(searchTerm, shaped);
+                    setActiveTab('all');
+                    setLoading(false);
+                    return;
+                }
 
                 // Check if this is a trending song search
                 const trendingSong = getTrendingSongForQuery(searchTerm);
@@ -505,7 +527,7 @@ export default function SearchPage() {
 
             {/* Conditional Display: History vs Categories */}
             {query === '' && (
-                <div className="mt-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <div className="mt-8">
                     {isFocused ? (
                         /* Search History - Shown ONLY when focused */
                         <div key="recent" className="animate-slide-up">

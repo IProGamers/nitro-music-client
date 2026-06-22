@@ -40,6 +40,7 @@ export default function SettingsPage() {
         enable3DAudio, setEnable3DAudio,
         enableDownload, setEnableDownload,
         visualizer, setVisualizer,
+        musicSource, setMusicSource,
     } = useSettings();
 
     const qualities: Array<{ id: 'low' | 'medium' | 'high' | 'supreme'; label: string }> = [
@@ -50,7 +51,7 @@ export default function SettingsPage() {
     ];
 
     return (
-        <div className="max-w-2xl mx-auto px-4 md:px-8 py-6 pb-32">
+        <div className="max-w-2xl mx-auto px-4 md:px-8 py-6 pb-32 overflow-x-hidden w-full">
             <header className="flex items-center gap-3 mb-8">
                 <button onClick={() => router.back()} className="w-9 h-9 rounded-full bg-[var(--surface)] hover:bg-[var(--surface-hover)] flex items-center justify-center text-[var(--foreground)]">
                     <ArrowLeft size={18} />
@@ -86,6 +87,32 @@ export default function SettingsPage() {
                             </Link>
                         </div>
                     )}
+                </div>
+            </section>
+
+            {/* Music source */}
+            <section className="mb-8">
+                <h2 className="text-xs font-semibold uppercase tracking-wider text-[var(--foreground-muted)] mb-2">Music source</h2>
+                <div className="rounded-2xl bg-[var(--surface)] border border-[var(--border)] p-4">
+                    <p className="text-xs text-[var(--foreground-muted)] mb-3">Where Home, Search and browsing pull music from. Songs already in your playlists keep playing from the source they were added with.</p>
+                    <div className="grid grid-cols-2 gap-2">
+                        {([
+                            { id: 'jiosaavn', label: 'JioSaavn', desc: 'Indian-tuned, fast' },
+                            { id: 'youtube', label: 'YouTube Music', desc: 'Widest catalog' },
+                        ] as const).map(opt => (
+                            <button
+                                key={opt.id}
+                                onClick={() => setMusicSource(opt.id)}
+                                className={`text-left p-3 rounded-xl border transition-colors ${musicSource === opt.id ? 'border-[var(--accent)] bg-[var(--accent)]/10' : 'border-[var(--border)] bg-[var(--background)] hover:bg-[var(--surface-hover)]'}`}
+                            >
+                                <div className="flex items-center justify-between">
+                                    <span className={`text-sm font-semibold ${musicSource === opt.id ? 'text-[var(--accent)]' : 'text-[var(--foreground)]'}`}>{opt.label}</span>
+                                    {musicSource === opt.id && <span className="w-2 h-2 rounded-full bg-[var(--accent)]" />}
+                                </div>
+                                <p className="text-[11px] text-[var(--foreground-muted)] mt-0.5">{opt.desc}</p>
+                            </button>
+                        ))}
+                    </div>
                 </div>
             </section>
 

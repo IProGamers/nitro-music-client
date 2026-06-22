@@ -171,12 +171,10 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
         }
     }, [enable3DAudio]);
 
+    // Simple on/off 3D — no more cycling through simple/extreme modes.
     const toggle3D = () => {
         if (threeDMode === 'off') {
             setThreeDMode('simple');
-            setIs3DActive(true);
-        } else if (threeDMode === 'simple') {
-            setThreeDMode('extreme');
             setIs3DActive(true);
         } else {
             setThreeDMode('off');
@@ -389,6 +387,22 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
         };
     }, []);
 
+    // Some tracks have no playable stream (expired/region-locked JioSaavn URL). When
+    // the <audio> is asked to play one, the browser rejects with a NotSupportedError
+    // ("The element has no supported sources"). We already handle this (skip / stop),
+    // so swallow the otherwise-noisy unhandled rejection instead of letting it surface.
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const onRejection = (e: PromiseRejectionEvent) => {
+            const r = e.reason as { name?: string; message?: string } | undefined;
+            if (r && (r.name === 'NotSupportedError' || (typeof r.message === 'string' && r.message.toLowerCase().includes('no supported sources')))) {
+                e.preventDefault();
+            }
+        };
+        window.addEventListener('unhandledrejection', onRejection);
+        return () => window.removeEventListener('unhandledrejection', onRejection);
+    }, []);
+
     // Update metadata when the track changes.
     useEffect(() => {
         if (typeof navigator === 'undefined' || !('mediaSession' in navigator) || !currentSong) return;
@@ -467,6 +481,16 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
     };
 
     const getAudio = (t: any) => {
+        // Dual-source: a YouTube-sourced song always streams from our YouTube
+        // proxy (resolved fresh server-side), regardless of the global setting —
+        // so a YT song saved in a playlist still plays from YT after switching.
+        if (t.source === 'youtube') {
+            const ytId = String(t.id || t.songId || '');
+            if (ytId) {
+                const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+                return `${apiUrl}/api/youtube/stream?id=${encodeURIComponent(ytId)}`;
+            }
+        }
         if (t.audioUrl) return t.audioUrl;
         if (t.downloadUrl && t.downloadUrl.length) {
             // Map quality setting to downloadUrl index
