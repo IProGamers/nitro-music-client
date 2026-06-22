@@ -9,6 +9,7 @@
 // It complements lib/discovery.ts (which reads the same signal store).
 
 import { getArtistNameFromSong, normalizeSongTitle, createSongKey } from './searchUtils';
+import { sourceUrl } from './source';
 import { matchInCatalog } from './playlistImport';
 
 const SIGNALS_KEY = 'nitro_discovery_signals';   // { [trackId]: { plays, skips, repeats, lastPlayed } }
@@ -233,11 +234,14 @@ export const buildQueuePools = (seedSong: any): Array<{ query: string; category:
  * needed). This is the best fit for an India-focused catalog.
  */
 export const fetchJioSaavnSuggestions = async (seedSong: any): Promise<any[]> => {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
     const id = String(seedSong?.id || seedSong?.songId || '');
     if (!id) return [];
+    // Radio follows the SEED song's own source so a YouTube song continues with
+    // YouTube suggestions (and a JioSaavn song with JioSaavn), regardless of the
+    // global setting.
+    const source = seedSong?.source === 'youtube' ? 'youtube' : 'jiosaavn';
     try {
-        const res = await fetch(`${apiUrl}/api/songs/${id}/suggestions?limit=20`);
+        const res = await fetch(`${sourceUrl(`/songs/${id}/suggestions`, source)}?limit=20`);
         if (!res.ok) return [];
         const data = await res.json();
         return data?.success && Array.isArray(data.data) ? data.data : [];

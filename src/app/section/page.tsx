@@ -4,6 +4,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { usePlayer } from '@/context/PlayerContext';
 import { ArrowLeft, Music, Play, Loader2 } from 'lucide-react';
 import SongContextMenu from '@/components/SongContextMenu';
+import { sourceUrl } from '@/lib/source';
 
 // Decode HTML entities
 const decodeHtml = (html: string): string => {
@@ -39,7 +40,7 @@ function SectionContent() {
 
             try {
                 const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
-                const res = await fetch(`${apiUrl}/api/search/songs?query=${encodeURIComponent(query)}&limit=50`);
+                const res = await fetch(`${sourceUrl('/search/songs')}?query=${encodeURIComponent(query)}&limit=50`);
                 const data = await res.json();
 
                 if (data.success && data.data?.results) {

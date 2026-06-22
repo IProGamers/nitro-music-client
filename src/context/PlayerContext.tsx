@@ -8,6 +8,7 @@ import { decodeHtml } from '@/lib/utils';
 import { getSong as getOfflineSong } from '@/lib/offlineDb';
 import { dedupeSongs, createSongKey, normalizeSongTitle } from '@/lib/searchUtils';
 import { recordListen, recordSkip, buildAutoplayQueries, buildQueuePools, rankByTaste, fetchLastfmSimilarSongs, fetchJioSaavnSuggestions } from '@/lib/recommendations';
+import { ytStreamUrl } from '@/lib/source';
 
 const FREE_PLAY_LIMIT = 10;
 const PLAY_COUNT_KEY = 'nitro_free_plays';
@@ -486,10 +487,7 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
         // so a YT song saved in a playlist still plays from YT after switching.
         if (t.source === 'youtube') {
             const ytId = String(t.id || t.songId || '');
-            if (ytId) {
-                const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
-                return `${apiUrl}/api/youtube/stream?id=${encodeURIComponent(ytId)}`;
-            }
+            if (ytId) return ytStreamUrl(ytId);
         }
         if (t.audioUrl) return t.audioUrl;
         if (t.downloadUrl && t.downloadUrl.length) {

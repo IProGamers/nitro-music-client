@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { usePlayer } from '@/context/PlayerContext';
 import { Music, Disc, User, Heart, Play, Share2, Clock, Calendar, Globe, ChevronRight } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
+import { sourceUrl } from '@/lib/source';
 
 export default function AlbumPage() {
     const { id } = useParams();
@@ -17,7 +18,7 @@ export default function AlbumPage() {
         const fetchAlbum = async (retries = 2) => {
             try {
                 const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
-                const res = await fetch(`${apiUrl}/api/albums?id=${id}`, {
+                const res = await fetch(`${sourceUrl('/albums')}?id=${id}`, {
                     headers: { 'Accept': 'application/json' }
                 });
 

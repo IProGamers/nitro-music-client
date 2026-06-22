@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { usePlayer } from '@/context/PlayerContext';
 import { useSettings } from '@/context/SettingsContext';
+import { sourceUrl } from '@/lib/source';
 import { Search, Clock, X, Music, User, Disc, ListMusic, ChevronRight, Trash2, Play, Sparkles, TrendingUp, Headphones, Heart, Moon, Flame } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -149,7 +150,7 @@ export default function SearchPage() {
                 // YouTube source: hit the YouTube module and shape it like the
                 // unified JioSaavn response. Albums/artists/playlists come later.
                 if (musicSource === 'youtube') {
-                    const ytRes = await fetch(`${apiUrl}/api/youtube/search/songs?query=${encodeURIComponent(searchTerm)}&limit=30`, { signal: controller.signal });
+                    const ytRes = await fetch(`${sourceUrl('/search/songs')}?query=${encodeURIComponent(searchTerm)}&limit=30`, { signal: controller.signal });
                     const ytData = await ytRes.json();
                     const ytSongs = ytData?.success ? (ytData.data?.results || []) : [];
                     const shaped: any = {
@@ -274,9 +275,8 @@ export default function SearchPage() {
             setLoadingMore(true);
 
             try {
-                const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
                 // Using a higher limit for category-specific view
-                const res = await fetch(`${apiUrl}/api/search/${activeTab}?query=${encodeURIComponent(q)}&limit=50`, {
+                const res = await fetch(`${sourceUrl(`/search/${activeTab}`)}?query=${encodeURIComponent(q)}&limit=50`, {
                     signal: controller.signal
                 });
                 const data = await res.json();

@@ -13,6 +13,8 @@ import PlaylistCover from '@/components/PlaylistCover';
 import { fetchWithCache, CACHE_TTL, preloadCriticalData } from '@/lib/apiCache';
 import { fetchJioSaavnSuggestions, rankByTaste } from '@/lib/recommendations';
 import { normalizeTrack } from '@/lib/utils';
+import { useSettings } from '@/context/SettingsContext';
+import { sourceUrl } from '@/lib/source';
 
 // Vibrant solid backgrounds for radio station cards (cycled by index)
 const RADIO_BGS: { bg: string; dark: boolean }[] = [
@@ -91,6 +93,7 @@ export default function Home() {
   };
   const router = useRouter();
   const { homeData, setHomeData, hasLoadedHome, setHasLoadedHome } = useMusicData();
+  const { musicSource } = useSettings();
 
   const [trending, setTrending] = useState<any[]>(homeData?.trending || []);
   const [newReleases, setNewReleases] = useState<any[]>(homeData?.newReleases || []);
@@ -125,6 +128,9 @@ export default function Home() {
     const fetchData = async () => {
       try {
         const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+        // Route the whole home feed to the selected source.
+        const source = musicSource;
+        const songSearch = sourceUrl('/search/songs', source);
 
         // Fetch listening history from Firebase (user-specific, not server)
         let firebaseHistory: any[] = [];
@@ -198,23 +204,23 @@ export default function Home() {
 
         // Use cached fetch for all API calls - dailyKey ensures fresh content each day
         const responses = await Promise.allSettled([
-          fetchWithCache(`${apiUrl}/api/modules`, CACHE_TTL.MODULES),
-          fetchWithCache(`${apiUrl}/api/search/artists?query=Arijit+Singh+Ar+Rahman+Diljit+Dosanjh+Taylor+Swift+The+Weeknd&limit=15`, CACHE_TTL.SEARCH),
+          fetchWithCache(sourceUrl('/modules', source), CACHE_TTL.MODULES),
+          fetchWithCache(`${sourceUrl('/search/artists', source)}?query=Arijit+Singh+Ar+Rahman+Diljit+Dosanjh+Taylor+Swift+The+Weeknd&limit=15`, CACHE_TTL.SEARCH),
           // Rotating content with dailyKey for fresh songs every day
-          fetchWithCache(`${apiUrl}/api/search/songs?query=${encodeURIComponent(trendingKeywords)}&limit=40`, CACHE_TTL.TRENDING, { dailyKey: true }),
-          fetchWithCache(`${apiUrl}/api/search/songs?query=${encodeURIComponent(partyKeywords)}&limit=50`, CACHE_TTL.SEARCH, { dailyKey: true }),
-          fetchWithCache(`${apiUrl}/api/search/songs?query=billboard+hot+100+western+hits+2026&limit=40`, CACHE_TTL.SEARCH, { dailyKey: true }),
-          fetchWithCache(`${apiUrl}/api/search/songs?query=chill+hindi+songs&limit=40`, CACHE_TTL.SEARCH, { dailyKey: true }),
+          fetchWithCache(`${songSearch}?query=${encodeURIComponent(trendingKeywords)}&limit=40`, CACHE_TTL.TRENDING, { dailyKey: true }),
+          fetchWithCache(`${songSearch}?query=${encodeURIComponent(partyKeywords)}&limit=50`, CACHE_TTL.SEARCH, { dailyKey: true }),
+          fetchWithCache(`${songSearch}?query=billboard+hot+100+western+hits+2026&limit=40`, CACHE_TTL.SEARCH, { dailyKey: true }),
+          fetchWithCache(`${songSearch}?query=chill+hindi+songs&limit=40`, CACHE_TTL.SEARCH, { dailyKey: true }),
           Promise.resolve({ success: true, data: firebaseHistory }), // Firebase history (already fetched)
-          fetchWithCache(`${apiUrl}/api/search/songs?query=bollywood+top+romantic+dance+sad+hits+2026&limit=50`, CACHE_TTL.SEARCH, { dailyKey: true }),
+          fetchWithCache(`${songSearch}?query=bollywood+top+romantic+dance+sad+hits+2026&limit=50`, CACHE_TTL.SEARCH, { dailyKey: true }),
           // Iconic English songs - Rotating artists each day
-          fetchWithCache(`${apiUrl}/api/search/songs?query=${encodeURIComponent(englishArtists)}&limit=30`, CACHE_TTL.SEARCH, { dailyKey: true }),
+          fetchWithCache(`${songSearch}?query=${encodeURIComponent(englishArtists)}&limit=30`, CACHE_TTL.SEARCH, { dailyKey: true }),
           // Iconic Hindi songs - Rotating songs each day
-          fetchWithCache(`${apiUrl}/api/search/songs?query=${encodeURIComponent(hindiSongs)}&limit=30`, CACHE_TTL.SEARCH, { dailyKey: true }),
+          fetchWithCache(`${songSearch}?query=${encodeURIComponent(hindiSongs)}&limit=30`, CACHE_TTL.SEARCH, { dailyKey: true }),
           // Top Artists (combined Hindi + English)
-          fetchWithCache(`${apiUrl}/api/search/artists?query=Arijit+Singh+Ed+Sheeran+Taylor+Swift+Atif+Aslam+The+Weeknd+Shreya+Ghoshal+Imagine+Dragons+Pritam+Dua+Lipa+Neha+Kakkar&limit=20`, CACHE_TTL.SEARCH),
+          fetchWithCache(`${sourceUrl('/search/artists', source)}?query=Arijit+Singh+Ed+Sheeran+Taylor+Swift+Atif+Aslam+The+Weeknd+Shreya+Ghoshal+Imagine+Dragons+Pritam+Dua+Lipa+Neha+Kakkar&limit=20`, CACHE_TTL.SEARCH),
           // Punjabi Hits - Rotating artists each day
-          fetchWithCache(`${apiUrl}/api/search/songs?query=${encodeURIComponent(punjabiArtists)}&limit=40`, CACHE_TTL.SEARCH, { dailyKey: true })
+          fetchWithCache(`${songSearch}?query=${encodeURIComponent(punjabiArtists)}&limit=40`, CACHE_TTL.SEARCH, { dailyKey: true })
         ]);
 
         const data = responses.map((r) => {
@@ -316,6 +322,7 @@ export default function Home() {
             return shuffleDaily(getDiverse([...primary, ...fallbackSongs], 25));
           })(),
           madeForYou: [], // Will be populated based on listening history
+          source, // which music source this feed was built from
           lastFetchedAt: Date.now()
         };
 
@@ -388,15 +395,17 @@ export default function Home() {
 
     const thirtyMinutes = 30 * 60 * 1000;
     const isStale = homeData && homeData.lastFetchedAt && (Date.now() - homeData.lastFetchedAt > thirtyMinutes);
+    // Refetch when the user switches music source (feed was built from another source).
+    const sourceChanged = homeData && (homeData as any).source && (homeData as any).source !== musicSource;
 
-    if (!hasLoadedHome || isStale) {
+    if (!hasLoadedHome || isStale || sourceChanged) {
       fetchData();
     } else {
       setLoading(false);
     }
 
     if (user) fetchPlaylists();
-  }, [hasLoadedHome, homeData, setHomeData, setHasLoadedHome, user, getUserPlaylists, getRecentPlays]);
+  }, [hasLoadedHome, homeData, setHomeData, setHasLoadedHome, user, getUserPlaylists, getRecentPlays, musicSource]);
 
   // Hero slider auto-rotation for PC only
   useEffect(() => {

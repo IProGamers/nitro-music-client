@@ -6,6 +6,7 @@ import { ArrowLeft, Music, Play, Loader2, Shuffle } from 'lucide-react';
 import SongContextMenu from '@/components/SongContextMenu';
 import { fetchWithCache, CACHE_TTL } from '@/lib/apiCache';
 import { decodeHtml } from '@/lib/utils';
+import { sourceUrl } from '@/lib/source';
 
 // Each category is backed by SEVERAL specific JioSaavn queries that are combined,
 // de-duplicated and refreshed daily — so results stay relevant to the category
@@ -64,14 +65,18 @@ export default function CategoryPage() {
             setLoading(true);
             try {
                 const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+                const currentYear = new Date().getFullYear();
                 const responses = await Promise.allSettled(
-                    config.queries.map(q =>
-                        fetchWithCache(
-                            `${apiUrl}/api/search/songs?query=${encodeURIComponent(q)}&limit=30`,
+                    config.queries.map(q => {
+                        // Always search the CURRENT year so the list never goes stale
+                        // (e.g. "trending 2026" auto-advances to 2027 next year).
+                        const query = q.replace(/\b20\d\d\b/g, String(currentYear));
+                        return fetchWithCache(
+                            `${sourceUrl('/search/songs')}?query=${encodeURIComponent(query)}&limit=30`,
                             CACHE_TTL.SEARCH,
                             { dailyKey: true }
-                        )
-                    )
+                        );
+                    })
                 );
                 const seen = new Set<string>();
                 const combined: any[] = [];

@@ -3,6 +3,8 @@
 // backend. No keyword searches, no external services. One call returns new
 // releases, charts, top playlists, and trending songs/albums.
 
+import { sourceUrl } from './source';
+
 export interface BrowseModules {
     albums: any[];        // new releases
     charts: any[];        // curated charts (playlists)
@@ -18,9 +20,8 @@ const EMPTY: BrowseModules = { albums: [], charts: [], playlists: [], trendingSo
  * Returns empty arrays on failure so the UI degrades gracefully.
  */
 export const fetchBrowseModules = async (): Promise<BrowseModules> => {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
     try {
-        const res = await fetch(`${apiUrl}/api/modules`);
+        const res = await fetch(sourceUrl('/modules'));
         if (!res.ok) return EMPTY;
         const data = await res.json();
         if (!data?.success || !data.data) return EMPTY;
@@ -39,9 +40,8 @@ export const fetchBrowseModules = async (): Promise<BrowseModules> => {
 
 /** Fetch a JioSaavn playlist (with its songs) by ID. */
 export const fetchJioSaavnPlaylist = async (id: string): Promise<any | null> => {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
     try {
-        const res = await fetch(`${apiUrl}/api/playlists?id=${encodeURIComponent(id)}&limit=100`);
+        const res = await fetch(`${sourceUrl('/playlists')}?id=${encodeURIComponent(id)}&limit=100`);
         if (!res.ok) return null;
         const data = await res.json();
         return data?.success ? data.data : null;
@@ -54,9 +54,8 @@ export const fetchJioSaavnPlaylist = async (id: string): Promise<any | null> => 
  *  object has the artist name but no ID). */
 export const resolveArtistIdByName = async (name: string): Promise<string | null> => {
     if (!name) return null;
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
     try {
-        const res = await fetch(`${apiUrl}/api/search/artists?query=${encodeURIComponent(name)}&limit=1`);
+        const res = await fetch(`${sourceUrl('/search/artists')}?query=${encodeURIComponent(name)}&limit=1`);
         if (!res.ok) return null;
         const data = await res.json();
         const a = data?.data?.results?.[0] || data?.data?.artists?.results?.[0];

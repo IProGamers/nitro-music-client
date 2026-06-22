@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { usePlayer } from '@/context/PlayerContext';
 import { Music, Disc, User, Heart, Play, Share2, Verified, Users, ChevronRight, ArrowLeft } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
+import { sourceUrl } from '@/lib/source';
 
 export default function ArtistPage() {
     const { id } = useParams();
@@ -21,7 +22,7 @@ export default function ArtistPage() {
             const MAX_ATTEMPTS = 4;
             try {
                 const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
-                const res = await fetch(`${apiUrl}/api/artists/${id}?songCount=50&albumCount=50`, {
+                const res = await fetch(`${sourceUrl(`/artists/${id}`)}?songCount=50&albumCount=50`, {
                     headers: { 'Accept': 'application/json' }
                 });
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
