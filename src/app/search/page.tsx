@@ -409,6 +409,13 @@ export default function SearchPage() {
         return '';
     };
 
+    // Fall back to the logo when a cover URL is broken/expired (no broken-image icon).
+    const onImgError = (e: React.SyntheticEvent<HTMLImageElement>) => {
+        const el = e.currentTarget;
+        if (el.src.endsWith('/logo.png')) return;
+        el.src = '/logo.png';
+    };
+
     const getArtistName = (t: any) => {
         if (t.artists?.primary?.length) return decodeHtml(t.artists.primary[0].name);
         if (t.primaryArtists) return decodeHtml(t.primaryArtists);
@@ -555,7 +562,7 @@ export default function SearchPage() {
                                             className="flex items-center gap-3.5 p-2.5 rounded-lg hover:bg-[var(--surface-hover)] cursor-pointer group transition-colors"
                                         >
                                             <div className="relative w-11 h-11 flex-shrink-0">
-                                                <img src={song.image} className="w-full h-full rounded-md object-cover shadow-sm shadow-black/30" />
+                                                <img src={song.image} onError={onImgError} className="w-full h-full rounded-md object-cover shadow-sm shadow-black/30" />
                                                 <div className="absolute inset-0 rounded-md bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                                                     <Play size={14} fill="white" className="text-white ml-0.5" />
                                                 </div>
@@ -598,7 +605,7 @@ export default function SearchPage() {
                                                 onClick={() => playFromHistory(song)}
                                                 className="flex items-center gap-3 py-1.5 px-1.5 rounded-lg hover:bg-[var(--surface-hover)] cursor-pointer group transition-colors"
                                             >
-                                                <img src={song.image} className="w-12 h-12 rounded-md object-cover flex-shrink-0 bg-[var(--card)]" alt="" />
+                                                <img src={song.image} onError={onImgError} className="w-12 h-12 rounded-md object-cover flex-shrink-0 bg-[var(--card)]" alt="" />
                                                 <div className="flex-1 min-w-0">
                                                     <p className="font-semibold text-[15px] text-[var(--foreground)] truncate leading-tight">{song.name}</p>
                                                     <p className="text-[13px] text-[var(--foreground-muted)] truncate mt-0.5">{song.artist}</p>
@@ -628,7 +635,7 @@ export default function SearchPage() {
                                                 className="w-[108px] shrink-0 text-left group"
                                             >
                                                 <div className="relative w-[108px] h-[108px] rounded-lg overflow-hidden bg-[var(--card)] shadow-sm">
-                                                    <img src={getImg(song)} className="w-full h-full object-cover" alt="" loading="lazy" />
+                                                    <img src={getImg(song)} onError={onImgError} className="w-full h-full object-cover" alt="" loading="lazy" />
                                                     <div className="absolute bottom-1.5 right-1.5 w-8 h-8 rounded-full bg-[var(--foreground)] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-lg">
                                                         <Play size={14} className="text-[var(--background)] ml-0.5" fill="currentColor" />
                                                     </div>
@@ -743,6 +750,7 @@ export default function SearchPage() {
                                             {/* Large Album Art for Mobile */}
                                             <img
                                                 src={getImg(topSong)}
+                                                onError={onImgError}
                                                 alt={getName(topSong)}
                                                 className="w-20 h-20 rounded-xl object-cover shadow-xl"
                                             />
@@ -778,6 +786,7 @@ export default function SearchPage() {
                                                     <div className="relative flex-shrink-0">
                                                         <img
                                                             src={getImg(topSong)}
+                                                            onError={onImgError}
                                                             alt={getName(topSong)}
                                                             className="w-28 h-28 rounded-lg object-cover shadow-2xl"
                                                         />
@@ -817,7 +826,7 @@ export default function SearchPage() {
                                                         onMouseEnter={() => prefetchYtStream(ps.song)}
                                                         className="flex items-center gap-3 p-2 rounded-lg hover:bg-[var(--card)] cursor-pointer group/item transition-colors"
                                                     >
-                                                        <img src={getImg(ps.song)} className="w-10 h-10 rounded object-cover" />
+                                                        <img src={getImg(ps.song)} onError={onImgError} className="w-10 h-10 rounded object-cover" />
                                                         <div className="flex-1 min-w-0">
                                                             <p className="text-sm font-medium text-[var(--foreground)] truncate">{getName(ps.song)}</p>
                                                             <p className="text-xs text-[var(--foreground-muted)] truncate">{ps.artistName}</p>
@@ -860,7 +869,7 @@ export default function SearchPage() {
                                             className="flex flex-col items-center text-center group cursor-pointer"
                                         >
                                             <div className="relative aspect-square w-full mb-3 rounded-full overflow-hidden bg-[#181818] shadow-2xl transition-transform duration-300 group-hover:scale-105">
-                                                <img src={getImg(artist)} className="w-full h-full object-cover" />
+                                                <img src={getImg(artist)} onError={onImgError} className="w-full h-full object-cover" />
                                             </div>
                                             <h3 className="font-bold text-sm md:text-base text-[var(--foreground)] group-hover:underline transition-colors truncate w-full">{getName(artist)}</h3>
                                             <p className="text-xs text-[var(--foreground-muted)] mt-1">Artist</p>
@@ -904,7 +913,7 @@ export default function SearchPage() {
                                                 onMouseEnter={() => prefetchYtStream(ps.song)}
                                                 className="flex items-center gap-3 py-1.5 px-1.5 rounded-lg hover:bg-[var(--surface-hover)] cursor-pointer transition-colors"
                                             >
-                                                <img src={getImg(ps.song)} className="w-12 h-12 rounded-md object-cover flex-shrink-0 shadow-sm bg-[var(--card)]" />
+                                                <img src={getImg(ps.song)} onError={onImgError} className="w-12 h-12 rounded-md object-cover flex-shrink-0 shadow-sm bg-[var(--card)]" />
                                                 <div className="flex-1 min-w-0">
                                                     <h3 className="font-semibold text-[15px] text-[var(--foreground)] truncate leading-tight">{getName(ps.song)}</h3>
                                                     <p className="text-[13px] text-[var(--foreground-muted)] truncate mt-0.5">
@@ -941,7 +950,7 @@ export default function SearchPage() {
                                             className="group cursor-pointer w-36 md:w-44 flex-shrink-0"
                                         >
                                             <div className="relative aspect-square rounded-lg overflow-hidden mb-2.5 bg-[var(--surface)] shadow-lg">
-                                                <img src={getImg(s)} alt={getName(s)} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                                                <img src={getImg(s)} onError={onImgError} alt={getName(s)} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                                                 <div className="absolute bottom-2 right-2 w-10 h-10 rounded-full flex items-center justify-center shadow-xl translate-y-2 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all" style={{ background: 'var(--accent)' }}>
                                                     <Play size={16} fill="#04161a" className="ml-0.5 text-[#04161a]" />
                                                 </div>
@@ -973,7 +982,7 @@ export default function SearchPage() {
                                             className="flex flex-col items-center text-center group cursor-pointer"
                                         >
                                             <div className="relative aspect-square w-full mb-3 rounded-full overflow-hidden bg-[var(--surface)] shadow-lg transition-transform duration-300 group-hover:scale-105">
-                                                <img src={getImg(artist)} className="w-full h-full object-cover" />
+                                                <img src={getImg(artist)} onError={onImgError} className="w-full h-full object-cover" />
                                             </div>
                                             <h3 className="font-semibold text-sm text-[var(--foreground)] group-hover:underline truncate w-full">{getName(artist)}</h3>
                                             <p className="text-xs text-[var(--foreground-muted)] mt-0.5">Artist</p>
@@ -1000,7 +1009,7 @@ export default function SearchPage() {
                                     {results.albums.results.slice(0, activeTab === 'all' ? 8 : results.albums.results.length).map((album: any) => (
                                         <div key={album.id} onClick={() => handleAlbumClick(album.id)} className="group cursor-pointer">
                                             <div className="relative aspect-square mb-3 overflow-hidden rounded-md bg-[#181818] shadow-2xl transition-transform duration-300 group-hover:scale-105">
-                                                <img src={getImg(album)} className="w-full h-full object-cover" />
+                                                <img src={getImg(album)} onError={onImgError} className="w-full h-full object-cover" />
                                             </div>
                                             <h3 className="font-bold text-sm md:text-base text-[var(--foreground)] group-hover:underline transition-colors truncate">{getName(album)}</h3>
                                             <p className="text-xs text-[var(--foreground-muted)] truncate mt-1">{album.artist || album.year}</p>
@@ -1032,7 +1041,7 @@ export default function SearchPage() {
                                     {results.playlists.results.slice(0, activeTab === 'all' ? 8 : results.playlists.results.length).map((playlist: any) => (
                                         <div key={playlist.id} onClick={() => handlePlaylistClick(playlist.id)} className="group cursor-pointer">
                                             <div className="relative aspect-square mb-3 overflow-hidden rounded-md bg-[#181818] shadow-2xl transition-transform duration-300 group-hover:scale-105">
-                                                <img src={getImg(playlist)} className="w-full h-full object-cover" />
+                                                <img src={getImg(playlist)} onError={onImgError} className="w-full h-full object-cover" />
                                             </div>
                                             <h3 className="font-bold text-sm md:text-base text-[var(--foreground)] group-hover:underline transition-colors truncate">{getName(playlist)}</h3>
                                             <p className="text-xs text-[var(--foreground-muted)] truncate mt-1 line-clamp-2" dangerouslySetInnerHTML={{ __html: playlist.description }}></p>
