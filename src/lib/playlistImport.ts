@@ -6,8 +6,9 @@
 //   2. Upload a CSV (e.g. from exportify.net, which uses the user's OWN Spotify
 //      login — no developer credentials required on our side)
 //
-// Each parsed track is matched against our JioSaavn catalog; unmatched tracks are
-// skipped. Playback always stays on JioSaavn — nothing is streamed from Spotify.
+// Each parsed track is matched against the SELECTED source's catalog (JioSaavn
+// or YouTube); unmatched tracks are skipped. Nothing is streamed from Spotify.
+import { sourceUrl } from './source';
 
 export interface ImportTrack {
     name: string;
@@ -107,11 +108,10 @@ const norm = (s: string): string =>
  * Scores on title + primary artist + duration (±3s). Returns the JioSaavn song
  * object if confidence is high enough, else null (caller marks it unavailable).
  */
-export const matchInCatalog = async (track: ImportTrack): Promise<any | null> => {
+export const matchInCatalog = async (track: ImportTrack, source: 'jiosaavn' | 'youtube' = 'jiosaavn'): Promise<any | null> => {
     try {
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
         const q = `${track.name} ${track.artist}`.trim();
-        const res = await fetch(`${apiUrl}/api/search/songs?query=${encodeURIComponent(q)}&limit=8`);
+        const res = await fetch(`${sourceUrl('/search/songs', source)}?query=${encodeURIComponent(q)}&limit=8`);
         if (!res.ok) return null;
         const data = await res.json();
         const results: any[] = data?.data?.results || [];
@@ -134,7 +134,9 @@ export const matchInCatalog = async (track: ImportTrack): Promise<any | null> =>
             else if (dur && track.durationSec && Math.abs(dur - track.durationSec) <= 8) score += 7;
             if (!best || score > best.score) best = { song: s, score };
         }
-        return best && best.score >= 55 ? best.song : null;
+        // Tag the matched song with the source it came from so it plays from there
+        // and survives a later source switch.
+        return best && best.score >= 55 ? { ...best.song, source } : null;
     } catch {
         return null;
     }

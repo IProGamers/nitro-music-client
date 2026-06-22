@@ -1,6 +1,7 @@
 "use client"
 import { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
+import { useSettings } from '@/context/SettingsContext';
 import { X, Loader2, Check, ClipboardList, FileUp, ListMusic, ExternalLink, ListChecks, ArrowRight, HelpCircle } from 'lucide-react';
 import {
     parsePastedTracks, parseCsvTracks, matchInCatalog, type ImportTrack,
@@ -34,6 +35,7 @@ const GUIDE_STEPS = [
 
 export default function SpotifyImport({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
     const { createPlaylist, addSongToPlaylist } = useAuth();
+    const { musicSource } = useSettings();
     const [showGuide, setShowGuide] = useState(true);
     const [mode, setMode] = useState<'paste' | 'csv'>('paste');
     const [pasteText, setPasteText] = useState('');
@@ -79,7 +81,7 @@ export default function SpotifyImport({ isOpen, onClose }: { isOpen: boolean; on
             let matched = 0, skipped = 0;
             const missing: string[] = [];
             for (let i = 0; i < tracks.length; i++) {
-                const song = await matchInCatalog(tracks[i]);
+                const song = await matchInCatalog(tracks[i], musicSource);
                 if (song) {
                     try { await addSongToPlaylist(newId, song); matched++; }
                     catch { skipped++; missing.push(`${tracks[i].name}${tracks[i].artist ? ' — ' + tracks[i].artist : ''}`); }
