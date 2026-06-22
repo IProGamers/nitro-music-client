@@ -1,7 +1,7 @@
 "use client"
 import { useState, useEffect } from 'react';
 import { usePlayer } from '@/context/PlayerContext';
-import { Music, Disc, User, Heart, Play, Share2, Verified, Users, ChevronRight } from 'lucide-react';
+import { Music, Disc, User, Heart, Play, Share2, Verified, Users, ChevronRight, ArrowLeft } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 
 export default function ArtistPage() {
@@ -101,12 +101,21 @@ export default function ArtistPage() {
                     <div className="absolute inset-0 bg-gradient-to-t from-[var(--background)] via-[var(--background)]/60 to-transparent" />
                 </div>
 
+                {/* Back button — returns to wherever you came from (song/search/home) */}
+                <button
+                    onClick={() => router.back()}
+                    aria-label="Go back"
+                    className="absolute top-4 left-4 z-20 w-10 h-10 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center text-white hover:bg-black/60 transition-colors"
+                >
+                    <ArrowLeft size={20} />
+                </button>
+
                 <div className="absolute inset-0 flex items-end">
                     <div className="max-w-5xl mx-auto w-full px-4 md:px-8 pb-6 md:pb-10 flex flex-col md:flex-row items-center md:items-end gap-4 md:gap-8">
                         {/* Artist Image */}
                         <div className="relative flex-shrink-0">
-                            <div className="w-28 h-28 md:w-40 md:h-40 rounded-full overflow-hidden border-4 border-[var(--border)] shadow-xl">
-                                <img src={getImg(artist.image)} className="w-full h-full object-cover" alt={artist.name} />
+                            <div className="w-32 h-32 md:w-44 md:h-44 rounded-full overflow-hidden border-4 border-[var(--border)] shadow-xl bg-[var(--card)]">
+                                <img src={getImg(artist.image)} className="w-full h-full object-cover object-top" alt={artist.name} />
                             </div>
                             {artist.isVerified && (
                                 <div className="absolute bottom-1 right-1 bg-blue-500 text-white p-1 rounded-full">
