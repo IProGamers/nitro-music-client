@@ -8,6 +8,7 @@ const EXCLUDED_PATHS = [
     '/setup-username',
     '/auth',
     '/auth/callback',
+    '/play/',
 ];
 
 export default function UsernameGuard({ children }: { children: React.ReactNode }) {

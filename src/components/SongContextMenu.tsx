@@ -1,10 +1,11 @@
 "use client"
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { useSheet } from '@/hooks/useSheet';
 import { usePlayer } from '@/context/PlayerContext';
 import { useRouter } from 'next/navigation';
 import {
-    ListEnd, Play, Heart, ListPlus, MoreVertical, X,
-    User, Disc, Share2, Radio, Copy, Check, Download, Trash2
+    ListEnd, Play, Heart, ListPlus, MoreVertical,
+    User, Disc, Share2, Radio, Check, Download, MinusCircle
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useOffline } from '@/context/OfflineContext';
@@ -15,6 +16,8 @@ interface SongContextMenuProps {
     children?: React.ReactNode;
     className?: string;
     onStartRadio?: (song: any) => void;
+    // When provided, shows a "Remove from this playlist" action (the delete-music button).
+    onRemoveFromPlaylist?: () => void;
 }
 
 const decodeHtml = (html: string): string => {
@@ -24,7 +27,7 @@ const decodeHtml = (html: string): string => {
     return txt.value;
 };
 
-export default function SongContextMenu({ song, queue, children, className = '', onStartRadio }: SongContextMenuProps) {
+export default function SongContextMenu({ song, queue, children, className = '', onStartRadio, onRemoveFromPlaylist }: SongContextMenuProps) {
     const { playTrack, playNext, addToQueue } = usePlayer();
     const { user, addLikedSong, removeLikedSong, isLikedSong } = useAuth();
     const { isDownloaded, downloadSong, removeSong, isDownloading, currentDownloadId } = useOffline();
@@ -33,11 +36,10 @@ export default function SongContextMenu({ song, queue, children, className = '',
     const [isLiked, setIsLiked] = useState(false);
     const [copied, setCopied] = useState(false);
     const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
-    const [useFixedPosition, setUseFixedPosition] = useState(false);
+    const [useFixedPosition, setUseFixedPosition] = useState(false); // desktop right-click → positioned dropdown
     const menuRef = useRef<HTMLDivElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
 
-    // Check if song is liked
     useEffect(() => {
         const check = async () => {
             if (song && user) {
@@ -48,7 +50,7 @@ export default function SongContextMenu({ song, queue, children, className = '',
         check();
     }, [song, user, isLikedSong]);
 
-    // Close menu when clicking outside
+    // Outside-click only applies to the desktop right-click dropdown (the sheet has its own backdrop).
     useEffect(() => {
         const handleClickOutside = (e: MouseEvent) => {
             if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
@@ -56,13 +58,15 @@ export default function SongContextMenu({ song, queue, children, className = '',
                 setUseFixedPosition(false);
             }
         };
-        if (isOpen) {
-            document.addEventListener('mousedown', handleClickOutside);
-        }
+        if (isOpen && useFixedPosition) document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, [isOpen]);
+    }, [isOpen, useFixedPosition]);
 
-    // Right-click handler (desktop)
+    const close = () => { setIsOpen(false); setUseFixedPosition(false); };
+
+    // Bottom-sheet slide for the tap menu (the right-click dropdown stays instant).
+    const sheet = useSheet(isOpen && !useFixedPosition, () => { });
+
     const handleContextMenu = useCallback((e: React.MouseEvent) => {
         e.preventDefault();
         e.stopPropagation();
@@ -71,28 +75,13 @@ export default function SongContextMenu({ song, queue, children, className = '',
         setIsOpen(true);
     }, []);
 
-    const handlePlayNext = (e: React.MouseEvent) => {
-        e.stopPropagation();
-        playNext(song);
-        setIsOpen(false);
-    };
-
-    const handleAddToQueue = (e: React.MouseEvent) => {
-        e.stopPropagation();
-        addToQueue(song);
-        setIsOpen(false);
-    };
-
-    const handlePlayNow = (e: React.MouseEvent) => {
-        e.stopPropagation();
-        playTrack(song, queue || [song]);
-        setIsOpen(false);
-    };
+    const handlePlayNext = (e: React.MouseEvent) => { e.stopPropagation(); playNext(song); close(); };
+    const handleAddToQueue = (e: React.MouseEvent) => { e.stopPropagation(); addToQueue(song); close(); };
+    const handlePlayNow = (e: React.MouseEvent) => { e.stopPropagation(); playTrack(song, queue || [song]); close(); };
 
     const handleLike = async (e: React.MouseEvent) => {
         e.stopPropagation();
         if (!user) return;
-
         try {
             if (isLiked) {
                 await removeLikedSong(String(song.id || song.songId));
@@ -106,36 +95,28 @@ export default function SongContextMenu({ song, queue, children, className = '',
                 });
                 setIsLiked(true);
             }
-        } catch (e) {
-            console.error("Failed to toggle like:", e);
-        }
-        setIsOpen(false);
+        } catch (e) { console.error("Failed to toggle like:", e); }
+        close();
     };
 
     const handleGoToArtist = (e: React.MouseEvent) => {
         e.stopPropagation();
         const artistId = song.artists?.primary?.[0]?.id || song.primaryArtistsId?.split(',')[0];
-        if (artistId) {
-            router.push(`/artist/${artistId}`);
-        }
-        setIsOpen(false);
+        if (artistId) router.push(`/artist/${artistId}`);
+        close();
     };
 
     const handleGoToAlbum = (e: React.MouseEvent) => {
         e.stopPropagation();
         const albumId = song.album?.id || song.albumId;
-        if (albumId) {
-            router.push(`/album/${albumId}`);
-        }
-        setIsOpen(false);
+        if (albumId) router.push(`/album/${albumId}`);
+        close();
     };
 
     const handleStartRadio = (e: React.MouseEvent) => {
         e.stopPropagation();
-        if (onStartRadio) {
-            onStartRadio(song);
-        }
-        setIsOpen(false);
+        if (onStartRadio) onStartRadio(song);
+        close();
     };
 
     const handleShare = async (e: React.MouseEvent) => {
@@ -143,197 +124,117 @@ export default function SongContextMenu({ song, queue, children, className = '',
         const songName = song.name || song.title || 'song';
         const artistName = song.artists?.primary?.[0]?.name || song.artist || 'Unknown';
         const shareText = `🎵 Listening to "${songName}" by ${artistName} on Nitro Music!`;
-
         try {
             if (navigator.share) {
-                await navigator.share({
-                    title: songName,
-                    text: shareText,
-                    url: window.location.href
-                });
+                await navigator.share({ title: songName, text: shareText, url: window.location.href });
             } else {
                 await navigator.clipboard.writeText(shareText);
                 setCopied(true);
                 setTimeout(() => setCopied(false), 2000);
             }
-        } catch (err) {
-            console.error('Share failed:', err);
-        }
-        setIsOpen(false);
+        } catch (err) { console.error('Share failed:', err); }
+        close();
     };
 
-    const toggleMenu = (e: React.MouseEvent) => {
-        e.stopPropagation();
-        setUseFixedPosition(false);
-        setIsOpen(!isOpen);
+    const toggleMenu = (e: React.MouseEvent) => { e.stopPropagation(); setUseFixedPosition(false); setIsOpen(o => !o); };
+
+    const getArtistName = () => decodeHtml(song.artists?.primary?.[0]?.name || song.artist || 'Unknown');
+    const getImage = (): string => {
+        const img = song.image;
+        if (typeof img === 'string') return img;
+        if (Array.isArray(img) && img.length) return img[img.length - 1]?.url || img[img.length - 1]?.link || '';
+        return '';
     };
 
-    const getArtistName = () => {
-        return song.artists?.primary?.[0]?.name || song.artist || 'Unknown';
-    };
+    const itemCls = 'w-full flex items-center gap-3.5 px-4 md:py-2.5 py-3 text-left text-sm text-[var(--foreground)] hover:bg-[var(--card-hover)] transition-colors';
+    const iconCls = 'text-[var(--foreground-muted)] shrink-0';
+    const songId = String(song.id || song.songId);
+    const downloaded = isDownloaded(songId);
+    const downloading = isDownloading && currentDownloadId === songId;
 
-    const menuContent = (
-        <div className={`${useFixedPosition ? 'fixed' : 'absolute right-0 top-full mt-1'} z-[100] min-w-[220px] bg-[var(--card)] backdrop-blur-xl border border-[var(--border)] rounded-xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200`}
-            style={useFixedPosition ? { left: menuPosition.x, top: menuPosition.y } : undefined}
-        >
-            {/* Header with song info */}
-            <div className="px-4 py-3 border-b border-[var(--border)] bg-[var(--background)]/50">
-                <p className="text-xs font-bold text-[var(--foreground)] truncate">
-                    {song.name || song.title}
-                </p>
-                <p className="text-[10px] text-[var(--foreground-muted)] truncate mt-0.5">
-                    {getArtistName()}
-                </p>
+    // Shared menu body (header + items) used by both the sheet and the dropdown.
+    const body = (
+        <>
+            {/* Song header */}
+            <div className="flex items-center gap-3 px-4 py-3 border-b border-[var(--border)]">
+                {getImage() ? (
+                    <img src={getImage()} alt="" className="w-11 h-11 rounded-md object-cover shrink-0 bg-[var(--surface)]" />
+                ) : (
+                    <div className="w-11 h-11 rounded-md bg-[var(--surface)] shrink-0" />
+                )}
+                <div className="min-w-0">
+                    <p className="text-sm font-semibold text-[var(--foreground)] truncate">{decodeHtml(song.name || song.title)}</p>
+                    <p className="text-xs text-[var(--foreground-muted)] truncate">{getArtistName()}</p>
+                </div>
             </div>
 
-            {/* Menu Items */}
             <div className="py-1">
-                {/* Play Now */}
-                <button
-                    onClick={handlePlayNow}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm text-[var(--foreground)] hover:bg-[var(--card-hover)] transition-colors"
-                >
-                    <Play size={16} className="text-cyan-400" />
-                    <span className="font-medium">Play Now</span>
-                </button>
+                <button onClick={handlePlayNow} className={itemCls}><Play size={17} className={iconCls} /><span className="font-medium">Play now</span></button>
+                <button onClick={handlePlayNext} className={itemCls}><ListEnd size={17} className={iconCls} /><span className="font-medium">Play next</span></button>
+                <button onClick={handleAddToQueue} className={itemCls}><ListPlus size={17} className={iconCls} /><span className="font-medium">Add to queue</span></button>
 
-                {/* Play Next */}
-                <button
-                    onClick={handlePlayNext}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm text-[var(--foreground)] hover:bg-[var(--card-hover)] transition-colors"
-                >
-                    <ListEnd size={16} className="text-emerald-400" />
-                    <span className="font-medium">Play Next</span>
-                </button>
-
-                {/* Add to Queue */}
-                <button
-                    onClick={handleAddToQueue}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm text-[var(--foreground)] hover:bg-[var(--card-hover)] transition-colors"
-                >
-                    <ListPlus size={16} className="text-blue-400" />
-                    <span className="font-medium">Add to Queue</span>
-                </button>
-
-                {/* Divider */}
                 <div className="h-px bg-[var(--border)] my-1" />
 
-                {/* Start Radio */}
                 {onStartRadio && (
-                    <button
-                        onClick={handleStartRadio}
-                        className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm text-[var(--foreground)] hover:bg-[var(--card-hover)] transition-colors"
-                    >
-                        <Radio size={16} className="text-orange-400" />
-                        <span className="font-medium">Start Radio</span>
-                    </button>
+                    <button onClick={handleStartRadio} className={itemCls}><Radio size={17} className={iconCls} /><span className="font-medium">Start radio</span></button>
                 )}
-
-                {/* Add to Favorites */}
                 {user && (
-                    <button
-                        onClick={handleLike}
-                        className={`w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm transition-colors ${isLiked
-                            ? 'text-rose-400 bg-rose-500/10'
-                            : 'text-[var(--foreground)] hover:bg-[var(--card-hover)]'
-                            }`}
-                    >
-                        <Heart size={16} className={isLiked ? 'fill-rose-400' : ''} />
-                        <span className="font-medium">{isLiked ? 'Remove from Liked' : 'Add to Favorites'}</span>
+                    <button onClick={handleLike} className={itemCls}>
+                        <Heart size={17} className={isLiked ? 'fill-rose-400 text-rose-400 shrink-0' : iconCls} />
+                        <span className="font-medium">{isLiked ? 'Remove from Liked' : 'Add to Liked Songs'}</span>
                     </button>
                 )}
+                <button
+                    onClick={async (e) => {
+                        e.stopPropagation();
+                        if (downloaded) await removeSong(songId);
+                        else if (!downloading) await downloadSong(song);
+                        close();
+                    }}
+                    disabled={downloading}
+                    className={`${itemCls} ${downloading ? 'opacity-50 cursor-wait' : ''}`}
+                >
+                    {downloading ? (
+                        <div className="w-4 h-4 border-2 border-[var(--foreground-muted)] border-t-transparent rounded-full animate-spin shrink-0" />
+                    ) : downloaded ? (
+                        <Check size={17} className="text-emerald-400 shrink-0" />
+                    ) : (
+                        <Download size={17} className={iconCls} />
+                    )}
+                    <span className="font-medium">{downloading ? 'Downloading…' : downloaded ? 'Downloaded' : 'Download'}</span>
+                </button>
 
-                {/* Divider */}
                 <div className="h-px bg-[var(--border)] my-1" />
 
-                {/* Download for Offline */}
-                {(() => {
-                    const songId = String(song.id || song.songId);
-                    const downloaded = isDownloaded(songId);
-                    const downloading = isDownloading && currentDownloadId === songId;
-
-                    return (
-                        <button
-                            onClick={async (e) => {
-                                e.stopPropagation();
-                                if (downloaded) {
-                                    await removeSong(songId);
-                                } else if (!downloading) {
-                                    await downloadSong(song);
-                                }
-                                setIsOpen(false);
-                            }}
-                            disabled={downloading}
-                            className={`w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm transition-colors ${downloaded
-                                    ? 'text-emerald-400 bg-emerald-500/10'
-                                    : 'text-[var(--foreground)] hover:bg-[var(--card-hover)]'
-                                } ${downloading ? 'opacity-50 cursor-wait' : ''}`}
-                        >
-                            {downloading ? (
-                                <div className="w-4 h-4 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin" />
-                            ) : downloaded ? (
-                                <Trash2 size={16} className="text-red-400" />
-                            ) : (
-                                <Download size={16} className="text-cyan-400" />
-                            )}
-                            <span className="font-medium">
-                                {downloading ? 'Downloading...' : downloaded ? 'Remove Download' : 'Download Offline'}
-                            </span>
-                        </button>
-                    );
-                })()}
-
-                {/* Go to Artist */}
-                <button
-                    onClick={handleGoToArtist}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm text-[var(--foreground)] hover:bg-[var(--card-hover)] transition-colors"
-                >
-                    <User size={16} className="text-purple-400" />
-                    <span className="font-medium">Go to Artist</span>
-                </button>
-
-                {/* Go to Album */}
+                <button onClick={handleGoToArtist} className={itemCls}><User size={17} className={iconCls} /><span className="font-medium">Go to artist</span></button>
                 {(song.album?.id || song.albumId) && (
-                    <button
-                        onClick={handleGoToAlbum}
-                        className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm text-[var(--foreground)] hover:bg-[var(--card-hover)] transition-colors"
-                    >
-                        <Disc size={16} className="text-amber-400" />
-                        <span className="font-medium">Go to Album</span>
-                    </button>
+                    <button onClick={handleGoToAlbum} className={itemCls}><Disc size={17} className={iconCls} /><span className="font-medium">Go to album</span></button>
                 )}
-
-                {/* Share */}
-                <button
-                    onClick={handleShare}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm text-[var(--foreground)] hover:bg-[var(--card-hover)] transition-colors"
-                >
-                    {copied ? (
-                        <>
-                            <Check size={16} className="text-green-400" />
-                            <span className="font-medium text-green-400">Copied!</span>
-                        </>
-                    ) : (
-                        <>
-                            <Share2 size={16} className="text-cyan-400" />
-                            <span className="font-medium">Share</span>
-                        </>
-                    )}
+                <button onClick={handleShare} className={itemCls}>
+                    {copied ? <><Check size={17} className="text-emerald-400 shrink-0" /><span className="font-medium">Copied link</span></>
+                        : <><Share2 size={17} className={iconCls} /><span className="font-medium">Share</span></>}
                 </button>
+
+                {onRemoveFromPlaylist && (
+                    <>
+                        <div className="h-px bg-[var(--border)] my-1" />
+                        <button
+                            onClick={(e) => { e.stopPropagation(); onRemoveFromPlaylist(); close(); }}
+                            className="w-full flex items-center gap-3.5 px-4 md:py-2.5 py-3 text-left text-sm text-rose-400 hover:bg-rose-500/10 transition-colors"
+                        >
+                            <MinusCircle size={17} className="shrink-0" />
+                            <span className="font-medium">Remove from this playlist</span>
+                        </button>
+                    </>
+                )}
             </div>
-        </div>
+        </>
     );
 
     return (
-        <div
-            ref={containerRef}
-            className={`relative ${className}`}
-            onContextMenu={handleContextMenu}
-        >
-            {/* Children with right-click support */}
+        <div ref={containerRef} className={`relative ${className}`} onContextMenu={handleContextMenu}>
             {children}
 
-            {/* Trigger Button (for mobile / click) */}
             <button
                 onClick={toggleMenu}
                 className="p-1.5 rounded-full text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:bg-[var(--card-hover)] transition-all active:scale-90"
@@ -342,10 +243,30 @@ export default function SongContextMenu({ song, queue, children, className = '',
                 <MoreVertical size={18} />
             </button>
 
-            {/* Context Menu */}
-            {isOpen && (
-                <div ref={menuRef}>
-                    {menuContent}
+            {/* Desktop right-click → positioned dropdown */}
+            {isOpen && useFixedPosition && (
+                <div
+                    ref={menuRef}
+                    className="fixed z-[200] min-w-[240px] bg-[var(--card)] border border-[var(--border)] rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+                    style={{ left: menuPosition.x, top: menuPosition.y }}
+                >
+                    {body}
+                </div>
+            )}
+
+            {/* Tap → bottom sheet (mobile) / centered card (desktop) */}
+            {sheet.render && (
+                <div
+                    className={`fixed inset-0 z-[200] bg-black/50 backdrop-blur-sm flex items-end md:items-center justify-center transition-opacity duration-300 ${sheet.show ? 'opacity-100' : 'opacity-0'}`}
+                    onClick={(e) => { e.stopPropagation(); close(); }}
+                >
+                    <div
+                        onClick={(e) => e.stopPropagation()}
+                        className={`w-full md:w-[360px] bg-[var(--card)] border border-[var(--border)] rounded-t-3xl md:rounded-2xl overflow-hidden shadow-2xl transition-transform duration-300 ease-out pb-[env(safe-area-inset-bottom)] ${sheet.show ? 'translate-y-0' : 'translate-y-full'}`}
+                    >
+                        <div className="md:hidden w-9 h-1 rounded-full bg-[var(--surface-hover)] mx-auto mt-2.5 mb-1" />
+                        {body}
+                    </div>
                 </div>
             )}
         </div>

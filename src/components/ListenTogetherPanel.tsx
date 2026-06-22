@@ -269,23 +269,25 @@ export default function ListenTogetherPanel({ isOpen, onClose }: ListenTogetherP
     // Access is binary now — any online friend can join, no plan filter.
     const eliteFriends = onlineFriends;
 
-    if (!isOpen) return null;
-
     // Not eligible - show upgrade prompt
     if (!canUseListenTogether) {
         return (
+            <AnimatePresence>
+            {isOpen && (
             <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="fixed inset-0 bg-black/60 backdrop-blur-xl z-[150] flex items-center justify-center p-4"
+                transition={{ duration: 0.25 }}
+                className="fixed inset-0 bg-black/60 backdrop-blur-xl z-[150] flex items-end md:items-center justify-center md:p-4"
                 onClick={(e) => e.target === e.currentTarget && onClose()}
             >
                 <motion.div
-                    initial={{ scale: 0.95, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    exit={{ scale: 0.95, opacity: 0 }}
-                    className="bg-[var(--card)] rounded-3xl border border-[var(--border)] w-full max-w-md p-6 text-center relative"
+                    initial={{ y: 48, scale: 0.97, opacity: 0 }}
+                    animate={{ y: 0, scale: 1, opacity: 1 }}
+                    exit={{ y: 48, scale: 0.97, opacity: 0 }}
+                    transition={{ type: 'spring', damping: 28, stiffness: 320 }}
+                    className="bg-[var(--card)] rounded-t-3xl md:rounded-3xl border border-[var(--border)] w-full max-w-md p-6 text-center relative"
                 >
                     <button onClick={onClose} className="absolute top-4 right-4 p-2 hover:bg-[var(--card-hover)] rounded-xl">
                         <X size={20} className="text-[var(--foreground-muted)]" />
@@ -313,22 +315,28 @@ export default function ListenTogetherPanel({ isOpen, onClose }: ListenTogetherP
                     </Link>
                 </motion.div>
             </motion.div>
+            )}
+            </AnimatePresence>
         );
     }
 
     return (
+        <AnimatePresence>
+        {isOpen && (
         <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/60 backdrop-blur-xl z-[150] flex items-center justify-center p-4"
+            transition={{ duration: 0.25 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-xl z-[150] flex items-end md:items-center justify-center md:p-4"
             onClick={(e) => e.target === e.currentTarget && onClose()}
         >
             <motion.div
-                initial={{ scale: 0.95, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.95, opacity: 0 }}
-                className="bg-[var(--card)] rounded-3xl border border-[var(--border)] w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden shadow-2xl"
+                initial={{ y: 48, scale: 0.97, opacity: 0 }}
+                animate={{ y: 0, scale: 1, opacity: 1 }}
+                exit={{ y: 48, scale: 0.97, opacity: 0 }}
+                transition={{ type: 'spring', damping: 28, stiffness: 320 }}
+                className="bg-[var(--card)] rounded-t-3xl md:rounded-3xl border border-[var(--border)] w-full max-w-2xl max-h-[88vh] md:max-h-[85vh] flex flex-col overflow-hidden shadow-2xl"
             >
                 {/* Header */}
                 <div className="p-4 md:p-5 border-b border-[var(--border)] shrink-0">
@@ -839,5 +847,7 @@ export default function ListenTogetherPanel({ isOpen, onClose }: ListenTogetherP
                 )}
             </motion.div>
         </motion.div>
+        )}
+        </AnimatePresence>
     );
 }

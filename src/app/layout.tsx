@@ -15,6 +15,7 @@ import { OfflineProvider } from "@/context/OfflineContext";
 import { FriendsProvider } from "@/context/FriendsContext";
 import { RoomProvider } from "@/context/RoomContext";
 import Sidebar from "@/components/Sidebar";
+import RightSidebar from "@/components/RightSidebar";
 import Player from "@/components/Player";
 import LoginPromptModal from "@/components/LoginPromptModal";
 import LimitReachedModal from "@/components/LimitReachedModal";
@@ -80,6 +81,7 @@ export default function RootLayout({
                                       </UsernameGuard>
                                     </ApprovalGuard>
                                   </main>
+                                  <RightSidebar />
                                   <Player />
                                   <LimitReachedModal />
                                   <LoginPromptModal />

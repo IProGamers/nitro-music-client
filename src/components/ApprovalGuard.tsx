@@ -9,6 +9,7 @@ const EXCLUDED_PATHS = [
     '/auth/callback',
     '/login',
     '/setup-username',
+    '/play/', // public shared-song links (/play/[token]) — playable by anyone, no account; NOT /playlists
 ];
 
 export default function ApprovalGuard({ children }: { children: React.ReactNode }) {

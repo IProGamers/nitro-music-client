@@ -35,6 +35,9 @@ export const DJProvider = ({ children }: { children: React.ReactNode }) => {
     });
 
     const mixTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    // Don't persist until we've loaded the saved value, otherwise the initial
+    // render (isDJMode=false) overwrites a previously-saved "on" before load runs.
+    const hasLoadedRef = useRef(false);
 
     // Toggle DJ Mode (AudioFX crossfade flags are synced in an effect below, never
     // during render — see the sync effect).
@@ -96,22 +99,27 @@ export const DJProvider = ({ children }: { children: React.ReactNode }) => {
         }
     }, [currentSong, isDJMode]);
 
-    // Persist settings
+    // Persist settings — but only after the saved value has been loaded.
     useEffect(() => {
+        if (!hasLoadedRef.current) return;
         try {
             localStorage.setItem('nitro_dj_mode', isDJMode.toString());
             localStorage.setItem('nitro_dj_settings', JSON.stringify(djSettings));
         } catch (e) { }
     }, [isDJMode, djSettings]);
 
-    // Load settings
+    // Load settings once on mount; DJ Mode stays on across reloads until turned off.
     useEffect(() => {
         try {
             const savedMode = localStorage.getItem('nitro_dj_mode');
             const savedSettings = localStorage.getItem('nitro_dj_settings');
-            if (savedMode) setIsDJMode(savedMode === 'true');
+            if (savedMode === 'true') {
+                setIsDJMode(true);
+                setCurrentMixState('building');
+            }
             if (savedSettings) setDJSettings(JSON.parse(savedSettings));
         } catch (e) { }
+        hasLoadedRef.current = true;
     }, []);
 
     return (

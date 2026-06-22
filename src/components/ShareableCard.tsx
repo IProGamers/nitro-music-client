@@ -3,6 +3,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { X, Download, Share2, Copy, Check, Music, Sparkles, QrCode, Lock } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useUsage } from '@/context/UsageContext';
+import { createShareToken, buildShareUrl } from '@/lib/shareLink';
 
 interface ShareableCardProps {
     isOpen: boolean;
@@ -59,15 +60,6 @@ export default function ShareableCard({ isOpen, onClose, song }: ShareableCardPr
         const mins = Math.floor(seconds / 60);
         const secs = seconds % 60;
         return `${mins}:${secs.toString().padStart(2, '0')}`;
-    };
-
-    // Generate unique "secret" code
-    const getSecretCode = () => {
-        if (!user || !song?.id) return 'guest';
-        // Create a fake "encrypted" code using base64 or similar ensuring it looks cool
-        const part1 = user.uid.slice(0, 5);
-        const part2 = song.id.toString().slice(-4);
-        return `${part1}x${part2}`;
     };
 
     // Generate card using Canvas API
@@ -325,8 +317,7 @@ export default function ShareableCard({ isOpen, onClose, song }: ShareableCardPr
 
         // --- SECRET URL SECTION ---
         const bottomY = 1650;
-        const secretCode = getSecretCode();
-        const displayUrl = `nitromusic.app/listen?ref=${secretCode}`;
+        const displayUrl = `🎧 Listen on Nitro`;
 
         // Pill Container
         const pillW = 700;
@@ -408,9 +399,14 @@ export default function ShareableCard({ isOpen, onClose, song }: ShareableCardPr
             });
             const file = new File([blob], `nitro-${song.name}.png`, { type: 'image/png' });
 
-            // Build real URL 
-            const secretCode = getSecretCode();
-            const url = `${window.location.origin}/song/${song.id}?ref=${secretCode}`;
+            // Build a real, playable, expiring link (anyone can open & play it)
+            const token = createShareToken({
+                id: String(song.id || ''),
+                n: song.name || 'Unknown',
+                a: getArtist(),
+                img: getImageUrl() || '',
+            }, 3);
+            const url = buildShareUrl(token);
 
             await navigator.share({
                 files: [file],

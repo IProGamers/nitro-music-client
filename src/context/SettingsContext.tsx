@@ -44,7 +44,7 @@ export const SettingsProvider = ({ children }: { children: React.ReactNode }) =>
     const [language, setLanguage] = useState('English');
     const [region, setRegion] = useState('Global');
     const [crossfadeDuration, setCrossfadeDuration] = useState(0); // 0 = off, 1-12 seconds
-    const [musicSource, setMusicSource] = useState<'jiosaavn' | 'youtube'>('jiosaavn');
+    const [musicSource, setMusicSource] = useState<'jiosaavn' | 'youtube'>('youtube');
 
     // Get tier and isAdmin from userProfile (Firebase)
     // Map legacy NITRO_ULTRA to NITRO_SUPREME for backward compatibility

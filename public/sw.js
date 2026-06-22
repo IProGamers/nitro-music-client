@@ -1,6 +1,6 @@
 // Nitro Music Service Worker v2 - Aggressive Pre-caching for Full Offline Support
-const CACHE_NAME = 'nitro-music-v3';
-const RUNTIME_CACHE = 'nitro-runtime-v3';
+const CACHE_NAME = 'nitro-music-v5';
+const RUNTIME_CACHE = 'nitro-runtime-v5';
 const OFFLINE_URL = '/offline.html'; // Static HTML fallback
 
 // ========================================
@@ -50,7 +50,10 @@ self.addEventListener('install', (event) => {
                 try {
                     const response = await fetch(url, {
                         credentials: 'same-origin',
-                        redirect: 'follow'
+                        redirect: 'follow',
+                        // Bypass the HTTP cache so a changed asset (e.g. an updated
+                        // logo.png) is fetched fresh on a version bump, not re-cached stale.
+                        cache: 'reload'
                     });
                     if (response.ok) {
                         await cache.put(url, response);

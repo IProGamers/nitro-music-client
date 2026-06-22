@@ -21,15 +21,16 @@ export function apiBaseFor(source: MusicSource): string {
 
 /**
  * Read the user's selected source outside React (lib code, fetch helpers).
- * Mirrors the SettingsContext localStorage key. Defaults to jiosaavn on the
- * server / before hydration.
+ * Mirrors the SettingsContext localStorage key. Defaults to youtube on the
+ * server / before hydration (JioSaavn is the backup, only when explicitly chosen).
  */
 export function getMusicSource(): MusicSource {
-  if (typeof window === 'undefined') return 'jiosaavn'
+  // Default is YouTube Music; JioSaavn only when the user explicitly picked it.
+  if (typeof window === 'undefined') return 'youtube'
   try {
-    return localStorage.getItem('nitro_setting_source') === 'youtube' ? 'youtube' : 'jiosaavn'
+    return localStorage.getItem('nitro_setting_source') === 'jiosaavn' ? 'jiosaavn' : 'youtube'
   } catch {
-    return 'jiosaavn'
+    return 'youtube'
   }
 }
 

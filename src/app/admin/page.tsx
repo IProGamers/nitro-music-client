@@ -1,6 +1,6 @@
 "use client"
 import { useState, useEffect } from 'react';
-import { useSettings, SubscriptionTier } from '@/context/SettingsContext';
+import { useSettings } from '@/context/SettingsContext';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
 import { collection, getDocs, doc, updateDoc, query, orderBy, deleteDoc, where, limit } from 'firebase/firestore';
@@ -17,21 +17,12 @@ import Link from 'next/link';
 import UsernameRequestsAdmin from '@/components/UsernameRequestsAdmin';
 import AdminRoomsPanel from '@/components/AdminRoomsPanel';
 
-const TIER_INFO: Record<string, { name: string; icon: React.ReactNode; color: string; bgColor: string; gradient: string }> = {
-    NITRO_CORE: { name: 'Nitro Core', icon: <Star size={16} />, color: 'text-zinc-400', bgColor: 'bg-zinc-500/20', gradient: 'from-zinc-600 to-zinc-800' },
-    NITRO_ELITE: { name: 'Nitro Elite', icon: <Zap size={16} />, color: 'text-purple-400', bgColor: 'bg-purple-500/20', gradient: 'from-purple-600 to-indigo-600' },
-    NITRO_SUPREME: { name: 'Nitro Supreme', icon: <Crown size={16} />, color: 'text-amber-400', bgColor: 'bg-amber-500/20', gradient: 'from-amber-500 to-orange-600' },
-    // Legacy fallback for users with old tier value
-    NITRO_ULTRA: { name: 'Nitro Supreme', icon: <Crown size={16} />, color: 'text-amber-400', bgColor: 'bg-amber-500/20', gradient: 'from-amber-500 to-orange-600' },
-};
-
 interface UserData {
     uid: string;
     email: string | null;
     displayName: string | null;
     username: string | null;
     photoURL: string | null;
-    tier: SubscriptionTier;
     isAdmin: boolean;
     isApproved?: boolean;
     arihantMode?: boolean;
@@ -75,7 +66,7 @@ export default function AdminPage() {
     const isAdmin = settingsIsAdmin || userProfile?.isAdmin === true;
 
     // State
-    const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'playlists' | 'settings'>('overview');
+    const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'playlists'>('overview');
     const [users, setUsers] = useState<UserData[]>([]);
     const [loadingUsers, setLoadingUsers] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
@@ -221,37 +212,6 @@ export default function AdminPage() {
             router.push('/auth');
         }
     }, [user, authLoading, router]);
-
-    // Update user tier
-    const updateUserTier = async (userId: string, newTier: SubscriptionTier) => {
-        setUpdating(userId);
-        setSuccess(null);
-        setError(null);
-
-        try {
-            const userRef = doc(db, 'users', userId);
-            await updateDoc(userRef, {
-                tier: newTier,
-                updatedAt: new Date()
-            });
-
-            // Update local state
-            setUsers(prev => prev.map(u =>
-                u.uid === userId ? { ...u, tier: newTier } : u
-            ));
-
-            // If updating own profile, refresh
-            if (userId === user?.uid) {
-                await authRefresh();
-            }
-
-            setSuccess(`Updated user to ${TIER_INFO[newTier].name}`);
-        } catch (err: any) {
-            setError('Failed to update tier');
-        } finally {
-            setUpdating(null);
-        }
-    };
 
     // Approve / revoke a user's access (binary access model)
     const toggleApproval = async (userId: string, currentlyApproved: boolean) => {
@@ -603,7 +563,7 @@ export default function AdminPage() {
                             </div>
                             <div>
                                 <h1 className="text-xl md:text-3xl font-bold text-[var(--foreground)]">Admin Panel</h1>
-                                <p className="text-[var(--foreground-muted)] text-[10px] md:text-sm">Manage users and subscriptions</p>
+                                <p className="text-[var(--foreground-muted)] text-[10px] md:text-sm">Manage users &amp; access</p>
                             </div>
                         </div>
                         <button
@@ -621,7 +581,6 @@ export default function AdminPage() {
                         {[
                             { id: 'overview', label: 'Overview', icon: BarChart3 },
                             { id: 'users', label: 'Users', icon: Users },
-                            { id: 'settings', label: 'My Tier', icon: Settings },
                         ].map(tab => (
                             <button
                                 key={tab.id}
@@ -724,8 +683,8 @@ export default function AdminPage() {
                                             </div>
                                             <p className="text-xs text-[var(--foreground-muted)] truncate">{u.email}</p>
                                         </div>
-                                        <div className={`px-3 py-1 rounded-full text-xs font-bold ${TIER_INFO[u.tier].bgColor} ${TIER_INFO[u.tier].color}`}>
-                                            {TIER_INFO[u.tier].name}
+                                        <div className={`px-2.5 py-1 rounded-full text-[10px] font-bold flex items-center gap-1 ${(u.isApproved || u.isAdmin) ? 'bg-emerald-500/15 text-emerald-400' : 'bg-zinc-500/15 text-zinc-400'}`}>
+                                            {u.isAdmin ? 'Admin' : u.isApproved ? 'Approved' : 'Locked'}
                                         </div>
                                         {u.isAdmin && (
                                             <Shield size={16} className="text-amber-400" />
@@ -1082,86 +1041,6 @@ export default function AdminPage() {
                     </div>
                 )}
 
-                {/* Settings Tab (My Tier) */}
-                {activeTab === 'settings' && (
-                    <div className="space-y-8 max-w-2xl">
-                        <div className="p-6 bg-[var(--card)] border border-[var(--border)] rounded-2xl">
-                            <h3 className="text-lg font-bold text-[var(--foreground)] mb-6 flex items-center gap-2">
-                                <Settings size={20} className="text-cyan-400" />
-                                Change Your Tier
-                            </h3>
-
-                            <div className="grid gap-4">
-                                {(['NITRO_CORE', 'NITRO_ELITE', 'NITRO_SUPREME'] as SubscriptionTier[]).map((tierOption) => {
-                                    const info = TIER_INFO[tierOption];
-                                    const isActive = userProfile?.tier === tierOption;
-
-                                    return (
-                                        <button
-                                            key={tierOption}
-                                            onClick={() => user && updateUserTier(user.uid, tierOption)}
-                                            disabled={isActive || updating === user?.uid}
-                                            className={`p-5 rounded-2xl border transition-all text-left ${isActive
-                                                ? `bg-gradient-to-r ${info.gradient} border-transparent`
-                                                : 'bg-[var(--card)] border-[var(--border)] hover:bg-[var(--card-hover)]'
-                                                }`}
-                                        >
-                                            <div className="flex items-center justify-between">
-                                                <div className="flex items-center gap-3">
-                                                    <div className={`p-2 rounded-lg ${isActive ? 'bg-[var(--foreground)]/10' : info.bgColor}`}>
-                                                        {info.icon}
-                                                    </div>
-                                                    <div>
-                                                        <h4 className={`font-bold ${isActive ? 'text-[var(--foreground)]' : info.color}`}>
-                                                            {info.name}
-                                                        </h4>
-                                                        <p className={`text-xs ${isActive ? 'text-[var(--foreground)]/80' : 'text-[var(--foreground-muted)]'}`}>
-                                                            {tierOption === 'NITRO_CORE' && 'Basic features'}
-                                                            {tierOption === 'NITRO_ELITE' && '3D Audio, Visualizer'}
-                                                            {tierOption === 'NITRO_SUPREME' && 'All premium features'}
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                                {isActive ? (
-                                                    <Check size={20} className="text-[var(--foreground)]" />
-                                                ) : (
-                                                    <ChevronRight size={20} className="text-[var(--foreground-muted)]" />
-                                                )}
-                                            </div>
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        </div>
-
-                        {/* Quick Stats */}
-                        <div className="p-6 bg-[var(--card)] border border-[var(--border)] rounded-2xl">
-                            <h3 className="text-lg font-bold text-[var(--foreground)] mb-4">Your Profile</h3>
-                            <div className="space-y-3 text-sm">
-                                <div className="flex justify-between">
-                                    <span className="text-[var(--foreground-muted)]">Email</span>
-                                    <span className="text-[var(--foreground)]">{user?.email}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                    <span className="text-[var(--foreground-muted)]">Display Name</span>
-                                    <span className="text-[var(--foreground)]">{userProfile?.displayName}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                    <span className="text-[var(--foreground-muted)]">Current Tier</span>
-                                    <span className={TIER_INFO[userProfile?.tier || 'NITRO_CORE'].color}>
-                                        {TIER_INFO[userProfile?.tier || 'NITRO_CORE'].name}
-                                    </span>
-                                </div>
-                                <div className="flex justify-between">
-                                    <span className="text-[var(--foreground-muted)]">Admin Status</span>
-                                    <span className={userProfile?.isAdmin ? 'text-amber-400' : 'text-[var(--foreground-muted)]'}>
-                                        {userProfile?.isAdmin ? 'Yes' : 'No'}
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                )}
             </div>
 
             {/* Footer */}

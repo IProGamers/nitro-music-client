@@ -73,7 +73,7 @@ export default function Sidebar() {
     return (
         <>
             {/* Desktop Sidebar - Uses calc to account for player bar height */}
-            <div className="hidden md:flex w-64 bg-[var(--background)] border-r border-[var(--border)] flex-col p-6 shrink-0 fixed top-0 left-0 z-30 transition-all duration-300" style={{ height: 'calc(100vh - 96px)' }}>
+            <div className="hidden md:flex w-64 bg-[var(--background)] border-r border-[var(--border)] flex-col p-6 shrink-0 fixed top-0 left-0 bottom-0 z-30 transition-all duration-300">
                 <Link href="/" className="flex items-center gap-4 mb-10 group pl-2">
                     <div className="w-9 h-9 rounded-xl overflow-hidden shadow-none ring-1 ring-white/10 group-hover:ring-white/30 transition-all">
                         <img src="/logo.png" className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity" alt="Nitro Logo" />
