@@ -4,6 +4,20 @@ import { useEffect, useState } from 'react';
 import { Play, Plus, Volume2, MoreHorizontal, Music, Radio } from 'lucide-react';
 import { extractAccent, tintGradient, type AccentColor } from '@/lib/colorExtract';
 
+// Image that never renders broken: empty/failed src → a Music-icon placeholder.
+function SafeImg({ src, className = '', alt = '', circle = false }: { src?: string; className?: string; alt?: string; circle?: boolean }) {
+  const [failed, setFailed] = useState(false);
+  useEffect(() => { setFailed(false); }, [src]);
+  if (!src || failed) {
+    return (
+      <div className={`${className} flex items-center justify-center bg-[var(--surface)] ${circle ? 'rounded-full' : ''}`}>
+        <Music size={18} className="text-white/30" />
+      </div>
+    );
+  }
+  return <img src={src} alt={alt} className={className} loading="lazy" onError={() => setFailed(true)} />;
+}
+
 // ---------------------------------------------------------------------------
 // FeaturedCard — Spotify's signature colour-tinted personalised card.
 // Background gradient is pulled from the cover art (falls back to a brand tint).
@@ -42,11 +56,7 @@ export function FeaturedCard({ image, title, subtitle, description, badge, onPla
           onClick={onOpen}
           className="w-[72px] h-[72px] md:w-24 md:h-24 rounded-lg overflow-hidden shrink-0 bg-black/20 shadow-xl cursor-pointer"
         >
-          {image ? (
-            <img src={image} alt={title} className="w-full h-full object-cover" />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center"><Music size={26} className="text-white/40" /></div>
-          )}
+          <SafeImg src={image} alt={title} className="w-full h-full object-cover" />
         </div>
         <div className="flex-1 min-w-0" onClick={onOpen} role={onOpen ? 'button' : undefined}>
           <h3 className="text-lg md:text-xl font-extrabold text-white leading-tight line-clamp-2">{title}</h3>
@@ -108,7 +118,7 @@ export function NumberedMixTile({ name, desc, covers, index, accentClass, number
         <div className="absolute inset-0 grid grid-cols-2 opacity-55">
           {four.map((c, i) => (
             <div key={i} className="overflow-hidden bg-[var(--background-tertiary)]">
-              {c && <img src={c} className="w-full h-full object-cover" alt="" />}
+              {c && <SafeImg src={c} className="w-full h-full object-cover" />}
             </div>
           ))}
         </div>
@@ -157,18 +167,18 @@ export function RadioCard({ title, covers, bg, dark = true, subtitle, onPlay }: 
         <div className="absolute inset-0 flex items-center justify-center">
           <div className="flex items-center">
             {three.map((c, i) => (
-              <img
+              <div
                 key={i}
-                src={c}
-                alt=""
-                className="rounded-full object-cover border-2 border-black/10"
                 style={{
                   width: i === 1 ? 64 : 46,
                   height: i === 1 ? 64 : 46,
                   margin: i === 1 ? '0 -10px' : 0,
                   zIndex: i === 1 ? 2 : 1,
                 }}
-              />
+                className="rounded-full overflow-hidden border-2 border-black/10"
+              >
+                <SafeImg src={c} circle className="w-full h-full object-cover" />
+              </div>
             ))}
           </div>
         </div>

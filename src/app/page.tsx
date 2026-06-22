@@ -858,7 +858,7 @@ export default function Home() {
                 >
                   <div className="relative w-16 h-16 md:w-24 md:h-24 rounded-full overflow-hidden bg-[var(--card)] shadow-lg ring-2 ring-transparent group-hover:ring-cyan-400 transition-all mb-2">
                     {getImg(artist) ? (
-                      <img src={getImg(artist)} className="w-full h-full object-cover" alt="" />
+                      <img src={getImg(artist)} className="w-full h-full object-cover" alt="" onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/logo.png'; }} />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center bg-[var(--background-tertiary)]">
                         <Mic2 size={20} className="text-[var(--foreground-muted)]" />
@@ -895,7 +895,7 @@ export default function Home() {
                 >
                   <div className="relative aspect-square rounded-lg overflow-hidden bg-[var(--card)] shadow-md mb-2 border border-[var(--border)]">
                     {getImg(album) ? (
-                      <img src={getImg(album)} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt="" />
+                      <img src={getImg(album)} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt="" onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/logo.png'; }} />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center bg-[var(--background-tertiary)]">
                         <Music size={24} className="text-[var(--foreground-muted)]" />
@@ -999,7 +999,7 @@ export default function Home() {
                 >
                   <div className="relative w-16 h-16 md:w-24 md:h-24 rounded-full overflow-hidden bg-[var(--card)] shadow-lg ring-2 ring-transparent group-hover:ring-purple-400 transition-all mb-2">
                     {getImg(artist) ? (
-                      <img src={getImg(artist)} className="w-full h-full object-cover" alt="" />
+                      <img src={getImg(artist)} className="w-full h-full object-cover" alt="" onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/logo.png'; }} />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center bg-[var(--background-tertiary)]">
                         <Mic2 size={20} className="text-[var(--foreground-muted)]" />
@@ -1124,7 +1124,7 @@ function SongCard({ song, queue, getImg, getName, getArtist, playTrack }: { song
     >
       <div className="relative aspect-square rounded-lg overflow-hidden bg-[var(--card)] shadow-md mb-2 border border-[var(--border)]">
         {getImg(song) ? (
-          <img src={getImg(song)} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt={getName(song)} loading="lazy" />
+          <img src={getImg(song)} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt={getName(song)} loading="lazy" onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/logo.png'; }} />
         ) : (
           <div className="w-full h-full flex items-center justify-center bg-[var(--background-tertiary)]">
             <Music size={24} className="text-[var(--foreground-muted)]" />

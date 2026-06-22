@@ -28,6 +28,7 @@ export function SongCard({ song, queue, getImg, getName, getArtist, playTrack }:
                         className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                         alt={getName(song)}
                         loading="lazy"
+                        onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/logo.png'; }}
                     />
                 ) : (
                     <div className="w-full h-full flex items-center justify-center text-[var(--foreground-muted)]">
