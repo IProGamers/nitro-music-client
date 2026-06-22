@@ -240,8 +240,11 @@ export default function SearchPage() {
                     }
                 }
             } catch (e: any) {
-                if (e.name !== 'AbortError') {
-                    console.error('Search error:', e);
+                // Aborted (user kept typing) or a transient network blip while the
+                // backend (re)starts — degrade quietly. console.warn, not error, so
+                // Next's dev overlay doesn't surface it as a crash.
+                if (e?.name !== 'AbortError') {
+                    console.warn('Search request failed (showing browse view):', e?.message || e);
                 }
             } finally {
                 // Only set loading false if this is still the active controller
@@ -294,8 +297,8 @@ export default function SearchPage() {
                     });
                 }
             } catch (e: any) {
-                if (e.name !== 'AbortError') {
-                    console.error(`Error fetching more ${activeTab}:`, e);
+                if (e?.name !== 'AbortError') {
+                    console.warn(`Could not fetch more ${activeTab}:`, e?.message || e);
                 }
             } finally {
                 if (categoryAbortControllerRef.current === controller) {
