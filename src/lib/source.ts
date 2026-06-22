@@ -38,6 +38,21 @@ export function ytStreamUrl(id: string): string {
   return `${YT_BASE}/api/youtube/stream?id=${encodeURIComponent(String(id))}`
 }
 
+// Warm the server-side stream-URL cache so the next /stream request is instant
+// (yt-dlp resolution takes ~2s cold). Fire-and-forget; de-duped per id.
+const ytPrefetched = new Set<string>()
+export function prefetchYtStream(song: any): void {
+  if (typeof window === 'undefined' || !song || song.source !== 'youtube') return
+  const id = String(song.id || song.songId || '')
+  if (!id || ytPrefetched.has(id)) return
+  ytPrefetched.add(id)
+  // Drop from the set after a while so it can be re-warmed once the URL expires.
+  setTimeout(() => ytPrefetched.delete(id), 30 * 60 * 1000)
+  fetch(`${YT_BASE}/api/youtube/resolve?id=${encodeURIComponent(id)}`).catch(() => {
+    ytPrefetched.delete(id)
+  })
+}
+
 /**
  * Build a backend URL for the CURRENT (or given) source. Pass a logical path
  * WITHOUT the /api prefix or the youtube namespace, e.g.

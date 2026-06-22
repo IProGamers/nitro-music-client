@@ -14,7 +14,7 @@ import { fetchWithCache, CACHE_TTL, preloadCriticalData } from '@/lib/apiCache';
 import { fetchJioSaavnSuggestions, rankByTaste } from '@/lib/recommendations';
 import { normalizeTrack } from '@/lib/utils';
 import { useSettings } from '@/context/SettingsContext';
-import { sourceUrl } from '@/lib/source';
+import { sourceUrl, prefetchYtStream } from '@/lib/source';
 
 // Vibrant solid backgrounds for radio station cards (cycled by index)
 const RADIO_BGS: { bg: string; dark: boolean }[] = [
@@ -1006,7 +1006,7 @@ export default function Home() {
                     )}
                   </div>
                   <h3 className="font-semibold text-[10px] md:text-xs text-[var(--foreground)] truncate text-center w-full">{getName(artist)}</h3>
-                  <p className="text-[8px] md:text-[9px] text-purple-400 font-medium">Artist</p>
+                  <p className="text-[8px] md:text-[9px] text-[var(--foreground-muted)]">Artist</p>
                 </div>
               ))}
             </div>
@@ -1118,6 +1118,7 @@ function SongCard({ song, queue, getImg, getName, getArtist, playTrack }: { song
   return (
     <div
       onClick={() => playTrack(song, queue)}
+      onMouseEnter={() => prefetchYtStream(song)}
       className="group cursor-pointer w-[115px] md:w-[145px] flex-shrink-0"
     >
       <div className="relative aspect-square rounded-lg overflow-hidden bg-[var(--card)] shadow-md mb-2 border border-[var(--border)]">

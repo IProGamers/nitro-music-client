@@ -3,6 +3,7 @@
 import { Music, Play } from 'lucide-react';
 import SongContextMenu from './SongContextMenu';
 import { decodeHtml } from '@/lib/utils';
+import { prefetchYtStream } from '@/lib/source';
 
 interface SongCardProps {
     song: any;
@@ -17,6 +18,7 @@ export function SongCard({ song, queue, getImg, getName, getArtist, playTrack }:
     return (
         <div
             onClick={() => playTrack(song, queue)}
+            onMouseEnter={() => prefetchYtStream(song)}
             className="group cursor-pointer w-40 md:w-52 shrink-0 p-3 md:p-4 rounded-xl bg-transparent hover:bg-[var(--surface-hover)] transition-colors duration-300"
         >
             <div className="relative aspect-square rounded-lg overflow-hidden mb-4 shadow-lg shadow-black/40 bg-[var(--surface)]">

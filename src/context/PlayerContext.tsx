@@ -8,7 +8,7 @@ import { decodeHtml } from '@/lib/utils';
 import { getSong as getOfflineSong } from '@/lib/offlineDb';
 import { dedupeSongs, createSongKey, normalizeSongTitle } from '@/lib/searchUtils';
 import { recordListen, recordSkip, buildAutoplayQueries, buildQueuePools, rankByTaste, fetchLastfmSimilarSongs, fetchJioSaavnSuggestions } from '@/lib/recommendations';
-import { ytStreamUrl, sourceUrl } from '@/lib/source';
+import { ytStreamUrl, sourceUrl, prefetchYtStream } from '@/lib/source';
 
 const FREE_PLAY_LIMIT = 10;
 const PLAY_COUNT_KEY = 'nitro_free_plays';
@@ -136,6 +136,14 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
         if (queue.length > 0) localStorage.setItem(QUEUE_KEY, JSON.stringify(queue));
         localStorage.setItem(INDEX_KEY, currentIndex.toString());
     }, [currentSong, queue, currentIndex]);
+
+    // Prefetch upcoming YouTube songs' stream URLs so the next track plays
+    // instantly (yt-dlp resolution is ~2s cold; this warms the server cache).
+    useEffect(() => {
+        if (!queue.length) return;
+        prefetchYtStream(queue[currentIndex + 1]);
+        prefetchYtStream(queue[currentIndex + 2]);
+    }, [currentSong, currentIndex, queue]);
 
     // Increment and save play count
     const incrementPlayCount = () => {
