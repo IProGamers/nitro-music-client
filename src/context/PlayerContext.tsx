@@ -205,6 +205,26 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
     const crossfadeRafRef = useRef<number | null>(null);
     const crossfadePrevGainRef = useRef<number>(1);
 
+    // Timestamp (performance.now) of the last play we INITIATED on purpose
+    // (user tapped Play, next/prev, etc.). Used to distinguish a deliberate play
+    // from an OS-driven `pause` event. When the user is already on a phone /
+    // WhatsApp call, the OS lets play() succeed for a moment then immediately
+    // fires `pause` on the element (the call owns audio focus). We must NOT treat
+    // that as a user intent to stay paused — see the audio `pause` listener below.
+    const intendedPlayAtRef = useRef<number>(0);
+    // True only while a deliberate play is in flight, so the pause listener knows
+    // we want to be playing even before React commits isPlaying.
+    const wantPlayingRef = useRef<boolean>(false);
+    // Guard so we only auto-retry a single time per deliberate play (no loops).
+    const playRetriedRef = useRef<boolean>(false);
+
+    // Mark that we just initiated a deliberate play (user gesture / skip / autoplay).
+    const markIntendedPlay = () => {
+        intendedPlayAtRef.current = performance.now();
+        wantPlayingRef.current = true;
+        playRetriedRef.current = false;
+    };
+
     // Initialize Audio Context and Nodes
     useEffect(() => {
         if (!audioRef.current) return;
@@ -346,6 +366,42 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
         };
     }, [isPlaying]);
 
+    // Keep wantPlayingRef in sync with the committed playing state so a genuine
+    // (user-driven) pause clears the "we want to be playing" intent. A deliberate
+    // play sets it true via markIntendedPlay() before isPlaying commits.
+    useEffect(() => {
+        wantPlayingRef.current = isPlaying;
+    }, [isPlaying]);
+
+    // Audio-focus resilience: when the user is ALREADY on a phone / WhatsApp call
+    // and taps Play, the OS lets play() resolve (song plays briefly) then fires a
+    // `pause` event on the element because the call owns the audio-focus channel.
+    // Our state would otherwise flip to paused and the sync effect would enforce it,
+    // so the song "plays then instantly pauses". If a pause arrives within a short
+    // window of a deliberate play AND we still want to be playing, retry play()
+    // ONCE rather than accepting the OS pause as user intent. A pause outside that
+    // window (e.g. a NEW incoming call mid-song, or the user tapping pause) is
+    // honoured normally.
+    useEffect(() => {
+        const el = audioRef.current;
+        if (!el) return;
+        const RETRY_WINDOW_MS = 600;
+        const onPause = () => {
+            // Never fight a deliberate stop/skip mid-crossfade or a genuine pause.
+            if (isCrossfadingRef.current) return;
+            if (!wantPlayingRef.current) return;          // we don't want to be playing
+            if (playRetriedRef.current) return;            // already retried once
+            const sinceIntended = performance.now() - intendedPlayAtRef.current;
+            if (sinceIntended > RETRY_WINDOW_MS) return;   // not tied to our play → honour it
+            if (!el.getAttribute('src')) return;           // nothing to play
+            playRetriedRef.current = true;
+            const p = el.play();
+            if (p !== undefined) p.catch(() => { /* OS still holding focus — give up */ });
+        };
+        el.addEventListener('pause', onPause);
+        return () => el.removeEventListener('pause', onPause);
+    }, []);
+
     // ---- Media Session API ----
     // Drives lock-screen / notification controls, Bluetooth car head units (AVRCP),
     // wearables, and Android Auto's media metadata. Split into focused effects so we
@@ -369,7 +425,7 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
         const resumeCtx = () => {
             try { if (audioContextRef.current?.state === 'suspended') audioContextRef.current.resume().catch(() => {}); } catch { /* noop */ }
         };
-        safe('play', () => { resumeCtx(); audioRef.current?.play().catch(() => {}); setIsPlaying(true); });
+        safe('play', () => { resumeCtx(); markIntendedPlay(); audioRef.current?.play().catch(() => {}); setIsPlaying(true); });
         safe('pause', () => { audioRef.current?.pause(); setIsPlaying(false); });
         safe('previoustrack', () => { resumeCtx(); mediaHandlersRef.current.prev(); });
         safe('nexttrack', () => { resumeCtx(); mediaHandlersRef.current.next(); });
@@ -684,6 +740,7 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
             if (audioRef.current) {
                 audioRef.current.src = existingAudioUrl;
                 audioRef.current.crossOrigin = "anonymous";
+                markIntendedPlay();
                 const playPromise = audioRef.current.play();
                 if (playPromise !== undefined) {
                     playPromise.catch(e => {
@@ -732,6 +789,7 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
                         setIsPlaying(true);
                         audioRef.current.src = fullAudioUrl;
                         audioRef.current.crossOrigin = "anonymous";
+                        markIntendedPlay();
                         const playPromise = audioRef.current.play();
                         if (playPromise !== undefined) {
                             playPromise.catch(e => {
@@ -1312,6 +1370,7 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
                 if (isPlaying) {
                     // Only call play if it's paused or source changed
                     if (audioRef.current.paused || isSourceChanged) {
+                        markIntendedPlay();
                         const playPromise = audioRef.current.play();
 
                         if (playPromise !== undefined) {

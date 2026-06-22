@@ -298,3 +298,15 @@ h1, h2, h3, h4 {
   animation-timing-function: linear;
   animation-iteration-count: infinite;
 }
+
+/* iOS Safari auto-zooms when focusing an input whose font-size is < 16px.
+   Force all form controls to >=16px on mobile (below Tailwind's md breakpoint)
+   so focusing the search box never zooms in and breaks the layout / hides the
+   bottom player bar. Desktop keeps its original sizing. */
+@media (max-width: 767px) {
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}

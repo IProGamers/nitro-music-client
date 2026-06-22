@@ -495,7 +495,7 @@ export default function SearchPage() {
 
     return (
         <div className="p-4 md:p-6 lg:p-8 pb-32 pt-0 md:pt-8 min-h-screen max-w-[1700px] mx-auto overflow-x-hidden">
-            <div className="sticky top-16 z-30 bg-[var(--background)]/95 backdrop-blur-xl pb-4 pt-2 md:pt-0 md:static md:bg-transparent md:pb-0">
+            <div className="sticky top-16 z-30 bg-[var(--background)]/95 backdrop-blur-xl pb-4 pt-0 md:static md:bg-transparent md:pb-0">
                 <div className="relative group">
                     <Search className={`absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${query ? 'text-cyan-400' : 'text-[var(--foreground-muted)] group-hover:text-[var(--foreground)]'}`} size={18} />
                     <input

@@ -223,20 +223,18 @@ export const FriendsProvider = ({ children }: { children: React.ReactNode }) => 
         };
     }, [user?.uid]);
 
-    // ========== FRIENDS - FETCH ONCE (not real-time to save quota) ==========
-    const refreshFriends = useCallback(async () => {
+    // ========== FRIENDS ==========
+    // Hydrate full friend profiles from a set of friend ids. Kept separate from the
+    // subcollection listener so both the live listener and the manual refreshFriends()
+    // can reuse it.
+    const loadFriendProfiles = useCallback(async (friendIds: string[]) => {
         if (!user) {
             setFriends([]);
             setLoadingFriends(false);
             return;
         }
 
-        setLoadingFriends(true);
         try {
-            const friendsRef = collection(db, 'users', user.uid, 'friends');
-            const snapshot = await getDocs(friendsRef);
-            const friendIds = snapshot.docs.map(doc => doc.id);
-
             if (friendIds.length === 0) {
                 setFriends([]);
                 setLoadingFriends(false);
@@ -286,18 +284,49 @@ export const FriendsProvider = ({ children }: { children: React.ReactNode }) => 
         setLoadingFriends(false);
     }, [user?.uid]);
 
-    // Initial friends fetch (once only)
-    useEffect(() => {
-        if (user && !friendsFetchedRef.current) {
-            friendsFetchedRef.current = true;
-            refreshFriends();
+    // Manual refresh: re-read the friends subcollection and hydrate profiles. Still
+    // exposed for callers (e.g. removeFriend fallbacks) but the live listener below
+    // is what keeps the list fresh when a friendship is created/removed remotely.
+    const refreshFriends = useCallback(async () => {
+        if (!user) {
+            setFriends([]);
+            setLoadingFriends(false);
+            return;
         }
+        setLoadingFriends(true);
+        try {
+            const snapshot = await getDocs(collection(db, 'users', user.uid, 'friends'));
+            await loadFriendProfiles(snapshot.docs.map(d => d.id));
+        } catch (error) {
+            console.error('Error fetching friends:', error);
+            setLoadingFriends(false);
+        }
+    }, [user?.uid, loadFriendProfiles]);
+
+    // Live friends listener — the real fix for "accepted friend doesn't appear".
+    // Both users write into each other's users/{uid}/friends subcollection on accept,
+    // so watching this subcollection makes the new friend show up live for BOTH sides
+    // (the accepter and the original sender) without a manual refresh or reload.
+    useEffect(() => {
         if (!user) {
             friendsFetchedRef.current = false;
             setFriends([]);
             setLoadingFriends(false);
+            return;
         }
-    }, [user?.uid, refreshFriends]);
+
+        setLoadingFriends(true);
+        const friendsRef = collection(db, 'users', user.uid, 'friends');
+        const unsub = onSnapshot(friendsRef, (snapshot) => {
+            friendsFetchedRef.current = true;
+            loadFriendProfiles(snapshot.docs.map(d => d.id));
+        }, (error: any) => {
+            if (!isQuotaError(error)) console.error('Error listening to friends:', error);
+            setLoadingFriends(false);
+        });
+
+        return () => unsub();
+    }, [user?.uid, loadFriendProfiles]);
 
     // ========== LIVE PRESENCE SOCKET ==========
     // Open a lightweight socket purely for presence. It's separate from the Listen

@@ -1,7 +1,7 @@
 "use client"
 import { useState, useEffect, useRef } from 'react';
 import { useFriends } from '@/context/FriendsContext';
-import { useRoom } from '@/context/RoomContext';
+import { useRoom, PublicRoom } from '@/context/RoomContext';
 import { useAuth } from '@/context/AuthContext';
 import { usePlayer } from '@/context/PlayerContext';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -9,7 +9,7 @@ import {
     X, Users, Music, Crown, Play, Pause, SkipForward,
     Copy, Check, UserPlus, Headphones, Radio, Sparkles,
     Loader2, Volume2, Link as LinkIcon, ChevronRight, Zap, Lock, Share2, ExternalLink,
-    UserMinus, Ban, ArrowRightLeft, MoreVertical, Wifi, WifiOff
+    UserMinus, Ban, ArrowRightLeft, MoreVertical, Wifi, WifiOff, Globe, RefreshCw
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -37,11 +37,16 @@ export default function ListenTogetherPanel({ isOpen, onClose }: ListenTogetherP
         syncPlayback,
         transferHost,
         removeListener,
-        banListener
+        banListener,
+        inviteToRoom,
+        getPublicRooms
     } = useRoom();
 
     const [view, setView] = useState<'menu' | 'room'>('menu');
     const [joinCode, setJoinCode] = useState('');
+    const [createPublic, setCreatePublic] = useState(false);
+    const [publicRooms, setPublicRooms] = useState<PublicRoom[]>([]);
+    const [loadingPublic, setLoadingPublic] = useState(false);
     const [copied, setCopied] = useState(false);
     const [linkCopied, setLinkCopied] = useState(false);
     const [loading, setLoading] = useState(false);
@@ -155,10 +160,45 @@ export default function ListenTogetherPanel({ isOpen, onClose }: ListenTogetherP
         setLoading(true);
         setError(null);
         try {
-            await createRoom();
+            await createRoom(createPublic);
             setView('room');
         } catch (err: any) {
             setError(err.message || 'Failed to create room');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Discovery: load the list of currently-active public rooms.
+    const refreshPublicRooms = async () => {
+        setLoadingPublic(true);
+        try {
+            const list = await getPublicRooms();
+            setPublicRooms(list);
+        } catch {
+            // discovery is best-effort — silently ignore failures
+        } finally {
+            setLoadingPublic(false);
+        }
+    };
+
+    // Auto-load public rooms whenever the menu view is shown and connected.
+    useEffect(() => {
+        if (isOpen && view === 'menu' && isConnected && !activeRoom) {
+            refreshPublicRooms();
+        }
+    }, [isOpen, view, isConnected, activeRoom]);
+
+    // One-tap join of a discoverable public room (no code needed).
+    const handleJoinPublic = async (roomId: string) => {
+        if (!canUseListenTogether) return;
+        setLoading(true);
+        setError(null);
+        try {
+            await joinRoom(roomId);
+            setView('room');
+        } catch (err: any) {
+            setError(err.message || 'Failed to join room');
         } finally {
             setLoading(false);
         }
@@ -190,13 +230,20 @@ export default function ListenTogetherPanel({ isOpen, onClose }: ListenTogetherP
         }
     };
 
-    // Invite friend by sharing link (Socket.io based - no Firebase invite needed)
+    // Invite a friend into the current room. Drops a Firestore roomInvite that
+    // the friend sees in real time and joins from. Works for ANY member of the
+    // room (host or non-host), since inviteToRoom only needs the active room.
     const handleInviteFriend = async (friendId: string) => {
-        // Just show them to copy the link
-        if (activeRoom) {
-            shareRoomLink();
+        if (!activeRoom) return;
+        setInviteLoading(friendId);
+        try {
+            await inviteToRoom(friendId);
             setInviteSuccess(friendId);
             setTimeout(() => setInviteSuccess(null), 2000);
+        } catch (err: any) {
+            setError(err.message || 'Failed to invite friend');
+        } finally {
+            setInviteLoading(null);
         }
     };
 
@@ -448,6 +495,26 @@ export default function ListenTogetherPanel({ isOpen, onClose }: ListenTogetherP
                                 </div>
 
                                 <div className="w-full max-w-sm space-y-4">
+                                    {/* Public / Private choice for the new room */}
+                                    <div className="grid grid-cols-2 gap-2 p-1 bg-[var(--background)] border border-[var(--border)] rounded-2xl">
+                                        <button
+                                            onClick={() => setCreatePublic(false)}
+                                            className={`flex flex-col items-center gap-1 py-2.5 rounded-xl transition-colors ${!createPublic ? 'bg-[var(--card-hover)] text-[var(--foreground)]' : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)]'}`}
+                                        >
+                                            <Lock size={16} className={!createPublic ? 'text-purple-400' : ''} />
+                                            <span className="text-xs font-bold">Private</span>
+                                            <span className="text-[9px] text-[var(--foreground-muted)]">Code only</span>
+                                        </button>
+                                        <button
+                                            onClick={() => setCreatePublic(true)}
+                                            className={`flex flex-col items-center gap-1 py-2.5 rounded-xl transition-colors ${createPublic ? 'bg-[var(--card-hover)] text-[var(--foreground)]' : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)]'}`}
+                                        >
+                                            <Globe size={16} className={createPublic ? 'text-emerald-400' : ''} />
+                                            <span className="text-xs font-bold">Public</span>
+                                            <span className="text-[9px] text-[var(--foreground-muted)]">Anyone can join</span>
+                                        </button>
+                                    </div>
+
                                     <button
                                         onClick={handleCreateRoom}
                                         disabled={loading}
@@ -458,7 +525,7 @@ export default function ListenTogetherPanel({ isOpen, onClose }: ListenTogetherP
                                         ) : (
                                             <>
                                                 <Crown size={20} />
-                                                Create Room
+                                                Create {createPublic ? 'Public' : 'Private'} Room
                                             </>
                                         )}
                                     </button>
@@ -490,6 +557,80 @@ export default function ListenTogetherPanel({ isOpen, onClose }: ListenTogetherP
                                         >
                                             <LinkIcon size={20} />
                                         </button>
+                                    </div>
+
+                                    {/* Public rooms discovery */}
+                                    <div className="pt-2">
+                                        <div className="flex items-center justify-between mb-2">
+                                            <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--foreground-muted)] flex items-center gap-1.5">
+                                                <Globe size={12} className="text-emerald-400" />
+                                                Public Rooms
+                                            </p>
+                                            <button
+                                                onClick={refreshPublicRooms}
+                                                disabled={loadingPublic}
+                                                className="p-1 rounded-lg hover:bg-[var(--card-hover)] transition-colors"
+                                                title="Refresh"
+                                            >
+                                                <RefreshCw size={12} className={`text-[var(--foreground-muted)] ${loadingPublic ? 'animate-spin' : ''}`} />
+                                            </button>
+                                        </div>
+
+                                        {loadingPublic && publicRooms.length === 0 ? (
+                                            <div className="py-6 flex justify-center">
+                                                <Loader2 size={18} className="animate-spin text-[var(--foreground-muted)]" />
+                                            </div>
+                                        ) : publicRooms.length === 0 ? (
+                                            <div className="py-6 text-center">
+                                                <p className="text-xs text-[var(--foreground-muted)]">No public rooms right now</p>
+                                                <p className="text-[10px] text-[var(--foreground-muted)]/60 mt-1">Create a public room to get started</p>
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-2 max-h-52 overflow-y-auto">
+                                                {publicRooms.map(room => (
+                                                    <div
+                                                        key={room.id}
+                                                        className="flex items-center gap-3 p-2.5 bg-[var(--background)] border border-[var(--border)] rounded-xl"
+                                                    >
+                                                        <div className="relative shrink-0">
+                                                            {room.hostPhoto ? (
+                                                                <img src={room.hostPhoto} className="w-10 h-10 rounded-xl object-cover" alt="" />
+                                                            ) : (
+                                                                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white font-bold">
+                                                                    {room.hostName?.[0]?.toUpperCase() || '?'}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                        <div className="flex-1 min-w-0 text-left">
+                                                            <p className="text-sm font-bold text-[var(--foreground)] truncate">
+                                                                {room.hostName}'s Room
+                                                            </p>
+                                                            <p className="text-[11px] text-[var(--foreground-muted)] truncate flex items-center gap-1">
+                                                                {room.currentSong ? (
+                                                                    <>
+                                                                        <Music size={10} className="shrink-0 text-emerald-400" />
+                                                                        <span className="truncate">{room.currentSong.name} — {room.currentSong.artist}</span>
+                                                                    </>
+                                                                ) : (
+                                                                    <span className="italic">Nothing playing yet</span>
+                                                                )}
+                                                            </p>
+                                                            <p className="text-[10px] text-[var(--foreground-muted)] flex items-center gap-1 mt-0.5">
+                                                                <Users size={10} />
+                                                                {room.listenerCount} listener{room.listenerCount !== 1 ? 's' : ''}
+                                                            </p>
+                                                        </div>
+                                                        <button
+                                                            onClick={() => handleJoinPublic(room.id)}
+                                                            disabled={loading}
+                                                            className="px-3 py-2 bg-gradient-to-r from-violet-500 to-purple-600 text-white text-xs font-bold rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 shrink-0"
+                                                        >
+                                                            Join
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             </motion.div>
@@ -718,8 +859,8 @@ export default function ListenTogetherPanel({ isOpen, onClose }: ListenTogetherP
                                     </div>
                                 </div>
 
-                                {/* Sidebar - Invite Friends (Host Only) */}
-                                {isHost && (
+                                {/* Sidebar - Invite Friends (any member can invite their friends) */}
+                                {activeRoom && (
                                     <div className="w-full md:w-72 border-t md:border-t-0 md:border-l border-[var(--border)] p-4 bg-[var(--background)]/50 overflow-y-auto">
                                         <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--foreground-muted)] mb-3 flex items-center gap-1.5">
                                             <UserPlus size={12} />
@@ -786,7 +927,8 @@ export default function ListenTogetherPanel({ isOpen, onClose }: ListenTogetherP
                                             </div>
                                         )}
 
-                                        {/* Share Options */}
+                                        {/* Share Options (host only) */}
+                                        {isHost && (
                                         <div className="mt-4 pt-4 border-t border-[var(--border)] space-y-3">
                                             <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--foreground-muted)]">
                                                 Share Room
@@ -826,6 +968,7 @@ export default function ListenTogetherPanel({ isOpen, onClose }: ListenTogetherP
                                                 Anyone with the link can join
                                             </p>
                                         </div>
+                                        )}
                                     </div>
                                 )}
                             </motion.div>

@@ -5,7 +5,7 @@ import { useRoom } from '@/context/RoomContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Headphones, Users, Crown, Eye, EyeOff, Loader2, Trash2,
-    RefreshCw, Music, Radio, UserX, X, AlertCircle
+    RefreshCw, Music, Radio, UserX, X, AlertCircle, Globe, Lock
 } from 'lucide-react';
 
 interface RoomData {
@@ -13,6 +13,7 @@ interface RoomData {
     hostId: string;
     hostName: string;
     hostPhoto: string | null;
+    isPublic?: boolean;
     participants: string[];
     participantDetails: { [key: string]: { displayName: string; photoURL: string | null } };
     currentSong: {
@@ -215,8 +216,12 @@ export default function AdminRoomsPanel() {
                                                             </div>
                                                         </div>
                                                         <div>
-                                                            <p className="font-bold text-[var(--foreground)]">
+                                                            <p className="font-bold text-[var(--foreground)] flex items-center gap-2">
                                                                 {room.hostName}'s Room
+                                                                <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wider ${room.isPublic ? 'bg-emerald-500/10 text-emerald-400' : 'bg-[var(--card-hover)] text-[var(--foreground-muted)]'}`}>
+                                                                    {room.isPublic ? <Globe size={9} /> : <Lock size={9} />}
+                                                                    {room.isPublic ? 'Public' : 'Private'}
+                                                                </span>
                                                             </p>
                                                             <p className="text-xs text-[var(--foreground-muted)]">
                                                                 Code: <span className="font-mono text-purple-400">{room.id}</span> • {room.participants.length} listeners

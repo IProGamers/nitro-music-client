@@ -11,6 +11,7 @@ export interface ListenRoom {
     hostId: string;
     hostName: string;
     hostPhoto: string | null;
+    isPublic: boolean;
     participants: string[];
     participantDetails: { [key: string]: { id: string; displayName: string; photoURL: string | null; tier?: string; joinedAt: Date } };
     bannedUsers: string[];
@@ -27,6 +28,23 @@ export interface ListenRoom {
     createdAt: Date;
 }
 
+// Lightweight summary returned by the public-rooms discovery list. Only the
+// fields the browse UI needs — no participant details or banned list.
+export interface PublicRoom {
+    id: string;
+    hostName: string;
+    hostPhoto: string | null;
+    listenerCount: number;
+    currentSong: {
+        id: string;
+        name: string;
+        artist: string;
+        image: string;
+        audioUrl: string;
+    } | null;
+    isPlaying: boolean;
+}
+
 interface RoomContextType {
     // Connection
     isConnected: boolean;
@@ -37,7 +55,7 @@ interface RoomContextType {
     isHost: boolean;
 
     // Actions
-    createRoom: () => Promise<ListenRoom>;
+    createRoom: (isPublic?: boolean) => Promise<ListenRoom>;
     joinRoom: (roomId: string, isAdmin?: boolean) => Promise<ListenRoom>;
     leaveRoom: () => Promise<void>;
     syncPlayback: (isPlaying: boolean, currentTime: number, song?: any) => void;
@@ -48,6 +66,9 @@ interface RoomContextType {
 
     // Admin
     getAllRooms: () => Promise<ListenRoom[]>;
+
+    // Discovery — list of currently-active PUBLIC rooms anyone can join.
+    getPublicRooms: () => Promise<PublicRoom[]>;
 
     // Room Info
     getRoomInfo: (roomId: string) => Promise<ListenRoom | null>;
@@ -191,7 +212,7 @@ export const RoomProvider = ({ children }: { children: React.ReactNode }) => {
     }, [user?.uid, userProfile?.displayName]);
 
     // Create Room
-    const createRoom = useCallback(async (): Promise<ListenRoom> => {
+    const createRoom = useCallback(async (isPublic = false): Promise<ListenRoom> => {
         if (!socket || !user || !userProfile) throw new Error('Not connected');
 
         return new Promise((resolve, reject) => {
@@ -199,7 +220,8 @@ export const RoomProvider = ({ children }: { children: React.ReactNode }) => {
                 userId: user.uid,
                 displayName: userProfile.displayName,
                 photoURL: userProfile.photoURL,
-                tier: userProfile.tier
+                tier: userProfile.tier,
+                isPublic
             }, (response: any) => {
                 if (response.success) {
                     setActiveRoom(response.room);
@@ -341,6 +363,18 @@ export const RoomProvider = ({ children }: { children: React.ReactNode }) => {
         });
     }, [socket]);
 
+    // Get currently-active PUBLIC rooms anyone can discover and join (no code).
+    const getPublicRooms = useCallback(async (): Promise<PublicRoom[]> => {
+        if (!socket) return [];
+
+        return new Promise((resolve) => {
+            socket.emit('room:list_public', (response: any) => {
+                if (response?.success) resolve(response.rooms);
+                else resolve([]);
+            });
+        });
+    }, [socket]);
+
     const value = useMemo(() => ({
         isConnected,
         activeRoom,
@@ -355,11 +389,12 @@ export const RoomProvider = ({ children }: { children: React.ReactNode }) => {
         banListener,
         inviteToRoom,
         getAllRooms,
+        getPublicRooms,
         getRoomInfo
     }), [
         isConnected, activeRoom, isInRoom, isHost,
         createRoom, joinRoom, leaveRoom, syncPlayback,
-        transferHost, removeListener, banListener, inviteToRoom, getAllRooms, getRoomInfo
+        transferHost, removeListener, banListener, inviteToRoom, getAllRooms, getPublicRooms, getRoomInfo
     ]);
 
     return (

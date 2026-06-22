@@ -24,6 +24,7 @@ import ArtistLink from './ArtistLink';
 import { useDJ } from '@/context/DJContext';
 import { useUsage } from '@/context/UsageContext';
 import { useOffline } from '@/context/OfflineContext';
+import { useRoom } from '@/context/RoomContext';
 import FirstTimeTooltip from './FirstTimeTooltip';
 
 const decodeHtml = (html: string): string => {
@@ -89,6 +90,9 @@ export default function Player() {
     };
 
     const { isDJMode } = useDJ();
+    // Room state — a non-host member cannot control the host's playback.
+    const { activeRoom, isHost } = useRoom();
+    const isRoomMember = !!activeRoom && !isHost;
     const { checkAccess, trackUsage, setShowLimitModal, setLimitFeature } = useUsage();
     const { downloadSong, removeSong, isDownloaded, isDownloading, currentDownloadId } = useOffline();
 
@@ -376,25 +380,44 @@ export default function Player() {
                         </div>
                     </div>
 
-                    {/* Center: transport — previous · play/pause · next */}
+                    {/* Center: transport — previous · play/pause · next.
+                        Room members can't control the host's playback, so we show
+                        a LOCAL mute toggle (affects only this listener) instead. */}
                     <div className="flex items-center gap-1 shrink-0 text-[var(--foreground-secondary)]" onClick={e => e.stopPropagation()}>
-                        <button onClick={(e) => { e.stopPropagation(); prev(); }} className="p-1 active:scale-90 active:text-[var(--foreground)] transition-all" aria-label="Previous">
-                            <SkipBack size={21} fill="currentColor" />
-                        </button>
-                        <button
-                            onClick={(e) => { e.stopPropagation(); togglePlay(); }}
-                            className="w-9 h-9 flex items-center justify-center active:scale-90 transition-transform"
-                            aria-label={isPlaying ? 'Pause' : 'Play'}
-                        >
-                            {isPlaying ? (
-                                <Pause size={30} fill="var(--foreground)" className="text-[var(--foreground)]" />
-                            ) : (
-                                <Play size={30} fill="var(--foreground)" className="text-[var(--foreground)] ml-0.5" />
-                            )}
-                        </button>
-                        <button onClick={(e) => { e.stopPropagation(); next(); }} className="p-1 active:scale-90 active:text-[var(--foreground)] transition-all" aria-label="Next">
-                            <SkipForward size={21} fill="currentColor" />
-                        </button>
+                        {isRoomMember ? (
+                            <button
+                                onClick={handleToggleMute}
+                                className="w-9 h-9 flex items-center justify-center active:scale-90 transition-transform"
+                                aria-label={isMuted || volume === 0 ? 'Unmute' : 'Mute'}
+                                title={isMuted || volume === 0 ? 'Unmute (local)' : 'Mute (local)'}
+                            >
+                                {isMuted || volume === 0 ? (
+                                    <VolumeX size={26} className="text-[var(--foreground)]" />
+                                ) : (
+                                    <Volume2 size={26} className="text-[var(--foreground)]" />
+                                )}
+                            </button>
+                        ) : (
+                            <>
+                                <button onClick={(e) => { e.stopPropagation(); prev(); }} className="p-1 active:scale-90 active:text-[var(--foreground)] transition-all" aria-label="Previous">
+                                    <SkipBack size={21} fill="currentColor" />
+                                </button>
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); togglePlay(); }}
+                                    className="w-9 h-9 flex items-center justify-center active:scale-90 transition-transform"
+                                    aria-label={isPlaying ? 'Pause' : 'Play'}
+                                >
+                                    {isPlaying ? (
+                                        <Pause size={30} fill="var(--foreground)" className="text-[var(--foreground)]" />
+                                    ) : (
+                                        <Play size={30} fill="var(--foreground)" className="text-[var(--foreground)] ml-0.5" />
+                                    )}
+                                </button>
+                                <button onClick={(e) => { e.stopPropagation(); next(); }} className="p-1 active:scale-90 active:text-[var(--foreground)] transition-all" aria-label="Next">
+                                    <SkipForward size={21} fill="currentColor" />
+                                </button>
+                            </>
+                        )}
                     </div>
 
                     {/* Right: feature options */}
@@ -419,6 +442,23 @@ export default function Player() {
 
                 {/* Center: Desktop Playback Controls */}
                 <div className="hidden md:flex flex-col items-center flex-1 px-4 gap-2" onClick={e => e.stopPropagation()}>
+                    {isRoomMember ? (
+                        /* Room members can't control the host's playback. Offer a
+                           LOCAL mute toggle (this listener only) instead. */
+                        <div className="flex flex-col items-center gap-1">
+                            <button
+                                onClick={handleToggleMute}
+                                className="w-12 h-12 rounded-full bg-[var(--card)] hover:bg-[var(--card-hover)] border border-[var(--border)] text-[var(--foreground)] flex items-center justify-center hover:scale-110 active:scale-90 transition-all"
+                                title={isMuted || volume === 0 ? 'Unmute (local only)' : 'Mute (local only)'}
+                                aria-label={isMuted || volume === 0 ? 'Unmute' : 'Mute'}
+                            >
+                                {isMuted || volume === 0 ? <VolumeX size={22} /> : <Volume2 size={22} />}
+                            </button>
+                            <span className="text-[8px] font-bold uppercase tracking-widest text-zinc-500">
+                                {isMuted || volume === 0 ? 'Muted (You)' : 'Listening'}
+                            </span>
+                        </div>
+                    ) : (
                     <div className="flex items-center gap-8">
                         <button
                             onClick={(e) => { e.stopPropagation(); toggleShuffle(); }}
@@ -447,6 +487,7 @@ export default function Player() {
                             {repeatMode === 'one' && <span className="absolute -top-1 -right-1 text-[8px] font-bold">1</span>}
                         </button>
                     </div>
+                    )}
                     <div className="w-full flex items-center gap-3">
                         <span className="text-[9px] font-bold text-zinc-500 w-10 text-right font-mono">{formatTime(progress)}</span>
                         <div className="flex-1 h-1 bg-[var(--border)] rounded-full overflow-hidden relative group/seek">
@@ -709,6 +750,22 @@ export default function Player() {
                         </div>
 
                         {/* Epic Controls */}
+                        {isRoomMember ? (
+                            /* Members follow the host — show a LOCAL mute toggle only. */
+                            <div className="flex flex-col items-center justify-center gap-2 py-2">
+                                <button
+                                    onClick={handleToggleMute}
+                                    className="w-16 h-16 md:w-20 md:h-20 rounded-full bg-[var(--card)] hover:bg-[var(--card-hover)] border border-[var(--border)] text-[var(--foreground)] flex items-center justify-center hover:scale-105 active:scale-90 shadow-2xl transition-all"
+                                    title={isMuted || volume === 0 ? 'Unmute (local only)' : 'Mute (local only)'}
+                                    aria-label={isMuted || volume === 0 ? 'Unmute' : 'Mute'}
+                                >
+                                    {isMuted || volume === 0 ? <VolumeX size={28} className="md:w-9 md:h-9" /> : <Volume2 size={28} className="md:w-9 md:h-9" />}
+                                </button>
+                                <span className="text-[9px] font-bold uppercase tracking-widest text-zinc-500">
+                                    {isMuted || volume === 0 ? 'Muted for you' : 'Synced with host'}
+                                </span>
+                            </div>
+                        ) : (
                         <div className="flex items-center justify-between gap-2 md:gap-4 px-2 md:px-0">
                             <button
                                 onClick={(e) => { e.stopPropagation(); toggleShuffle(); }}
@@ -743,6 +800,7 @@ export default function Player() {
                                 {repeatMode === 'one' && <span className="absolute top-2 right-2 text-[8px] font-bold">1</span>}
                             </button>
                         </div>
+                        )}
 
                         {/* Bottom Utility Bar - Grid for Mobile (Structured), Row for Desktop */}
                         <div className="grid grid-cols-4 md:flex items-center justify-items-center md:justify-center gap-y-4 gap-x-2 md:gap-x-10 pt-4 md:pt-10 border-t border-[var(--border)] w-full">
