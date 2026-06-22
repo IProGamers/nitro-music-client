@@ -77,9 +77,8 @@ export default function SearchPage() {
         let alive = true;
         (async () => {
             try {
-                const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
                 const data = await fetchWithCache(
-                    `${apiUrl}/api/search/songs?query=${encodeURIComponent(`trending viral hits india ${new Date().getFullYear()}`)}&limit=15`,
+                    `${sourceUrl('/search/songs')}?query=${encodeURIComponent('trending hindi songs')}&limit=15`,
                     CACHE_TTL.TRENDING,
                     { dailyKey: true }
                 );
@@ -584,7 +583,7 @@ export default function SearchPage() {
                         </div>
                     ) : (
                         /* Clean, personalised browse — recent plays + monochrome categories */
-                        <div key="browse" className="space-y-8 animate-slide-down">
+                        <div key="browse" className="space-y-8 animate-slide-up">
                             {/* Recently played (personalised) */}
                             {searchPlayedSongs.length > 0 && (
                                 <div>
