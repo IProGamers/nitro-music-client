@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { usePlayer } from '@/context/PlayerContext';
 import { Music, Disc, User, Heart, Play, Share2, Verified, Users, ChevronRight, ArrowLeft } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
-import { sourceUrl } from '@/lib/source';
+import { sourceUrl, getMusicSource } from '@/lib/source';
 
 export default function ArtistPage() {
     const { id } = useParams();
@@ -16,40 +16,29 @@ export default function ArtistPage() {
     useEffect(() => {
         if (!id) return;
 
-        // Retry with backoff — handles transient 503s and server cold-starts
-        // (e.g. a sleeping Render instance waking up).
-        const fetchArtist = async (attempt = 0): Promise<void> => {
-            const MAX_ATTEMPTS = 4;
-            try {
-                const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
-                const res = await fetch(`${sourceUrl(`/artists/${id}`)}?songCount=50&albumCount=50`, {
-                    headers: { 'Accept': 'application/json' }
-                });
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-                const data = await res.json();
-                if (data.success && data.data) {
-                    setArtist(data.data);
-                    setErrorMsg(null);
-                } else {
-                    setErrorMsg(data?.message || 'This artist could not be loaded.');
-                }
-                setLoading(false);
-            } catch (e: any) {
-                // Retry transient failures (503 / network / cold start) with backoff.
-                if (attempt < MAX_ATTEMPTS - 1) {
-                    const delay = 1200 * Math.pow(1.8, attempt); // ~1.2s, 2.2s, 3.9s
-                    setTimeout(() => fetchArtist(attempt + 1), delay);
-                    return;
-                }
-                console.error('Artist fetch error:', e);
-                setErrorMsg(
-                    e?.message?.includes('503')
-                        ? "The music server is waking up — please try again in a moment."
-                        : (e?.message ? `Couldn't reach the music server (${e.message}).` : "Couldn't reach the music server.")
-                );
-                setLoading(false);
+        // Try the current source first, then fall back to the other — so an id
+        // from one source (e.g. a JioSaavn artist opened while on YouTube) still
+        // resolves instead of failing. No long backoff, so a miss fails fast.
+        const fetchArtist = async (): Promise<void> => {
+            const primary = getMusicSource();
+            const order: Array<'jiosaavn' | 'youtube'> = primary === 'youtube' ? ['youtube', 'jiosaavn'] : ['jiosaavn', 'youtube'];
+            for (const src of order) {
+                try {
+                    const res = await fetch(`${sourceUrl(`/artists/${id}`, src)}?songCount=50&albumCount=50`, {
+                        headers: { 'Accept': 'application/json' }
+                    });
+                    if (!res.ok) continue;
+                    const data = await res.json();
+                    if (data.success && data.data && (data.data.name || (data.data.topSongs?.length))) {
+                        setArtist(data.data);
+                        setErrorMsg(null);
+                        setLoading(false);
+                        return;
+                    }
+                } catch { /* try next source */ }
             }
+            setErrorMsg("Couldn't load this artist.");
+            setLoading(false);
         };
 
         setLoading(true);
@@ -128,7 +117,7 @@ export default function ArtistPage() {
                         {/* Artist Info */}
                         <div className="flex-1 text-center md:text-left">
                             <div className="flex items-center justify-center md:justify-start gap-2 mb-1">
-                                <span className="text-cyan-400 text-xs font-medium uppercase tracking-wide">
+                                <span className="text-[var(--foreground-secondary)] text-xs font-semibold uppercase tracking-wide">
                                     {artist.type || 'Artist'}
                                 </span>
                             </div>
@@ -192,7 +181,7 @@ export default function ArtistPage() {
                                         </div>
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                        <h3 className="font-medium text-sm text-[var(--foreground)] group-hover:text-cyan-400 transition-colors truncate">
+                                        <h3 className="font-medium text-sm text-[var(--foreground)] transition-colors truncate">
                                             {decodeHtml(song.name)}
                                         </h3>
                                         <p className="text-xs text-[var(--foreground-muted)] truncate">
@@ -238,7 +227,7 @@ export default function ArtistPage() {
                                             </div>
                                         </div>
                                     </div>
-                                    <h3 className="font-medium text-sm text-[var(--foreground)] group-hover:text-cyan-400 transition-colors truncate">
+                                    <h3 className="font-medium text-sm text-[var(--foreground)] transition-colors truncate">
                                         {decodeHtml(album.name)}
                                     </h3>
                                     <p className="text-xs text-[var(--foreground-muted)] mt-0.5">{album.year || 'Album'}</p>

@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { usePlayer } from '@/context/PlayerContext';
 import { Music, Disc, User, Heart, Play, Share2, Clock, Calendar, Globe, ChevronRight } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
-import { sourceUrl } from '@/lib/source';
+import { sourceUrl, getMusicSource } from '@/lib/source';
 
 export default function AlbumPage() {
     const { id } = useParams();
@@ -15,33 +15,26 @@ export default function AlbumPage() {
     useEffect(() => {
         if (!id) return;
 
-        const fetchAlbum = async (retries = 2) => {
-            try {
-                const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
-                const res = await fetch(`${sourceUrl('/albums')}?id=${id}`, {
-                    headers: { 'Accept': 'application/json' }
-                });
-
-                if (!res.ok) {
-                    throw new Error(`HTTP ${res.status}`);
-                }
-
-                const data = await res.json();
-                if (data.success && data.data) {
-                    setAlbum(data.data);
-                } else {
-                    console.warn('Album API returned:', data);
-                }
-            } catch (e) {
-                console.error('Album fetch error:', e);
-                // Retry on failure
-                if (retries > 0) {
-                    setTimeout(() => fetchAlbum(retries - 1), 1000);
-                    return;
-                }
-            } finally {
-                setLoading(false);
+        // Try current source first, then fall back to the other (handles an id
+        // from the non-active source). Fails fast — no slow retry loop.
+        const fetchAlbum = async () => {
+            const primary = getMusicSource();
+            const order: Array<'jiosaavn' | 'youtube'> = primary === 'youtube' ? ['youtube', 'jiosaavn'] : ['jiosaavn', 'youtube'];
+            for (const src of order) {
+                try {
+                    const res = await fetch(`${sourceUrl('/albums', src)}?id=${id}`, {
+                        headers: { 'Accept': 'application/json' }
+                    });
+                    if (!res.ok) continue;
+                    const data = await res.json();
+                    if (data.success && data.data && (data.data.name || data.data.songs?.length)) {
+                        setAlbum(data.data);
+                        setLoading(false);
+                        return;
+                    }
+                } catch { /* try next source */ }
             }
+            setLoading(false);
         };
 
         fetchAlbum();
@@ -96,7 +89,7 @@ export default function AlbumPage() {
                     </div>
 
                     <div className="flex-1 text-center md:text-left">
-                        <span className="bg-cyan-500/10 text-cyan-400 text-xs font-bold uppercase tracking-[0.2em] px-3 py-1.5 rounded-full border border-cyan-500/20 mb-6 inline-block">
+                        <span className="block text-xs font-semibold text-[var(--foreground-secondary)] capitalize mb-2">
                             {album.type}
                         </span>
                         <h1 className="text-4xl md:text-6xl font-bold text-[var(--foreground)] mb-6 leading-tight tracking-tight drop-shadow-xl">
@@ -163,11 +156,11 @@ export default function AlbumPage() {
                             onClick={() => playTrack(song, album.songs)}
                             className="grid grid-cols-12 gap-4 items-center p-4 rounded-2xl hover:bg-[var(--card-hover)] border border-transparent hover:border-[var(--border)] group transition-all cursor-pointer"
                         >
-                            <div className="col-span-1 text-center font-bold text-[var(--foreground-muted)]/50 group-hover:text-cyan-400 transition-colors">
+                            <div className="col-span-1 text-center font-bold text-[var(--foreground-muted)]/50 transition-colors">
                                 {index + 1}
                             </div>
                             <div className="col-span-7 md:col-span-8">
-                                <h3 className="font-bold text-[var(--foreground)] group-hover:text-cyan-400 transition-colors truncate">{song.name}</h3>
+                                <h3 className="font-bold text-[var(--foreground)] truncate">{song.name}</h3>
                                 <p className="text-xs text-[var(--foreground-muted)] truncate mt-1">
                                     {song.artists?.primary?.map((a: any) => a.name).join(', ')}
                                 </p>

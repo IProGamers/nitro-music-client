@@ -687,7 +687,8 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
                     id: trackId,
                     name: song.name || song.title || 'Unknown',
                     artist: getArtist(song),
-                    image: getImg(song)
+                    image: getImg(song),
+                    source: song.source
                 });
             }
         } else {
@@ -748,7 +749,8 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
                             id: String(fullSong.id),
                             name: fullSong.name,
                             artist: getArtist(fullSong),
-                            image: getImg(fullSong)
+                            image: getImg(fullSong),
+                            source: fullSong.source
                         });
                     }
                 } else {
@@ -1059,7 +1061,8 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
                     id: String(nextSong.songId || nextSong.id),
                     name: nextSong.name || nextSong.title || 'Unknown',
                     artist: getArtist(nextSong),
-                    image: getImg(nextSong)
+                    image: getImg(nextSong),
+                    source: nextSong.source
                 });
             } catch { /* noop */ }
         }

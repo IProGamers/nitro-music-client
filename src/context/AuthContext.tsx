@@ -67,7 +67,7 @@ interface AuthContextType {
     resetPassword: (email: string) => Promise<void>;
     updateUserProfile: (data: Partial<UserProfile>) => Promise<void>;
     refreshProfile: () => Promise<void>;
-    saveToPlayHistory: (song: { id: string; name: string; artist: string; image: string }) => Promise<void>;
+    saveToPlayHistory: (song: { id: string; name: string; artist: string; image: string; source?: string }) => Promise<void>;
     addLikedSong: (song: { id: string; name: string; artist: string; image: string }) => Promise<void>;
     removeLikedSong: (songId: string) => Promise<void>;
     isLikedSong: (songId: string) => Promise<boolean>;
@@ -459,7 +459,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     // Save song to user's play history with tier-based limits
     // Elite: 50 max, Supreme: unlimited
-    const saveToPlayHistory = useCallback(async (song: { id: string; name: string; artist: string; image: string }) => {
+    const saveToPlayHistory = useCallback(async (song: { id: string; name: string; artist: string; image: string; source?: string }) => {
         if (!user || !userProfile) return;
 
         try {
@@ -470,6 +470,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                 name: song.name,
                 artist: song.artist,
                 image: song.image,
+                // Keep the source so a YouTube song's radio/suggestions stay on
+                // YouTube (sending a YT id to the JioSaavn endpoint, or vice-versa, 500s).
+                source: song.source === 'youtube' ? 'youtube' : 'jiosaavn',
                 playedAt: new Date()
             });
 

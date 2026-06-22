@@ -301,6 +301,7 @@ export default function Home() {
               name: h.name,
               artist: h.artist,
               image: h.image,
+              source: h.source === 'youtube' ? 'youtube' : 'jiosaavn', // keep source for radio/suggestions
               artists: { primary: [{ name: h.artist }] }, // For compatibility with getArtist helper
               playedAt: h.playedAt
             }))
@@ -489,7 +490,7 @@ export default function Home() {
           </div>
 
           {/* Quick Access skeleton */}
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-2 md:gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 md:gap-3">
             {[...Array(6)].map((_, i) => (
               <div key={i} className="flex items-center gap-2 p-2 bg-[var(--card)] rounded-xl h-14 md:h-16 border border-[var(--border)]">
                 <div className="w-10 h-10 md:w-11 md:h-11 rounded-lg bg-[var(--background)] animate-pulse" />
@@ -543,7 +544,7 @@ export default function Home() {
 
         {/* Quick Access Grid - More Compact */}
         {quickAccess.length > 0 && (
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-2 md:gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 md:gap-3">
             {quickAccess.map((item, idx) => (
               <div
                 key={`qa-${item.id}-${idx}`}
@@ -628,7 +629,7 @@ export default function Home() {
 
             {/* Content */}
             <div className="relative z-10 flex items-center h-full px-10 lg:px-16">
-              <div className="max-w-[50%]">
+              <div className="max-w-[70%] md:max-w-[55%] lg:max-w-[45%]">
                 <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-cyan-400 mb-3">Trending Now</div>
                 <h2 className="text-4xl lg:text-5xl font-bold text-white mb-3 tracking-tight leading-[1.05] line-clamp-2">
                   {getName(trending[heroSlide])}
@@ -1119,7 +1120,7 @@ function SongCard({ song, queue, getImg, getName, getArtist, playTrack }: { song
     <div
       onClick={() => playTrack(song, queue)}
       onMouseEnter={() => prefetchYtStream(song)}
-      className="group cursor-pointer w-[115px] md:w-[145px] flex-shrink-0"
+      className="group cursor-pointer w-[115px] md:w-[145px] lg:w-[160px] flex-shrink-0"
     >
       <div className="relative aspect-square rounded-lg overflow-hidden bg-[var(--card)] shadow-md mb-2 border border-[var(--border)]">
         {getImg(song) ? (
