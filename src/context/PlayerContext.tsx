@@ -485,7 +485,15 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
         // Dual-source: a YouTube-sourced song always streams from our YouTube
         // proxy (resolved fresh server-side), regardless of the global setting —
         // so a YT song saved in a playlist still plays from YT after switching.
-        if (t.source === 'youtube') {
+        // Detect by `source` OR by a YouTube-style downloadUrl/audioUrl, so a song
+        // whose `source` got dropped still resolves to the ABSOLUTE proxy URL
+        // (never the relative "/api/youtube/stream" path, which would otherwise be
+        // requested against the client origin and fail with "no supported source").
+        const dl0 = (t.downloadUrl && t.downloadUrl[0] && (t.downloadUrl[0].url || t.downloadUrl[0].link)) || '';
+        const looksYouTube = t.source === 'youtube'
+            || (typeof t.audioUrl === 'string' && t.audioUrl.includes('/api/youtube/stream'))
+            || (typeof dl0 === 'string' && dl0.includes('/api/youtube/stream'));
+        if (looksYouTube) {
             const ytId = String(t.id || t.songId || '');
             if (ytId) return ytStreamUrl(ytId);
         }
