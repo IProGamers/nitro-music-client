@@ -10,6 +10,8 @@ import FeatureDiscoveryCards from '@/components/FeatureDiscoveryCards';
 import RecommendedSection from '@/components/RecommendedSection';
 import { FeaturedCard, NumberedMixTile, RadioCard } from '@/components/HomeCards';
 import { fetchWithCache, CACHE_TTL, preloadCriticalData } from '@/lib/apiCache';
+import { fetchJioSaavnSuggestions, rankByTaste } from '@/lib/recommendations';
+import { normalizeTrack } from '@/lib/utils';
 
 // Vibrant solid backgrounds for radio station cards (cycled by index)
 const RADIO_BGS: { bg: string; dark: boolean }[] = [
@@ -256,16 +258,16 @@ export default function Home() {
         const shuffleDaily = <T,>(arr: T[]): T[] => shuffleWithSeed(arr, dailySeed);
 
         const results = {
-          trending: shuffleDaily(getDiverse([...(data[2]?.success ? data[2].data.results : []), ...(modules?.trending?.songs || [])], 15)),
+          trending: shuffleDaily(getDiverse([...(data[2]?.success ? data[2].data.results : []), ...(modules?.trending?.songs || [])], 30)),
           newReleases: shuffleDaily(modules ? getUnique(modules.albums).slice(0, 12) : []),
           featuredArtists: shuffleDaily(data[1]?.success ? getUnique(data[1].data.results).slice(0, 12) : []),
           bollywoodHits: shuffleDaily(data[7]?.success && data[7].data.results.length > 0
             ? getDiverse(data[7].data.results, 30) // Increased for Romantic moods section
             : (modules ? getDiverse(modules.charts?.[0]?.songs || [], 30) : [])),
           topCharts: modules ? modules.charts : [],
-          partyMix: shuffleDaily(data[3]?.success ? getDiverse(data[3].data.results, 15) : []),
+          partyMix: shuffleDaily(data[3]?.success ? getDiverse(data[3].data.results, 30) : []),
           internationalHits: shuffleDaily(data[4]?.success && data[4].data.results.length > 0 ? getDiverse(data[4].data.results, 30) : []), // Increased for Throwback classics
-          globalPop: shuffleDaily(data[5]?.success ? getDiverse(data[5].data.results, 15) : []),
+          globalPop: shuffleDaily(data[5]?.success ? getDiverse(data[5].data.results, 30) : []),
           lastPlayed: data[6]?.success && Array.isArray(data[6].data)
             ? data[6].data.map((h: any) => ({
               id: h.songId || h.id,
@@ -276,12 +278,12 @@ export default function Home() {
               playedAt: h.playedAt
             }))
             : [], // Don't shuffle recently played - keep in order
-          iconicEnglish: shuffleDaily(data[8]?.success ? getDiverse(data[8].data.results, 18) : []),
-          iconicHindi: shuffleDaily(data[9]?.success ? getDiverse(data[9].data.results, 18) : []),
+          iconicEnglish: shuffleDaily(data[8]?.success ? getDiverse(data[8].data.results, 25) : []),
+          iconicHindi: shuffleDaily(data[9]?.success ? getDiverse(data[9].data.results, 25) : []),
           topArtists: shuffleDaily(data[10]?.success ? getUnique(data[10].data.results).slice(0, 15) : []),
           // Punjabi hits with fallback - if primary search fails, try combining with Bollywood data
           punjabiHits: (() => {
-            const primary = data[11]?.success ? getDiverse(data[11].data.results, 18) : [];
+            const primary = data[11]?.success ? getDiverse(data[11].data.results, 25) : [];
             if (primary.length >= 5) return shuffleDaily(primary);
             // Fallback: Try to extract Punjabi songs from party mix and other sources
             const fallbackSongs = [...(data[3]?.success ? data[3].data.results : []), ...(data[2]?.success ? data[2].data.results : [])]
@@ -290,7 +292,7 @@ export default function Home() {
                 const artist = (song.artists?.primary?.[0]?.name || song.artist || '').toLowerCase();
                 return /diljit|sidhu|ap dhillon|karan aujla|guru randhawa|hardy|harrdy|punjabi|kudiye|nachdi/i.test(name + ' ' + artist);
               });
-            return shuffleDaily(getDiverse([...primary, ...fallbackSongs], 18));
+            return shuffleDaily(getDiverse([...primary, ...fallbackSongs], 25));
           })(),
           madeForYou: [], // Will be populated based on listening history
           lastFetchedAt: Date.now()
@@ -313,73 +315,37 @@ export default function Home() {
         setHomeData(results);
         setHasLoadedHome(true);
 
-        // Fetch "Made for You" based on listening history - Smarter algorithm
+        // "Made for You" — genuine personalization via JioSaavn's song-radio engine
+        // (the same engine that powers JioSaavn autoplay), seeded from the songs the
+        // user actually played most recently. We gather a large candidate pool from
+        // several seeds, rank it by the user's taste, then reshuffle with a daily seed
+        // so the row stays personal but changes day to day instead of being identical.
         if (results.lastPlayed.length > 0) {
           try {
-            // Extract top artists from play history
-            const artistCounts: Record<string, number> = {};
-            results.lastPlayed.forEach((s: any) => {
-              const artistName = s.artists?.primary?.[0]?.name || (typeof s.artist === 'string' ? s.artist : '');
-              if (artistName) {
-                artistCounts[artistName] = (artistCounts[artistName] || 0) + 1;
-              }
-            });
-
-            // Get top 5 most played artists
-            const topArtistsFromHistory = Object.entries(artistCounts)
-              .sort((a, b) => b[1] - a[1])
-              .slice(0, 5)
-              .map(([name]) => name);
-
-            // Extract possible genres/moods from song names
-            const songNames = results.lastPlayed.slice(0, 10).map((s: any) => s.name || s.title || '').join(' ').toLowerCase();
-            const hasHindi = /hindi|bollywood|pyar|ishq|dil|tu|tum|main|tere|mera/i.test(songNames);
-            const hasPunjabi = /punjabi|desi|bhangra|nachdi|gaana|kudiye/i.test(songNames);
-            const hasEnglish = /love|heart|night|dance|party|summer|feel/i.test(songNames);
-            const hasSad = /sad|broken|alone|pain|miss|cry/i.test(songNames);
-
-            // Build smarter queries
-            const queries: string[] = [];
-
-            // Primary: Top artists
-            if (topArtistsFromHistory.length > 0) {
-              queries.push(topArtistsFromHistory.slice(0, 2).join(' '));
-            }
-
-            // Secondary: Genre/mood based
-            if (hasHindi) queries.push('latest hindi bollywood hits 2026');
-            if (hasPunjabi) queries.push('punjabi trending songs');
-            if (hasEnglish) queries.push('top english pop songs');
-            if (hasSad) queries.push('emotional hindi songs');
-
-            // Fallback: Add remaining artists
-            if (topArtistsFromHistory.length > 2) {
-              queries.push(topArtistsFromHistory.slice(2, 4).join(' '));
-            }
-
-            // Fetch from multiple queries and combine results
-            const allSuggestions: any[] = [];
             const playedIds = new Set(results.lastPlayed.map((s: any) => String(s.id || s.songId)));
+            // Seed from the most recently played tracks for a fresh, on-taste radio.
+            const seeds = results.lastPlayed.slice(0, 5);
+            const batches = await Promise.all(
+              seeds.map((s: any) => fetchJioSaavnSuggestions(s).catch(() => []))
+            );
 
-            for (const query of queries.slice(0, 3)) {
-              try {
-                const mfyRes = await fetch(`${apiUrl}/api/search/songs?query=${encodeURIComponent(query)}&limit=15`);
-                const mfyData = await mfyRes.json();
-                if (mfyData.success && mfyData.data?.results) {
-                  mfyData.data.results.forEach((song: any) => {
-                    if (!playedIds.has(String(song.id)) && !allSuggestions.find(s => s.id === song.id)) {
-                      allSuggestions.push(song);
-                    }
-                  });
-                }
-              } catch (e) {
-                // Continue with other queries
+            const seen = new Set<string>();
+            const pool: any[] = [];
+            for (const batch of batches) {
+              for (const raw of batch) {
+                // Suggestions are raw JioSaavn payloads — normalize to our song shape.
+                const song = normalizeTrack(raw);
+                const k = String(song.id || '');
+                if (!k || seen.has(k) || playedIds.has(k)) continue;
+                seen.add(k);
+                pool.push(song);
               }
             }
 
-            // Shuffle using daily seed for fresh but consistent content
-            const shuffled = shuffleWithSeed(allSuggestions, dailySeed);
-            setMadeForYou(getDiverse(shuffled, 15));
+            // Keep the most taste-relevant candidates, then reshuffle daily for freshness.
+            const ranked = rankByTaste(pool).slice(0, 60);
+            const fresh = shuffleWithSeed(ranked, dailySeed);
+            setMadeForYou(getDiverse(fresh, 24));
           } catch (err) {
             console.log('Could not fetch made for you:', err);
           }
@@ -699,7 +665,7 @@ export default function Home() {
 
             {/* Premium song cards with larger images */}
             <div className="flex gap-3 md:gap-4 overflow-x-auto pb-3 no-scrollbar -mx-4 px-4 md:mx-0 md:px-0 snap-x snap-mandatory">
-              {madeForYou.slice(0, 15).map((song: any, idx: number) => (
+              {madeForYou.slice(0, 24).map((song: any, idx: number) => (
                 <div
                   key={`mfy-${song.id || idx}`}
                   onClick={() => playTrack(song, madeForYou)}
@@ -721,14 +687,6 @@ export default function Home() {
                     <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10" onClick={e => e.stopPropagation()}>
                       <SongContextMenu song={song} queue={madeForYou} />
                     </div>
-                    {/* Recommendation reason badge */}
-                    {idx < 6 && (
-                      <div className="absolute top-2 left-2 px-2 py-0.5 bg-black/60 backdrop-blur-sm rounded-full">
-                        <span className="text-[8px] font-bold text-cyan-400 uppercase tracking-wider">
-                          {idx < 2 ? 'Hot Pick' : idx < 4 ? 'For You' : 'Similar'}
-                        </span>
-                      </div>
-                    )}
                   </div>
                   <h3 className="text-xs md:text-sm font-bold text-[var(--foreground)] truncate group-hover:text-cyan-400 transition-colors">{getName(song)}</h3>
                   <p className="text-[10px] md:text-xs text-[var(--foreground-muted)] truncate">{getArtist(song)}</p>
@@ -778,7 +736,7 @@ export default function Home() {
               </div>
             </div>
             <div className="flex gap-3 md:gap-4 overflow-x-auto pb-2 no-scrollbar -mx-4 px-4 md:mx-0 md:px-0">
-              {featuredArtists.slice(0, 8).map((artist: any, idx: number) => {
+              {featuredArtists.slice(0, 12).map((artist: any, idx: number) => {
                 const n = featuredArtists.length;
                 const covers = [artist, featuredArtists[(idx + 1) % n], featuredArtists[(idx + 2) % n]].map((a: any) => getImg(a)).filter(Boolean);
                 const style = RADIO_BGS[idx % RADIO_BGS.length];
@@ -861,7 +819,7 @@ export default function Home() {
               <button onClick={() => router.push('/section?title=popular+artists&q=top+indian+western+artists+singers+2026')} className="text-xs font-medium text-cyan-400 hover:underline">See all</button>
             </div>
             <div className="flex gap-4 md:gap-6 overflow-x-auto pb-2 no-scrollbar -mx-4 px-4 md:mx-0 md:px-0">
-              {featuredArtists.slice(0, 10).map((artist: any, idx: number) => (
+              {featuredArtists.slice(0, 12).map((artist: any, idx: number) => (
                 <div
                   key={`art-${artist.id || idx}`}
                   onClick={() => router.push(`/artist/${artist.id}`)}
@@ -950,7 +908,7 @@ export default function Home() {
               <button onClick={() => router.push('/section?title=english+classics&q=believer+shape+of+you+love+me+like+you+do+counting+stars+someone+like+you')} className="text-xs font-medium text-emerald-400 hover:underline">See all</button>
             </div>
             <div className="flex gap-3 md:gap-4 overflow-x-auto pb-2 no-scrollbar">
-              {iconicEnglish.slice(0, 15).map((song: any, idx: number) => (
+              {iconicEnglish.slice(0, 25).map((song: any, idx: number) => (
                 <SongCard key={`ie-${song.id || song.songId || idx}`} song={song} queue={iconicEnglish} getImg={getImg} getName={getName} getArtist={getArtist} playTrack={playTrack} />
               ))}
             </div>
@@ -967,7 +925,7 @@ export default function Home() {
               <button onClick={() => router.push('/section?title=legendary+hindi&q=tum+hi+ho+kal+ho+naa+ho+kabhi+khushi+channa+mereya+gerua')} className="text-xs font-medium text-orange-400 hover:underline">See all</button>
             </div>
             <div className="flex gap-3 md:gap-4 overflow-x-auto pb-2 no-scrollbar -mx-4 px-4 md:mx-0 md:px-0">
-              {iconicHindi.slice(0, 15).map((song: any, idx: number) => (
+              {iconicHindi.slice(0, 25).map((song: any, idx: number) => (
                 <SongCard key={`hl-${song.id || song.songId || idx}`} song={song} queue={iconicHindi} getImg={getImg} getName={getName} getArtist={getArtist} playTrack={playTrack} />
               ))}
             </div>
@@ -984,7 +942,7 @@ export default function Home() {
               <button onClick={() => router.push('/section?title=punjabi+hits&q=diljit+dosanjh+sidhu+moose+wala+ap+dhillon+karan+aujla+guru+randhawa')} className="text-xs font-medium text-amber-400 hover:underline">See all</button>
             </div>
             <div className="flex gap-3 md:gap-4 overflow-x-auto pb-2 no-scrollbar">
-              {punjabiHits.slice(0, 15).map((song: any, idx: number) => (
+              {punjabiHits.slice(0, 25).map((song: any, idx: number) => (
                 <SongCard key={`pj-${song.id || song.songId || idx}`} song={song} queue={punjabiHits} getImg={getImg} getName={getName} getArtist={getArtist} playTrack={playTrack} />
               ))}
             </div>
