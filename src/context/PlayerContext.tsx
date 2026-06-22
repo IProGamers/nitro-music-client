@@ -209,16 +209,18 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
     useEffect(() => {
         if (!audioRef.current) return;
 
-        // iOS Safari: routing the <audio> through createMediaElementSource breaks the
-        // native now-playing / lock-screen controls and background playback. So on iOS
-        // we DON'T wire up Web Audio unless the user explicitly turns on 3D audio
-        // (accepting the trade-off). Visualizer/scene FX are off by default on iOS but
-        // playback + lock-screen controls work natively. Non-iOS is unchanged.
-        const isIOS = typeof navigator !== 'undefined' && (
-            /iPhone|iPad|iPod/.test(navigator.userAgent) ||
+        // MOBILE (iOS + Android): routing the <audio> through createMediaElementSource
+        // makes the OS suspend the AudioContext when the app is backgrounded/minimized,
+        // which STOPS playback (the reported bug). So on mobile we DON'T wire up Web
+        // Audio unless the user explicitly turns on 3D audio (accepting that trade-off).
+        // Playback + lock-screen/notification controls then work natively in the
+        // background. Visualizer/scene FX are off by default on mobile; desktop is
+        // unchanged (it has the full Web Audio chain and no background-suspend issue).
+        const isMobile = typeof navigator !== 'undefined' && (
+            /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) ||
             (navigator.platform === 'MacIntel' && (navigator as any).maxTouchPoints > 1)
         );
-        if (isIOS && !is3DActive) return;
+        if (isMobile && !is3DActive) return;
 
         // Initialize AudioContext only once
         if (!audioContextRef.current) {
