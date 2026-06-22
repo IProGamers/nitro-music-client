@@ -163,8 +163,10 @@ export default function SearchPage() {
                     searchCache.set(searchTerm, shaped);
                     setActiveTab('all');
                     setLoading(false);
-                    // Warm the top results so the first play is instant (not a ~2s wait).
-                    ytSongs.slice(0, 4).forEach((s: any) => prefetchYtStream(s));
+                    // Warm just the top couple of results (the most likely taps) so the
+                    // first play is fast WITHOUT flooding the resolver — hover + the
+                    // next-in-queue prefetch cover the rest on demand.
+                    ytSongs.slice(0, 2).forEach((s: any) => prefetchYtStream(s));
                     return;
                 }
 
