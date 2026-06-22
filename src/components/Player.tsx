@@ -15,6 +15,7 @@ import AudioVisualizer from './AudioVisualizer';
 import AddToPlaylistModal from './AddToPlaylistModal';
 import QueuePanel from './QueuePanel';
 import ShareableCard from './ShareableCard';
+import SharePanel from './SharePanel';
 import DJModePanel from './DJModePanel';
 import FullScreenVisualizer from './FullScreenVisualizer';
 import MarqueeText from './MarqueeText';
@@ -58,6 +59,7 @@ export default function Player() {
     const [showPlaylistModal, setShowPlaylistModal] = useState(false);
     const [showQueue, setShowQueue] = useState(false);
     const [showShareCard, setShowShareCard] = useState(false);
+    const [showSharePanel, setShowSharePanel] = useState(false);
     const [showDJPanel, setShowDJPanel] = useState(false);
     const [showVisualizer, setShowVisualizer] = useState(false);
     const [isMuted, setIsMuted] = useState(false);
@@ -141,6 +143,7 @@ export default function Player() {
     }, [isPlaying, hapticEnabled, triggerHaptic]);
 
     if (!currentSong || userProfile?.arihantMode) return null;
+    if (pathname?.startsWith('/play/')) return null; // standalone public share page (/play/[token]) — NOT /playlists
 
     const getImg = (t: any) => {
         if (!t) return '';
@@ -809,7 +812,7 @@ export default function Player() {
                             </button>
 
                             {/* Share Card */}
-                            <button className="flex flex-col items-center gap-1 group w-full" onClick={() => setShowShareCard(true)}>
+                            <button className="flex flex-col items-center gap-1 group w-full" onClick={() => setShowSharePanel(true)}>
                                 <div className="p-2.5 rounded-2xl bg-[var(--card)] group-hover:bg-[var(--card-hover)] transition-all">
                                     <Share2 size={16} className="text-zinc-500 group-hover:text-[var(--foreground)] transition-all" />
                                 </div>
@@ -849,7 +852,15 @@ export default function Player() {
             {/* Queue Panel */}
             <QueuePanel isOpen={showQueue} onClose={() => setShowQueue(false)} />
 
-            {/* Shareable Card Modal */}
+            {/* Share Panel — playable expiring link */}
+            <SharePanel
+                isOpen={showSharePanel}
+                onClose={() => setShowSharePanel(false)}
+                song={currentSong}
+                onOpenCard={() => setShowShareCard(true)}
+            />
+
+            {/* Shareable Card Modal (story image) */}
             <ShareableCard
                 isOpen={showShareCard}
                 onClose={() => setShowShareCard(false)}

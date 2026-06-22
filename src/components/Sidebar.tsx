@@ -29,6 +29,7 @@ export default function Sidebar() {
     }, []);
 
     if (userProfile?.arihantMode) return null;
+    if (pathname?.startsWith('/play/')) return null; // standalone public share page (/play/[token]) — NOT /playlists
 
     // Spotify-style core nav: Home / Search / Your Library.
     // Profile lives in the header avatar (mobile) and the bottom user block (desktop),

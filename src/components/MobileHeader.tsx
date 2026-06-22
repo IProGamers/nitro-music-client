@@ -19,7 +19,7 @@ export default function MobileHeader() {
     const [showFriendsPanel, setShowFriendsPanel] = useState(false);
     const [showListenTogether, setShowListenTogether] = useState(false);
 
-    if (pathname === '/upgrade' || pathname === '/auth' || userProfile?.arihantMode) return null;
+    if (pathname === '/upgrade' || pathname === '/auth' || pathname?.startsWith('/play/') || userProfile?.arihantMode) return null;
 
     const hasNotifications = pendingRequests.length > 0;
 
