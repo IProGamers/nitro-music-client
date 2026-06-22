@@ -76,7 +76,19 @@ const shuffleWithSeed = <T,>(array: T[], seed: number): T[] => {
 
 export default function Home() {
   const { playTrack } = usePlayer();
-  const { user, userProfile, getUserPlaylists, getRecentPlays } = useAuth();
+  const { user, userProfile, getUserPlaylists, getRecentPlays, getLikedSongs } = useAuth();
+
+  // Clicking "Liked Songs" should start playing them, not open the profile.
+  // Falls back to the Liked Songs page if there's nothing to play.
+  const playLikedSongs = async () => {
+    try {
+      const songs = await getLikedSongs();
+      if (songs && songs.length > 0) playTrack(songs[0], songs);
+      else router.push('/liked');
+    } catch {
+      router.push('/liked');
+    }
+  };
   const router = useRouter();
   const { homeData, setHomeData, hasLoadedHome, setHasLoadedHome } = useMusicData();
 
@@ -425,7 +437,7 @@ export default function Home() {
   const quickAccess = useMemo(() => {
     const items: any[] = [];
     if (user) {
-      items.push({ id: 'liked', type: 'liked', name: 'Liked Songs', route: '/profile' });
+      items.push({ id: 'liked', type: 'liked', name: 'Liked Songs', route: '/liked' });
     }
     // Sort by playCount if available, otherwise just use lastPlayed order
     const sortedByPlays = [...lastPlayed].sort((a, b) => (b.playCount || 1) - (a.playCount || 1));
@@ -523,7 +535,7 @@ export default function Home() {
             {quickAccess.map((item, idx) => (
               <div
                 key={`qa-${item.id}-${idx}`}
-                onClick={() => item.type === 'liked' ? router.push(item.route) : item.data && playTrack(item.data, lastPlayed)}
+                onClick={() => item.type === 'liked' ? playLikedSongs() : item.data && playTrack(item.data, lastPlayed)}
                 className="group flex items-center gap-2 p-2 bg-[var(--card)] hover:bg-[var(--card-hover)] rounded-xl cursor-pointer transition-all border border-[var(--border)] active:scale-[0.98] h-14 md:h-16"
               >
                 <div className="w-10 h-10 md:w-11 md:h-11 rounded-lg overflow-hidden flex-shrink-0 bg-[var(--background-tertiary)] shadow-sm">
@@ -998,7 +1010,7 @@ export default function Home() {
             <div className="flex gap-3 md:gap-4 overflow-x-auto pb-2 no-scrollbar -mx-4 px-4 md:mx-0 md:px-0">
               {/* Liked Songs */}
               <div
-                onClick={() => router.push('/profile')}
+                onClick={playLikedSongs}
                 className="group cursor-pointer w-[115px] md:w-[140px] flex-shrink-0"
               >
                 <div className="relative aspect-square rounded-lg overflow-hidden bg-gradient-to-br from-cyan-500 via-purple-500 to-pink-500 shadow-md mb-2 flex items-center justify-center">
