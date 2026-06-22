@@ -68,7 +68,7 @@ interface AuthContextType {
     updateUserProfile: (data: Partial<UserProfile>) => Promise<void>;
     refreshProfile: () => Promise<void>;
     saveToPlayHistory: (song: { id: string; name: string; artist: string; image: string; source?: string }) => Promise<void>;
-    addLikedSong: (song: { id: string; name: string; artist: string; image: string }) => Promise<void>;
+    addLikedSong: (song: { id: string; name: string; artist: string; image: string; source?: string }) => Promise<void>;
     removeLikedSong: (songId: string) => Promise<void>;
     isLikedSong: (songId: string) => Promise<boolean>;
     getLikedSongs: () => Promise<any[]>;
@@ -502,7 +502,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }, [user, userProfile]);
 
     // Add song to liked songs
-    const addLikedSong = useCallback(async (song: { id: string; name: string; artist: string; image: string }) => {
+    const addLikedSong = useCallback(async (song: { id: string; name: string; artist: string; image: string; source?: string }) => {
         if (!user) return;
 
         // Optimistically update cache
