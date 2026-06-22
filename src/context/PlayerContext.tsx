@@ -560,15 +560,26 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
     const findOnOtherSource = async (song: any): Promise<any | null> => {
         const cur = song?.source === 'youtube' ? 'youtube' : 'jiosaavn';
         const other = cur === 'youtube' ? 'jiosaavn' : 'youtube';
-        const q = `${song?.name || song?.title || ''} ${getArtist(song)}`.trim();
-        if (!q) return null;
+        const rawTitle = song?.name || song?.title || '';
+        const q = `${rawTitle} ${getArtist(song)}`.trim();
+        // Normalize a title for comparison: drop "(From …)" / "[…]" tags then strip.
+        const norm = (s: any) => normalizeSongTitle(String(s || '').replace(/\((?:from|feat|with)[^)]*\)/ig, '').replace(/\[[^\]]*\]/g, ''));
+        const want = norm(rawTitle);
+        if (!q || !want) return null;
         try {
-            const res = await fetch(`${sourceUrl('/search/songs', other)}?query=${encodeURIComponent(q)}&limit=3`);
+            const res = await fetch(`${sourceUrl('/search/songs', other)}?query=${encodeURIComponent(q)}&limit=5`);
             const data = await res.json();
-            const first = data?.success ? (data.data?.results || [])[0] : null;
-            if (!first) return null;
-            const norm = normalizeTrack(first);
-            return (norm.source === other && norm.id) ? norm : { ...norm, source: other };
+            const results = data?.success ? (data.data?.results || []) : [];
+            // CONFIDENT title match only — never substitute an unrelated song. If the
+            // track genuinely isn't on the other source (YT-only, etc.), return null
+            // rather than playing the wrong thing.
+            const match = results.find((r: any) => {
+                const t = norm(r?.name || r?.title);
+                return t && (t === want || t.includes(want) || want.includes(t));
+            });
+            if (!match) return null;
+            const nm = normalizeTrack(match);
+            return nm.id ? { ...nm, source: other } : null;
         } catch {
             return null;
         }
