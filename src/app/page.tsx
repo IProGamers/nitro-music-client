@@ -9,6 +9,7 @@ import SongContextMenu from '@/components/SongContextMenu';
 import FeatureDiscoveryCards from '@/components/FeatureDiscoveryCards';
 import RecommendedSection from '@/components/RecommendedSection';
 import { FeaturedCard, NumberedMixTile, RadioCard } from '@/components/HomeCards';
+import PlaylistCover from '@/components/PlaylistCover';
 import { fetchWithCache, CACHE_TTL, preloadCriticalData } from '@/lib/apiCache';
 import { fetchJioSaavnSuggestions, rankByTaste } from '@/lib/recommendations';
 import { normalizeTrack } from '@/lib/utils';
@@ -155,24 +156,29 @@ export default function Home() {
           'sia charlie puth shawn mendes'
         ][dayOfWeek];
 
+        // Legendary / golden-era Hindi classics — broad, single-topic queries that
+        // reliably return the old greats (these phrasings each return 40+ on JioSaavn,
+        // unlike multi-song-title queries which match modern remakes instead).
         const hindiSongs = [
-          'tum hi ho channa mereya gerua',
-          'kal ho naa ho kabhi khushi',
-          'tujhe dekha to ye jaana sanam',
-          'pehla nasha chaiyya chaiyya',
-          'lag ja gale tere naam',
-          'kesariya brahmastra tu jhoothi',
-          'raataan lambiyan shershaah'
+          'old hindi songs',
+          'purane gane',
+          'kishore kumar hits',
+          'old bollywood classics',
+          'lata mangeshkar hits',
+          'mohammed rafi hits',
+          'kishore kumar lata mangeshkar old hindi classics'
         ][dayOfWeek];
 
+        // Punjabi — simple queries that return full result sets (combining several
+        // artist names into one query collapses JioSaavn search to ~1-3 results).
         const punjabiArtists = [
-          'diljit dosanjh ap dhillon',
-          'sidhu moose wala karan aujla',
-          'guru randhawa harrdy sandhu',
-          'jassi gill jass manak',
-          'garry sandhu amrit maan',
-          'parmish verma b praak',
-          'yo yo honey singh badshah'
+          'punjabi hits',
+          'diljit dosanjh',
+          'latest punjabi songs hits',
+          'sidhu moose wala',
+          'ap dhillon',
+          'karan aujla',
+          'guru randhawa'
         ][dayOfWeek];
 
         // Use cached fetch for all API calls - dailyKey ensures fresh content each day
@@ -183,7 +189,7 @@ export default function Home() {
           fetchWithCache(`${apiUrl}/api/search/songs?query=${encodeURIComponent(trendingKeywords)}&limit=40`, CACHE_TTL.TRENDING, { dailyKey: true }),
           fetchWithCache(`${apiUrl}/api/search/songs?query=${encodeURIComponent(partyKeywords)}&limit=50`, CACHE_TTL.SEARCH, { dailyKey: true }),
           fetchWithCache(`${apiUrl}/api/search/songs?query=billboard+hot+100+western+hits+2026&limit=40`, CACHE_TTL.SEARCH, { dailyKey: true }),
-          fetchWithCache(`${apiUrl}/api/search/songs?query=global+pop+superstars+2026&limit=40`, CACHE_TTL.SEARCH, { dailyKey: true }),
+          fetchWithCache(`${apiUrl}/api/search/songs?query=chill+hindi+songs&limit=40`, CACHE_TTL.SEARCH, { dailyKey: true }),
           Promise.resolve({ success: true, data: firebaseHistory }), // Firebase history (already fetched)
           fetchWithCache(`${apiUrl}/api/search/songs?query=bollywood+top+romantic+dance+sad+hits+2026&limit=50`, CACHE_TTL.SEARCH, { dailyKey: true }),
           // Iconic English songs - Rotating artists each day
@@ -193,7 +199,7 @@ export default function Home() {
           // Top Artists (combined Hindi + English)
           fetchWithCache(`${apiUrl}/api/search/artists?query=Arijit+Singh+Ed+Sheeran+Taylor+Swift+Atif+Aslam+The+Weeknd+Shreya+Ghoshal+Imagine+Dragons+Pritam+Dua+Lipa+Neha+Kakkar&limit=20`, CACHE_TTL.SEARCH),
           // Punjabi Hits - Rotating artists each day
-          fetchWithCache(`${apiUrl}/api/search/songs?query=${encodeURIComponent(punjabiArtists + ' punjabi hits')}&limit=40`, CACHE_TTL.SEARCH, { dailyKey: true })
+          fetchWithCache(`${apiUrl}/api/search/songs?query=${encodeURIComponent(punjabiArtists)}&limit=40`, CACHE_TTL.SEARCH, { dailyKey: true })
         ]);
 
         const data = responses.map((r) => {
@@ -451,7 +457,7 @@ export default function Home() {
     // Use skeleton loader for better perceived performance
     return (
       <div className="min-h-screen bg-[var(--background)] pb-32">
-        <div className="px-4 md:px-6 lg:px-8 pt-4 md:pt-6 max-w-[1600px] mx-auto space-y-6 md:space-y-8">
+        <div className="px-4 md:px-6 lg:px-8 pt-4 md:pt-6 max-w-[1800px] mx-auto space-y-6 md:space-y-8">
           {/* Greeting skeleton */}
           <div className="flex items-center justify-between">
             <div className="h-8 w-48 rounded bg-[var(--card)] animate-pulse" />
@@ -495,8 +501,8 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-[var(--background)] pb-32">
-      <div className="px-4 md:px-6 lg:px-8 pt-4 md:pt-6 max-w-[1600px] mx-auto space-y-6 md:space-y-8">
+    <div className="min-h-screen bg-[var(--background)] pb-28 md:pb-24">
+      <div className="px-4 md:px-8 lg:px-10 pt-4 md:pt-6 max-w-[1800px] mx-auto space-y-6 md:space-y-8">
 
         {/* Greeting Header */}
         <div className="flex items-center justify-between">
@@ -1011,14 +1017,8 @@ export default function Home() {
                   onClick={() => router.push(`/playlist/${playlist.id}`)}
                   className="group cursor-pointer w-[115px] md:w-[140px] flex-shrink-0"
                 >
-                  <div className="relative aspect-square rounded-lg overflow-hidden bg-[var(--card)] shadow-md mb-2 border border-[var(--border)]">
-                    {playlist.coverImage ? (
-                      <img src={playlist.coverImage} className="w-full h-full object-cover" alt="" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center bg-[var(--background-tertiary)]">
-                        <Music size={24} className="text-[var(--foreground-muted)]" />
-                      </div>
-                    )}
+                  <div className="relative aspect-square rounded-lg overflow-hidden shadow-md mb-2 border border-[var(--border)]">
+                    <PlaylistCover coverImage={playlist.coverImage} songs={playlist.songs || []} className="w-full h-full" rounded="rounded-none" />
                     <button className="absolute bottom-1.5 right-1.5 w-8 h-8 bg-cyan-400 rounded-full flex items-center justify-center shadow-lg shadow-cyan-500/30 opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 transition-all">
                       <Play size={14} fill="black" className="ml-0.5 text-black" />
                     </button>
@@ -1078,13 +1078,10 @@ export default function Home() {
           </section>
         )}
 
-        <footer className="pt-12 pb-8 border-t border-[var(--border)]">
-          <div className="flex flex-col items-center gap-3">
-            <img src="/logo.png" className="w-10 h-10 rounded-xl shadow-lg" alt="Nitro" />
-            <div className="text-center">
-              <p className="text-lg font-bold text-[var(--foreground)]">Nitro <span className="text-[10px] font-medium text-[var(--foreground-muted)]">by ipro</span></p>
-              <p className="text-[10px] text-[var(--foreground-muted)] uppercase tracking-widest mt-1">Defining the future of premium sound</p>
-            </div>
+        <footer className="pt-6 pb-2 border-t border-[var(--border)]">
+          <div className="flex items-center justify-center gap-2.5">
+            <img src="/logo.png" className="w-6 h-6 rounded-md" alt="Nitro" />
+            <p className="text-sm font-bold text-[var(--foreground)]">Nitro <span className="text-[10px] font-medium text-[var(--foreground-muted)]">by ipro</span></p>
           </div>
         </footer>
       </div>
