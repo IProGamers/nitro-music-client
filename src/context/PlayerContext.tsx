@@ -8,7 +8,7 @@ import { decodeHtml } from '@/lib/utils';
 import { getSong as getOfflineSong } from '@/lib/offlineDb';
 import { dedupeSongs, createSongKey, normalizeSongTitle } from '@/lib/searchUtils';
 import { recordListen, recordSkip, buildAutoplayQueries, buildQueuePools, rankByTaste, fetchLastfmSimilarSongs, fetchJioSaavnSuggestions } from '@/lib/recommendations';
-import { ytStreamUrl } from '@/lib/source';
+import { ytStreamUrl, sourceUrl } from '@/lib/source';
 
 const FREE_PLAY_LIMIT = 10;
 const PLAY_COUNT_KEY = 'nitro_free_plays';
@@ -898,42 +898,60 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
                 return true;
             };
 
-            // 1) PRIMARY: JioSaavn's own song-station suggestions (free, no key, tuned
-            //    for Indian music, ready-to-play). Best fit for this catalog.
+            // The radio stays on the SEED song's source so the queue doesn't mix
+            // YouTube and JioSaavn tracks.
+            const seedSource = seedSong?.source === 'youtube' ? 'youtube' : 'jiosaavn';
+
+            // 1) PRIMARY: the source's own song-station suggestions (routes by the
+            //    seed's source — YouTube radio for YT songs, JioSaavn for JioSaavn).
             try {
                 const jio = await fetchJioSaavnSuggestions(seedSong);
                 for (const s of jio) if (accept(s)) out.push(s);
             } catch { /* fall through */ }
 
-            // 2) SUPPLEMENT: Last.fm collaborative-filtering similar songs (stronger for
-            //    Western/English). No-op if not configured.
-            if (out.length < 8) {
-                try {
-                    const lf = await fetchLastfmSimilarSongs(seedSong);
-                    for (const s of lf) if (accept(s)) out.push(s);
-                } catch { /* fall through to heuristic */ }
-            }
+            if (seedSource === 'youtube') {
+                // YouTube fallback: more from the seed's artist (kept on YouTube).
+                if (out.length < 8) {
+                    try {
+                        const artistQ = getArtist(seedSong) || seedSong.name || seedSong.title || '';
+                        if (artistQ) {
+                            const r = await fetch(`${sourceUrl('/search/songs', 'youtube')}?query=${encodeURIComponent(artistQ)}&limit=20`);
+                            const d = r.ok ? await r.json() : null;
+                            for (const s of (d?.data?.results || [])) if (accept(s)) out.push(s);
+                        }
+                    } catch { /* ignore */ }
+                }
+            } else {
+                // 2) SUPPLEMENT: Last.fm collaborative-filtering similar songs (stronger
+                //    for Western/English). No-op if not configured. (JioSaavn only.)
+                if (out.length < 8) {
+                    try {
+                        const lf = await fetchLastfmSimilarSongs(seedSong);
+                        for (const s of lf) if (accept(s)) out.push(s);
+                    } catch { /* fall through to heuristic */ }
+                }
 
-            // 3) FALLBACK: heuristic intent pools (same artist, favourite artists,
-            //    mood/language, discovery) when the above are off or thin.
-            if (out.length < 8) {
-                const pools = buildQueuePools(seedSong);
-                const responses = await Promise.allSettled(
-                    pools.map(p =>
-                        fetch(`${apiUrl}/api/search/songs?query=${encodeURIComponent(p.query)}&limit=15`)
-                            .then(r => r.ok ? r.json() : null)
-                            .then(data => ({ data, pool: p }))
-                    )
-                );
-                for (const r of responses) {
-                    if (r.status !== 'fulfilled' || !r.value?.data?.success || !r.value.data.data?.results) continue;
-                    const { data, pool } = r.value;
-                    let added = 0;
-                    for (const s of data.data.results) {
-                        if (added >= pool.max) break;
-                        if (!accept(s)) continue;
-                        out.push(s);
-                        added++;
+                // 3) FALLBACK: heuristic intent pools (same artist, favourite artists,
+                //    mood/language, discovery) when the above are off or thin.
+                if (out.length < 8) {
+                    const pools = buildQueuePools(seedSong);
+                    const responses = await Promise.allSettled(
+                        pools.map(p =>
+                            fetch(`${apiUrl}/api/search/songs?query=${encodeURIComponent(p.query)}&limit=15`)
+                                .then(r => r.ok ? r.json() : null)
+                                .then(data => ({ data, pool: p }))
+                        )
+                    );
+                    for (const r of responses) {
+                        if (r.status !== 'fulfilled' || !r.value?.data?.success || !r.value.data.data?.results) continue;
+                        const { data, pool } = r.value;
+                        let added = 0;
+                        for (const s of data.data.results) {
+                            if (added >= pool.max) break;
+                            if (!accept(s)) continue;
+                            out.push(s);
+                            added++;
+                        }
                     }
                 }
             }

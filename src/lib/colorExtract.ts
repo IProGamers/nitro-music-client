@@ -29,9 +29,10 @@ const FALLBACK_PALETTE: AccentColor[] = [
 ];
 
 const hashString = (str: string): number => {
+  const s = String(str ?? ''); // guard: callers may pass a non-string (e.g. a number id)
   let h = 0;
-  for (let i = 0; i < str.length; i++) {
-    h = (h << 5) - h + str.charCodeAt(i);
+  for (let i = 0; i < s.length; i++) {
+    h = (h << 5) - h + s.charCodeAt(i);
     h |= 0;
   }
   return Math.abs(h);
