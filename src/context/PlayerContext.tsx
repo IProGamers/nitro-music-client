@@ -4,7 +4,7 @@ import { useSettings } from './SettingsContext';
 import { useAuth } from './AuthContext';
 import { useAudioFX } from './AudioFXContext';
 import { useRouter } from 'next/navigation';
-import { decodeHtml } from '@/lib/utils';
+import { decodeHtml, normalizeTrack } from '@/lib/utils';
 import { getSong as getOfflineSong } from '@/lib/offlineDb';
 import { dedupeSongs, createSongKey, normalizeSongTitle } from '@/lib/searchUtils';
 import { recordListen, recordSkip, buildAutoplayQueries, buildQueuePools, rankByTaste, fetchLastfmSimilarSongs, fetchJioSaavnSuggestions } from '@/lib/recommendations';
@@ -99,6 +99,8 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
     const [isSmartShuffle, setIsSmartShuffle] = useState(false);
     const [isListenerMode, setListenerMode] = useState(false);
     const recentlyPlayedRef = useRef<string[]>([]);
+    // Songs we've already tried to recover cross-source (avoid fallback loops).
+    const crossSourceTriedRef = useRef<Set<string>>(new Set());
     // Normalized keys of recently-played songs, so the radio never re-queues what
     // you just heard (the main cause of "the queue is just my recent songs").
     const playedSongKeysRef = useRef<string[]>([]);
@@ -549,6 +551,27 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
         }
         if (t.artist) return t.artist;
         return 'Unknown';
+    };
+
+    // Resilience: if a song can't play from its own source (YouTube changed/blocked,
+    // URL expired, or the song just isn't available there), find the SAME song on
+    // the other source by title+artist so playback never dead-ends. Returns a
+    // playable song tagged with the other source, or null.
+    const findOnOtherSource = async (song: any): Promise<any | null> => {
+        const cur = song?.source === 'youtube' ? 'youtube' : 'jiosaavn';
+        const other = cur === 'youtube' ? 'jiosaavn' : 'youtube';
+        const q = `${song?.name || song?.title || ''} ${getArtist(song)}`.trim();
+        if (!q) return null;
+        try {
+            const res = await fetch(`${sourceUrl('/search/songs', other)}?query=${encodeURIComponent(q)}&limit=3`);
+            const data = await res.json();
+            const first = data?.success ? (data.data?.results || [])[0] : null;
+            if (!first) return null;
+            const norm = normalizeTrack(first);
+            return (norm.source === other && norm.id) ? norm : { ...norm, source: other };
+        } catch {
+            return null;
+        }
     };
 
     const playTrack = async (song: any, newQueue?: any[], opts?: { radio?: boolean }) => {
@@ -1454,9 +1477,27 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
                     const el = e.currentTarget;
                     // Ignore the benign empty-element case (no src set yet / cleared).
                     if (!el.getAttribute('src')) return;
-                    // A real source failed to load (404, unsupported format, expired URL).
-                    // Don't get stuck in a broken "playing" state.
                     console.log('[Audio] Source failed to load:', el.currentSrc || el.src);
+
+                    // Resilience: try to recover the SAME song from the OTHER source
+                    // (so a YouTube outage / expired URL / unavailable track falls back
+                    // to JioSaavn, and vice-versa) before giving up. Once per song.
+                    const song = currentSong;
+                    const key = String(song?.id || song?.songId || '');
+                    if (song && key && !crossSourceTriedRef.current.has(key)) {
+                        crossSourceTriedRef.current.add(key);
+                        findOnOtherSource(song).then((alt) => {
+                            if (alt && alt.id) {
+                                crossSourceTriedRef.current.add(String(alt.id));
+                                playTrack(alt);
+                            } else {
+                                setIsLoadingSong(false);
+                                setIsPlaying(false);
+                            }
+                        });
+                        return;
+                    }
+                    // No recovery possible — don't get stuck in a broken "playing" state.
                     setIsLoadingSong(false);
                     setIsPlaying(false);
                 }}
