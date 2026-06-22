@@ -55,7 +55,9 @@ interface MusicDataContextType {
 const MusicDataContext = createContext<MusicDataContextType | undefined>(undefined);
 
 const PROFILE_CACHE_KEY = 'nitro_profile_cache';
-const HOME_CACHE_KEY = 'nitro_home_cache';
+// Bump the suffix whenever the home page's section queries/shape change so stale
+// cached homeData is discarded automatically (old key is simply never read again).
+const HOME_CACHE_KEY = 'nitro_home_cache_v2';
 
 export function MusicDataProvider({ children }: { children: ReactNode }) {
     const [homeData, setHomeData] = useState<MusicDataContextType['homeData']>(null);
