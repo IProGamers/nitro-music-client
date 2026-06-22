@@ -6,7 +6,7 @@ import { useAuth } from '@/context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Users, UserPlus, UserMinus, Check, X, Search,
-    Crown, Zap, Music, Radio, Loader2, Clock,
+    Music, Radio, Loader2, Clock,
     Send, ChevronRight, Headphones, Sparkles, Lock
 } from 'lucide-react';
 import Link from 'next/link';
@@ -23,12 +23,6 @@ const statusColors = {
     idle: 'bg-amber-500',
     dnd: 'bg-red-500',
     invisible: 'bg-gray-500'
-};
-
-const tierBadges = {
-    'NITRO_CORE': null,
-    'NITRO_ELITE': { icon: Zap, color: 'text-purple-400', bg: 'bg-purple-500/20' },
-    'NITRO_SUPREME': { icon: Crown, color: 'text-amber-400', bg: 'bg-amber-500/20' }
 };
 
 export default function FriendsPanel({ isOpen, onClose }: FriendsPanelProps) {
@@ -105,6 +99,20 @@ export default function FriendsPanel({ isOpen, onClose }: FriendsPanelProps) {
         }
     };
 
+    // Cancelling a SENT request must use cancelFriendRequest (updates sentRequests);
+    // declineFriendRequest only updates the incoming pendingRequests list, so the
+    // cancelled item would linger in the UI.
+    const handleCancelRequest = async (requestId: string) => {
+        setActionLoading(requestId);
+        try {
+            await cancelFriendRequest(requestId);
+        } catch (err) {
+            console.error('Failed to cancel request:', err);
+        } finally {
+            setActionLoading(null);
+        }
+    };
+
     const handleRemoveFriend = async (friendId: string) => {
         if (!confirm('Remove this friend?')) return;
         setActionLoading(friendId);
@@ -137,22 +145,24 @@ export default function FriendsPanel({ isOpen, onClose }: FriendsPanelProps) {
 
     const onlineFriends = getOnlineFriends();
 
-    if (!isOpen) return null;
-
     return (
-        <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/60 backdrop-blur-xl z-[100] flex items-center justify-center p-4"
-            onClick={(e) => e.target === e.currentTarget && onClose()}
-        >
-            <motion.div
-                initial={{ scale: 0.95, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.95, opacity: 0 }}
-                className="bg-[var(--card)] rounded-3xl border border-[var(--border)] w-full max-w-xl h-[80vh] flex flex-col overflow-hidden shadow-2xl"
-            >
+        <AnimatePresence>
+            {isOpen && (
+                <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.25 }}
+                    className="fixed inset-0 bg-black/60 backdrop-blur-xl z-[100] flex items-end md:items-center justify-center md:p-4"
+                    onClick={(e) => e.target === e.currentTarget && onClose()}
+                >
+                    <motion.div
+                        initial={{ y: 48, scale: 0.97, opacity: 0 }}
+                        animate={{ y: 0, scale: 1, opacity: 1 }}
+                        exit={{ y: 48, scale: 0.97, opacity: 0 }}
+                        transition={{ type: 'spring', damping: 28, stiffness: 320 }}
+                        className="bg-[var(--card)] rounded-t-3xl md:rounded-3xl border border-[var(--border)] w-full max-w-xl h-[85vh] md:h-[80vh] flex flex-col overflow-hidden shadow-2xl"
+                    >
                 {/* Header */}
                 <div className="p-5 border-b border-[var(--border)] shrink-0">
                     <div className="flex items-center justify-between mb-4">
@@ -333,7 +343,7 @@ export default function FriendsPanel({ isOpen, onClose }: FriendsPanelProps) {
                                                     key={request.id}
                                                     request={request}
                                                     type="sent"
-                                                    onCancel={() => handleDeclineRequest(request.id)}
+                                                    onCancel={() => handleCancelRequest(request.id)}
                                                     isLoading={actionLoading === request.id}
                                                 />
                                             ))}
@@ -444,8 +454,10 @@ export default function FriendsPanel({ isOpen, onClose }: FriendsPanelProps) {
                     </AnimatePresence>
                 </div>
 
-            </motion.div>
-        </motion.div>
+                    </motion.div>
+                </motion.div>
+            )}
+        </AnimatePresence>
     );
 }
 
@@ -465,9 +477,6 @@ function FriendCard({
     inviteSuccess?: boolean;
     canInvite: boolean;
 }) {
-    const tierBadge = tierBadges[friend.tier];
-    const TierIcon = tierBadge?.icon;
-
     return (
         <div className="flex items-center gap-3 p-3 bg-[var(--background)] rounded-xl border border-[var(--border)] mb-2 hover:border-cyan-500/20 transition-colors">
             {/* Avatar */}
@@ -491,11 +500,6 @@ function FriendCard({
                     >
                         {friend.displayName}
                     </Link>
-                    {TierIcon && (
-                        <span className={`p-0.5 rounded ${tierBadge.bg}`}>
-                            <TierIcon size={10} className={tierBadge.color} />
-                        </span>
-                    )}
                 </div>
                 {friend.username && (
                     <p className="text-[10px] text-cyan-400">@{friend.username}</p>
