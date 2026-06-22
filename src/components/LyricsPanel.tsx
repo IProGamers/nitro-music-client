@@ -18,6 +18,7 @@ export default function LyricsPanel({ isOpen, onClose, songId, songName, artistN
     useEffect(() => {
         if (!isOpen || !songId) return;
 
+        const controller = new AbortController();
         const fetchLyrics = async () => {
             setLoading(true);
             setError(null);
@@ -25,7 +26,7 @@ export default function LyricsPanel({ isOpen, onClose, songId, songName, artistN
 
             try {
                 const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
-                const res = await fetch(`${apiUrl}/api/songs/${songId}/lyrics`);
+                const res = await fetch(`${apiUrl}/api/songs/${songId}/lyrics`, { signal: controller.signal });
                 const data = await res.json();
 
                 if (data.success && data.data?.lyrics) {
@@ -33,15 +34,17 @@ export default function LyricsPanel({ isOpen, onClose, songId, songName, artistN
                 } else {
                     setError('Lyrics not available for this song');
                 }
-            } catch (e) {
-                console.error('Failed to fetch lyrics:', e);
-                setError('Could not load lyrics. Try again later.');
+            } catch (e: any) {
+                // Aborted (panel closed / song changed) — ignore. Otherwise show a
+                // gentle message; don't console.error (Next surfaces it as an overlay).
+                if (e?.name !== 'AbortError') setError('Lyrics not available for this song');
             } finally {
-                setLoading(false);
+                if (!controller.signal.aborted) setLoading(false);
             }
         };
 
         fetchLyrics();
+        return () => controller.abort();
     }, [isOpen, songId]);
 
     if (!isOpen) return null;
@@ -103,7 +106,7 @@ export default function LyricsPanel({ isOpen, onClose, songId, songName, artistN
             {/* Footer */}
             <footer className="p-4 border-t border-[var(--border)] text-center">
                 <p className="text-[10px] text-[var(--foreground-muted)]">
-                    Lyrics may not be 100% accurate. Sourced from JioSaavn.
+                    Lyrics may not be 100% accurate.
                 </p>
             </footer>
         </div>

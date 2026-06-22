@@ -1,6 +1,6 @@
 "use client"
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { usePlayer } from '@/context/PlayerContext';
 import { Music, Mic2, User, ListMusic, ChevronLeft, ChevronRight, ExternalLink, Disc, Loader2 } from 'lucide-react';
 import Link from 'next/link';
@@ -9,6 +9,7 @@ import { resolveArtistIdByName } from '@/lib/homeData';
 export default function RightSidebar() {
     const { currentSong, queue, currentIndex, isRadioMode } = usePlayer();
     const router = useRouter();
+    const pathname = usePathname();
     const [isOpen, setIsOpen] = useState(true);
     const [activeTab, setActiveTab] = useState<'lyrics' | 'queue' | 'artist'>('lyrics');
     const [lyrics, setLyrics] = useState<string | null>(null);
@@ -59,50 +60,41 @@ export default function RightSidebar() {
 
     // Fetch lyrics when song changes
     useEffect(() => {
-        const fetchLyrics = async () => {
-            if (!currentSong) {
-                setLyrics(null);
-                return;
-            }
+        // Lyrics come from the JioSaavn catalog; YouTube songs have no lyrics
+        // endpoint, so skip the (always-failing) request for them.
+        if (!currentSong || currentSong.source === 'youtube') {
+            setLyrics(null);
+            setLoadingLyrics(false);
+            return;
+        }
 
+        const controller = new AbortController();
+        const fetchLyrics = async () => {
             setLoadingLyrics(true);
             try {
                 const songId = currentSong.id || currentSong.songId;
                 const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
-                const res = await fetch(`${apiUrl}/api/songs/${songId}/lyrics`);
+                const res = await fetch(`${apiUrl}/api/songs/${songId}/lyrics`, { signal: controller.signal });
                 const data = await res.json();
-
-                if (data.success && data.data?.lyrics) {
-                    setLyrics(data.data.lyrics);
-                } else {
-                    setLyrics(null);
-                }
-            } catch (err) {
-                console.error('Failed to fetch lyrics:', err);
+                setLyrics(data.success && data.data?.lyrics ? data.data.lyrics : null);
+            } catch {
+                // Network error / aborted / no lyrics — degrade quietly (no overlay).
                 setLyrics(null);
             } finally {
-                setLoadingLyrics(false);
+                if (!controller.signal.aborted) setLoadingLyrics(false);
             }
         };
 
         fetchLyrics();
+        return () => controller.abort();
     }, [currentSong]);
 
-    // Only show on large screens (xl+) and when a song is playing
-    if (!currentSong) return null;
+    // Only show on large screens (xl+) and when a song is playing.
+    // Hidden on the standalone public share page.
+    if (!currentSong || pathname?.startsWith('/play/')) return null;
 
     return (
-        <div className={`hidden xl:block fixed right-0 top-0 h-full bg-[var(--card)]/80 backdrop-blur-xl border-l border-[var(--border)] z-30 transition-all duration-300 ${isOpen ? 'w-80' : 'w-0'}`}>
-            {/* Toggle Button - positioned at top-2/3 to avoid overlap with FriendActivitySidebar */}
-            <button
-                onClick={() => setIsOpen(!isOpen)}
-                className="absolute -left-10 top-2/3 -translate-y-1/2 w-10 h-16 bg-[var(--card)] border border-r-0 border-[var(--border)] rounded-l-xl flex items-center justify-center text-[var(--foreground-muted)] hover:text-cyan-400 transition-colors"
-            >
-                {isOpen ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
-            </button>
-
-            {isOpen && (
-                <div className="h-full flex flex-col overflow-hidden">
+        <div className="hidden xl:flex flex-col w-80 shrink-0 h-screen bg-[var(--card)]/80 backdrop-blur-xl border-l border-[var(--border)] overflow-hidden">
                     {/* Now Playing Header */}
                     <div className="p-4 border-b border-[var(--border)]">
                         <div className="flex items-center gap-3 mb-4">
@@ -162,7 +154,7 @@ export default function RightSidebar() {
                     </div>
 
                     {/* Tab Content */}
-                    <div className="flex-1 overflow-y-auto p-4">
+                    <div className="flex-1 overflow-y-auto p-4 pb-28">
                         {activeTab === 'lyrics' && (
                             <div>
                                 {loadingLyrics ? (
@@ -256,8 +248,6 @@ export default function RightSidebar() {
                             </div>
                         )}
                     </div>
-                </div>
-            )}
         </div>
     );
 }
