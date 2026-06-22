@@ -12,6 +12,7 @@ import {
 } from '@/lib/offlineDb';
 import { useSettings } from '@/context/SettingsContext';
 import { DOWNLOAD_STORAGE_LIMITS } from '@/lib/features';
+import { ytStreamUrl } from '@/lib/source';
 
 
 interface DownloadedSongMeta {
@@ -97,27 +98,29 @@ export function OfflineProvider({ children }: { children: ReactNode }) {
         setDownloadProgress(0);
 
         try {
-            // Get audio URL
-            let audioUrl = song.audioUrl;
-            if (!audioUrl && song.downloadUrl?.length) {
-                // Use highest quality available
-                audioUrl = song.downloadUrl[song.downloadUrl.length - 1]?.url ||
-                    song.downloadUrl[song.downloadUrl.length - 1]?.link;
-            }
-
-            if (!audioUrl) {
-                throw new Error('No audio URL available for this song');
-            }
-
-            // In production, use our audio proxy to bypass CORS
-            // The proxy is at: /api/audio/proxy?url=<encoded_url>
-            const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
-            const isProduction = typeof window !== 'undefined' && !window.location.hostname.includes('localhost');
-
-            let fetchUrl = audioUrl;
-            if (isProduction || apiUrl.includes('vercel') || apiUrl.includes('netlify')) {
-                // Use proxy for production
-                fetchUrl = `${apiUrl}/api/audio/proxy?url=${encodeURIComponent(audioUrl)}`;
+            // Resolve the audio URL. YouTube songs stream through our YouTube proxy
+            // (absolute URL on the YT host) — never the relative /api/youtube/stream
+            // path, which would resolve against the client origin and 404.
+            let fetchUrl: string;
+            if (song.source === 'youtube') {
+                fetchUrl = ytStreamUrl(String(song.id || song.songId || ''));
+            } else {
+                let audioUrl = song.audioUrl;
+                if (!audioUrl && song.downloadUrl?.length) {
+                    // Use highest quality available
+                    audioUrl = song.downloadUrl[song.downloadUrl.length - 1]?.url ||
+                        song.downloadUrl[song.downloadUrl.length - 1]?.link;
+                }
+                if (!audioUrl) {
+                    throw new Error('No audio URL available for this song');
+                }
+                // In production, use our audio proxy to bypass CORS for JioSaavn CDN.
+                const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
+                const isProduction = typeof window !== 'undefined' && !window.location.hostname.includes('localhost');
+                fetchUrl = audioUrl;
+                if (isProduction || apiUrl.includes('vercel') || apiUrl.includes('netlify')) {
+                    fetchUrl = `${apiUrl}/api/audio/proxy?url=${encodeURIComponent(audioUrl)}`;
+                }
             }
 
             // Fetch audio with progress tracking

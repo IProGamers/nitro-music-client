@@ -515,6 +515,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                 name: song.name,
                 artist: song.artist,
                 image: song.image,
+                // Keep the source so a liked YouTube song streams from YouTube
+                // (a YT id has no JioSaavn downloadUrl, so without this it can't play).
+                source: song.source === 'youtube' ? 'youtube' : 'jiosaavn',
                 likedAt: new Date()
             });
         } catch (err) {
@@ -646,6 +649,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                     name: data.name,
                     artist: data.artist,
                     image: data.image,
+                    source: data.source === 'youtube' ? 'youtube' : 'jiosaavn',
                     likedAt: data.likedAt?.toDate?.() || data.likedAt || null,
                 };
             });
