@@ -136,36 +136,39 @@ export default function Home() {
           }
         }
 
-        // Daily rotating keywords for fresh content every day
+        // Daily rotating keywords for fresh content every day.
+        // NOTE: keep these SIMPLE — JioSaavn search collapses to ~0-3 results for
+        // multi-artist / long "trending ... 2026" queries, which left whole rails
+        // nearly empty. Every query below is verified to return a full result set.
         const dayOfWeek = new Date().getDay(); // 0-6
         const trendingKeywords = [
-          'trending india new 2026',
-          'viral hits india bollywood',
-          'top chartbusters 2026 hindi',
-          'latest bollywood punjabi hits',
-          'new release songs india',
-          'hot trending music 2026',
-          'popular songs india today'
+          'trending songs',
+          'trending hindi songs',
+          'viral songs',
+          'top hits hindi',
+          'bollywood trending',
+          'top bollywood songs',
+          'trending bollywood songs'
         ][dayOfWeek];
 
         const partyKeywords = [
-          'party anthems bollywood dance',
-          'club hits indian remix',
-          'dance floor bangers 2026',
+          'party songs',
+          'bollywood party songs',
+          'dance hits',
           'dj mix bollywood party',
-          'bass boosted hindi songs',
+          'club party songs',
           'night party songs indian',
-          'groove hits bollywood mashup'
+          'dance floor bangers'
         ][dayOfWeek];
 
         const englishArtists = [
-          'ed sheeran taylor swift dua lipa',
-          'imagine dragons coldplay maroon 5',
-          'the weeknd bruno mars justin bieber',
-          'adele billie eilish ariana grande',
-          'post malone drake travis scott',
-          'harry styles olivia rodrigo doja cat',
-          'sia charlie puth shawn mendes'
+          'ed sheeran',
+          'taylor swift',
+          'the weeknd',
+          'coldplay',
+          'imagine dragons',
+          'dua lipa',
+          'bruno mars'
         ][dayOfWeek];
 
         // Legendary / golden-era Hindi classics — broad, single-topic queries that
