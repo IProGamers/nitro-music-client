@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { usePlayer } from '@/context/PlayerContext';
 import { useSettings } from '@/context/SettingsContext';
-import { sourceUrl } from '@/lib/source';
+import { sourceUrl, prefetchYtStream } from '@/lib/source';
 import { Search, Clock, X, Music, User, Disc, ListMusic, ChevronRight, Trash2, Play, Sparkles, TrendingUp, Headphones, Heart, Moon, Flame } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -164,6 +164,8 @@ export default function SearchPage() {
                     searchCache.set(searchTerm, shaped);
                     setActiveTab('all');
                     setLoading(false);
+                    // Warm the top results so the first play is instant (not a ~2s wait).
+                    ytSongs.slice(0, 4).forEach((s: any) => prefetchYtStream(s));
                     return;
                 }
 
@@ -813,6 +815,7 @@ export default function SearchPage() {
                                                     <div
                                                         key={ps.song.id}
                                                         onClick={() => playFromSearch(ps.song, processedSongs.songs.map(s => s.song))}
+                                                        onMouseEnter={() => prefetchYtStream(ps.song)}
                                                         className="flex items-center gap-3 p-2 rounded-lg hover:bg-[var(--card)] cursor-pointer group/item transition-colors"
                                                     >
                                                         <img src={getImg(ps.song)} className="w-10 h-10 rounded object-cover" />
@@ -899,6 +902,7 @@ export default function SearchPage() {
                                             <div
                                                 key={ps.song.id}
                                                 onClick={() => playFromSearch(ps.song, processedSongs.songs.map(s => s.song))}
+                                                onMouseEnter={() => prefetchYtStream(ps.song)}
                                                 className="flex items-center gap-3 py-1.5 px-1.5 rounded-lg hover:bg-[var(--surface-hover)] cursor-pointer transition-colors"
                                             >
                                                 <img src={getImg(ps.song)} className="w-12 h-12 rounded-md object-cover flex-shrink-0 shadow-sm bg-[var(--card)]" />
