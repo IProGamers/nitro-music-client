@@ -1069,14 +1069,21 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
         try {
             primary.src = nextUrl;
             primary.crossOrigin = 'anonymous';
-            primary.currentTime = pos > 0 ? pos : 0;
             if (fxGainRef.current) {
                 try { fxGainRef.current.gain.value = origGain; } catch { /* noop */ }
             } else {
                 primary.volume = volume;
             }
-            const p = primary.play();
-            if (p !== undefined) p.catch(() => { /* autoplay policy */ });
+            // Continue the new track from where the crossfade element had it (≈pos),
+            // not 0 — but the seek must wait until the fresh src has metadata, else the
+            // browser resets currentTime to 0 and the song replays its intro.
+            const start = () => {
+                try { if (pos > 0 && isFinite(pos)) primary.currentTime = pos; } catch { /* noop */ }
+                const p = primary.play();
+                if (p !== undefined) p.catch(() => { /* autoplay policy */ });
+            };
+            if (primary.readyState >= 1) start();
+            else { primary.addEventListener('loadedmetadata', start, { once: true }); primary.load(); }
         } catch { /* noop */ }
 
         // Stop & reset the secondary element
@@ -1483,7 +1490,14 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
                     // DJ Mode: blend into the next track as this one nears its end
                     maybeCrossfade(currentTime, dur);
                 }}
-                onEnded={next}
+                onEnded={() => {
+                    // While a DJ crossfade is mixing into the next track, the first
+                    // track's natural end must NOT trigger next() — finishCrossfade
+                    // already hands the next song to the primary element. Otherwise the
+                    // next song restarts from 0.
+                    if (isCrossfadingRef.current) return;
+                    next();
+                }}
                 onError={(e) => {
                     const el = e.currentTarget;
                     // Ignore the benign empty-element case (no src set yet / cleared).
