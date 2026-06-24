@@ -1,6 +1,6 @@
 // Nitro Music Service Worker v2 - Aggressive Pre-caching for Full Offline Support
-const CACHE_NAME = 'nitro-music-v5';
-const RUNTIME_CACHE = 'nitro-runtime-v5';
+const CACHE_NAME = 'nitro-music-v6';
+const RUNTIME_CACHE = 'nitro-runtime-v6';
 const OFFLINE_URL = '/offline.html'; // Static HTML fallback
 
 // ========================================
