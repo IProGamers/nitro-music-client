@@ -33,7 +33,7 @@ export default function FullScreenVisualizer({ isOpen, onClose }: FullScreenVisu
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const rafRef = useRef<number>(0);
     const { analyserNode } = useAudioFX();
-    const { currentSong, isPlaying, togglePlay, next, prev, progress, duration, seek } = usePlayer();
+    const { currentSong, isPlaying, togglePlay, next, prev, progress, duration, seek, audioRef } = usePlayer();
 
     const [style, setStyle] = useState<Style>('orb');
     const [showControls, setShowControls] = useState(true);
@@ -81,10 +81,38 @@ export default function FullScreenVisualizer({ isOpen, onClose }: FullScreenVisu
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
 
+        // Prefer the global Web Audio analyser (desktop). On MOBILE that's off so
+        // background playback keeps working — so we instead tap the <audio> via
+        // captureStream() into a SEPARATE analyser. The element keeps playing natively
+        // to the speakers (captureStream is a read-only tap, not a re-route), so this
+        // gives beat-sync on mobile WITHOUT breaking background audio. Falls back to the
+        // time-based animation if captureStream is unsupported (iOS Safari) or tainted.
+        let analyser: AnalyserNode | null = analyserNode;
+        let tapCtx: AudioContext | null = null;
+        if (!analyser) {
+            const el = audioRef?.current as (HTMLAudioElement & {
+                captureStream?: () => MediaStream; mozCaptureStream?: () => MediaStream;
+            }) | null;
+            const capture = el && (el.captureStream || el.mozCaptureStream);
+            if (el && capture) {
+                try {
+                    const AC = window.AudioContext || (window as any).webkitAudioContext;
+                    tapCtx = new AC();
+                    const src = tapCtx.createMediaStreamSource(capture.call(el));
+                    const a = tapCtx.createAnalyser();
+                    a.fftSize = 1024;
+                    a.smoothingTimeConstant = 0.8;
+                    src.connect(a); // analysis only — NOT connected to destination
+                    tapCtx.resume().catch(() => { /* resumed lazily in the draw loop */ });
+                    analyser = a;
+                } catch { tapCtx = null; analyser = null; }
+            }
+        }
+
         // Frequency + time-domain buffers (only when a live analyser exists).
-        const bins = analyserNode ? analyserNode.frequencyBinCount : 0;
-        const freq = analyserNode ? new Uint8Array(bins) : null;
-        const wave = analyserNode ? new Uint8Array(analyserNode.fftSize) : null;
+        const bins = analyser ? analyser.frequencyBinCount : 0;
+        const freq = analyser ? new Uint8Array(bins) : null;
+        const wave = analyser ? new Uint8Array(analyser.fftSize) : null;
 
         const A = accent;
         const light: AccentColor = {
@@ -122,10 +150,11 @@ export default function FullScreenVisualizer({ isOpen, onClose }: FullScreenVisu
             const W = cssW, H = cssH, cx = W / 2, cy = H / 2;
 
             const { isPlaying: playing, progress: prog, duration: dur } = playStateRef.current;
-            const live = !!(analyserNode && freq && wave && playing);
-            if (live && analyserNode) {
-                analyserNode.getByteFrequencyData(freq!);
-                analyserNode.getByteTimeDomainData(wave!);
+            if (tapCtx && tapCtx.state === 'suspended') tapCtx.resume().catch(() => {});
+            const live = !!(analyser && freq && wave && playing);
+            if (live && analyser) {
+                analyser.getByteFrequencyData(freq!);
+                analyser.getByteTimeDomainData(wave!);
             }
 
             // --- Build a normalised spectrum (live) or a smooth synthetic one (idle/mobile).
@@ -361,8 +390,11 @@ export default function FullScreenVisualizer({ isOpen, onClose }: FullScreenVisu
         };
 
         draw();
-        return () => cancelAnimationFrame(rafRef.current);
-    }, [isOpen, analyserNode, style, accent]);
+        return () => {
+            cancelAnimationFrame(rafRef.current);
+            if (tapCtx) tapCtx.close().catch(() => {});
+        };
+    }, [isOpen, analyserNode, style, accent, audioRef]);
 
     const toggleFullscreen = async () => {
         try {
