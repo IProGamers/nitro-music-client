@@ -479,22 +479,36 @@ function ProfileContent() {
                     </div>
                 </div>
 
-                {/* Navigation Tabs */}
-                <div className="flex overflow-x-auto no-scrollbar md:flex-wrap items-center justify-start gap-2 md:gap-4 -mx-1 px-1">
-                    {[
-                        { id: 'favorites', label: 'Liked Songs', icon: Heart },
-                        { id: 'downloads', label: 'Offline', icon: DownloadCloud },
-                        { id: 'friends', label: 'Friends', icon: Users },
-                        { id: 'settings', label: 'Settings', icon: Settings }
-                    ].map(tab => (
-                        <button
-                            key={tab.id}
-                            onClick={() => { if (tab.id === 'settings') { router.push('/settings'); } else { setActiveTab(tab.id as any); } }}
-                            className={`flex items-center gap-1.5 md:gap-3 px-3.5 md:px-8 py-2 md:py-4 rounded-xl md:rounded-3xl text-[9px] md:text-[11px] font-bold uppercase tracking-wider md:tracking-[0.2em] transition-all border shrink-0 ${activeTab === tab.id ? 'bg-[var(--foreground)] text-[var(--background)] border-[var(--foreground)] shadow-lg' : 'bg-[var(--card)] text-[var(--foreground-muted)] border-[var(--border)] hover:border-[var(--foreground-muted)]/30 hover:text-[var(--foreground)]'}`}
-                        >
-                            <tab.icon size={12} className="md:w-4 md:h-4" /> {tab.label}
-                        </button>
-                    ))}
+                {/* Navigation Tabs — segmented pill control with sliding indicator */}
+                <div className="relative">
+                    <div className="flex items-center gap-1 md:gap-1.5 p-1 md:p-1.5 rounded-2xl md:rounded-[1.75rem] bg-[var(--card)]/60 backdrop-blur-xl border border-[var(--border)] shadow-xl shadow-black/20 overflow-x-auto no-scrollbar w-full md:w-fit md:mx-auto">
+                        {[
+                            { id: 'favorites', label: 'Liked', icon: Heart },
+                            { id: 'downloads', label: 'Offline', icon: DownloadCloud },
+                            { id: 'friends', label: 'Friends', icon: Users },
+                            { id: 'settings', label: 'Settings', icon: Settings }
+                        ].map(tab => {
+                            const isActive = activeTab === tab.id;
+                            return (
+                                <button
+                                    key={tab.id}
+                                    onClick={() => { if (tab.id === 'settings') { router.push('/settings'); } else { setActiveTab(tab.id as any); } }}
+                                    className={`relative flex-1 md:flex-none flex items-center justify-center gap-1.5 md:gap-2.5 px-3 md:px-7 py-2.5 md:py-3.5 rounded-xl md:rounded-3xl text-[10px] md:text-[12px] font-bold uppercase tracking-wider md:tracking-[0.15em] transition-colors duration-300 shrink-0 z-10 ${isActive ? 'text-black' : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)]'}`}
+                                >
+                                    {isActive && (
+                                        <motion.div
+                                            layoutId="profileTabIndicator"
+                                            transition={{ type: 'spring', stiffness: 380, damping: 32 }}
+                                            className="absolute inset-0 rounded-xl md:rounded-3xl bg-gradient-to-r from-cyan-400 to-cyan-300 shadow-lg shadow-cyan-500/30"
+                                        />
+                                    )}
+                                    <span className="relative z-10 flex items-center gap-1.5 md:gap-2.5">
+                                        <tab.icon size={13} className="md:w-[17px] md:h-[17px]" strokeWidth={2.5} /> {tab.label}
+                                    </span>
+                                </button>
+                            );
+                        })}
+                    </div>
                 </div>
 
                 {/* Content Sections */}

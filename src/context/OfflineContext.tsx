@@ -10,8 +10,6 @@ import {
     clearAllDownloads,
     type OfflineSong
 } from '@/lib/offlineDb';
-import { useSettings } from '@/context/SettingsContext';
-import { DOWNLOAD_STORAGE_LIMITS } from '@/lib/features';
 import { ytStreamUrl } from '@/lib/source';
 
 
@@ -46,7 +44,6 @@ interface OfflineContextType {
 const OfflineContext = createContext<OfflineContextType | undefined>(undefined);
 
 export function OfflineProvider({ children }: { children: ReactNode }) {
-    const { tier } = useSettings();
     const [downloads, setDownloads] = useState<DownloadedSongMeta[]>([]);
     const [downloadedIds, setDownloadedIds] = useState<Set<string>>(new Set());
     const [downloadProgress, setDownloadProgress] = useState(0);
@@ -55,12 +52,25 @@ export function OfflineProvider({ children }: { children: ReactNode }) {
     const [storageUsed, setStorageUsed] = useState(0);
     const [playlistDownloadProgress, setPlaylistDownloadProgress] = useState<{ current: number; total: number; name: string } | null>(null);
 
-    // Binary access model: unlimited offline storage for all approved users (-1 = unlimited).
+    // Unlimited offline downloads for every user. There is NO app-level cap on the
+    // number of songs or total bytes (-1 = unlimited). The only ceiling is the
+    // browser's own IndexedDB quota, which we expand below by requesting persistent
+    // storage so users can keep downloading without hitting eviction limits.
     const storageLimit = -1;
 
-    // Load downloads on mount
+    // Load downloads on mount + request persistent storage so the browser grants a
+    // much larger quota and stops evicting downloaded audio. This is what previously
+    // made downloads stop "after a limit" once the default best-effort quota filled.
     useEffect(() => {
         refreshDownloads();
+
+        if (typeof navigator !== 'undefined' && navigator.storage?.persist) {
+            navigator.storage.persisted?.().then((already) => {
+                if (!already) {
+                    navigator.storage.persist().catch(() => { /* non-fatal */ });
+                }
+            }).catch(() => { /* non-fatal */ });
+        }
     }, []);
 
     const refreshDownloads = useCallback(async () => {
@@ -88,10 +98,7 @@ export function OfflineProvider({ children }: { children: ReactNode }) {
         // Already downloaded
         if (downloadedIds.has(songId)) return;
 
-        // Check storage (-1 means unlimited)
-        if (storageLimit !== -1 && storageUsed >= storageLimit) {
-            throw new Error('Storage limit reached. Please remove some downloads or upgrade your plan.');
-        }
+        // No app-level download cap: users may download an unlimited number of songs.
 
         setIsDownloading(true);
         setCurrentDownloadId(songId);
@@ -191,7 +198,7 @@ export function OfflineProvider({ children }: { children: ReactNode }) {
             setCurrentDownloadId(null);
             setDownloadProgress(0);
         }
-    }, [downloadedIds, storageUsed, refreshDownloads]);
+    }, [downloadedIds, refreshDownloads]);
 
     const removeSongHandler = useCallback(async (id: string) => {
         try {
@@ -250,12 +257,6 @@ export function OfflineProvider({ children }: { children: ReactNode }) {
             setPlaylistDownloadProgress({ current: i + 1, total: songsToDownload.length, name: playlistName });
 
             try {
-                // Check storage before each download
-                if (storageLimit !== -1 && storageUsed >= storageLimit) {
-                    console.warn('Storage limit reached, stopping playlist download');
-                    break;
-                }
-
                 await downloadSong(song);
                 successCount++;
             } catch (err) {
@@ -267,7 +268,7 @@ export function OfflineProvider({ children }: { children: ReactNode }) {
 
         setPlaylistDownloadProgress(null);
         console.log(`Playlist download complete: ${successCount} succeeded, ${failCount} failed`);
-    }, [downloadedIds, downloadSong, storageLimit, storageUsed]);
+    }, [downloadedIds, downloadSong]);
 
     return (
         <OfflineContext.Provider value={{

@@ -158,9 +158,9 @@ export default function SongContextMenu({ song, queue, children, className = '',
             {/* Song header */}
             <div className="flex items-center gap-3 px-4 py-3 border-b border-[var(--border)]">
                 {getImage() ? (
-                    <img src={getImage()} alt="" className="w-11 h-11 rounded-md object-cover shrink-0 bg-[var(--surface)]" />
+                    <img src={getImage()} alt="" className="w-11 h-11 rounded-md object-cover shrink-0 bg-[var(--surface-hover)]" />
                 ) : (
-                    <div className="w-11 h-11 rounded-md bg-[var(--surface)] shrink-0" />
+                    <div className="w-11 h-11 rounded-md bg-[var(--surface-hover)] shrink-0" />
                 )}
                 <div className="min-w-0">
                     <p className="text-sm font-semibold text-[var(--foreground)] truncate">{decodeHtml(song.name || song.title)}</p>
@@ -247,8 +247,11 @@ export default function SongContextMenu({ song, queue, children, className = '',
             {isOpen && useFixedPosition && (
                 <div
                     ref={menuRef}
-                    className="fixed z-[200] min-w-[240px] bg-[var(--card)] border border-[var(--border)] rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150"
-                    style={{ left: menuPosition.x, top: menuPosition.y }}
+                    className="fixed z-[1000] min-w-[240px] max-w-[calc(100vw-16px)] max-h-[80vh] overflow-y-auto bg-[var(--surface-hover)] border border-[var(--border)] rounded-xl shadow-2xl ring-1 ring-black/40 animate-in fade-in zoom-in-95 duration-150"
+                    style={{
+                        left: Math.min(menuPosition.x, (typeof window !== 'undefined' ? window.innerWidth : 0) - 256),
+                        top: Math.min(menuPosition.y, (typeof window !== 'undefined' ? window.innerHeight : 0) - 360),
+                    }}
                 >
                     {body}
                 </div>
@@ -257,12 +260,12 @@ export default function SongContextMenu({ song, queue, children, className = '',
             {/* Tap → bottom sheet (mobile) / centered card (desktop) */}
             {sheet.render && (
                 <div
-                    className={`fixed inset-0 z-[200] bg-black/50 backdrop-blur-sm flex items-end md:items-center justify-center transition-opacity duration-300 ${sheet.show ? 'opacity-100' : 'opacity-0'}`}
+                    className={`fixed inset-0 z-[1000] bg-black/60 backdrop-blur-sm flex items-end md:items-center justify-center transition-opacity duration-300 ${sheet.show ? 'opacity-100' : 'opacity-0'}`}
                     onClick={(e) => { e.stopPropagation(); close(); }}
                 >
                     <div
                         onClick={(e) => e.stopPropagation()}
-                        className={`w-full md:w-[360px] bg-[var(--card)] border border-[var(--border)] rounded-t-3xl md:rounded-2xl overflow-hidden shadow-2xl transition-transform duration-300 ease-out pb-[env(safe-area-inset-bottom)] ${sheet.show ? 'translate-y-0' : 'translate-y-full'}`}
+                        className={`w-full md:w-[360px] max-h-[85vh] overflow-y-auto bg-[var(--surface-hover)] border border-[var(--border)] rounded-t-3xl md:rounded-2xl shadow-2xl transition-transform duration-300 ease-out pb-[env(safe-area-inset-bottom)] ${sheet.show ? 'translate-y-0' : 'translate-y-full'}`}
                     >
                         <div className="md:hidden w-9 h-1 rounded-full bg-[var(--surface-hover)] mx-auto mt-2.5 mb-1" />
                         {body}
