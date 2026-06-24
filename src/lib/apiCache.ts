@@ -208,6 +208,23 @@ export const getCache = async <T = any>(key: string): Promise<T | null> => {
 };
 
 /**
+ * fetch() with a hard timeout. The YouTube backend runs on a home phone whose
+ * browse/search (youtubei.js) can be slow or stall; without a cap a single slow
+ * request makes the whole home page (a Promise.allSettled of ~12 calls) "load
+ * forever". On timeout we abort so the caller falls back to cache or an empty rail
+ * and the page still renders.
+ */
+const fetchWithTimeout = async (url: string, ms = 9000): Promise<Response> => {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), ms);
+    try {
+        return await fetch(url, { signal: ctrl.signal });
+    } finally {
+        clearTimeout(t);
+    }
+};
+
+/**
  * Fetch with cache - The main function to use
  * Production-safe with all error handling
  */
@@ -231,7 +248,7 @@ export const fetchWithCache = async <T = any>(
                 // If stale-while-revalidate is enabled, refresh in background
                 if (staleWhileRevalidate) {
                     // Fire and forget background refresh
-                    fetch(url)
+                    fetchWithTimeout(url)
                         .then(res => res.json())
                         .then(data => {
                             if (data && data.success !== false) {
@@ -247,8 +264,8 @@ export const fetchWithCache = async <T = any>(
         }
     }
 
-    // Fetch fresh data
-    const response = await fetch(url);
+    // Fetch fresh data (capped so a slow phone backend can't hang the page)
+    const response = await fetchWithTimeout(url);
     const data = await response.json();
 
     // Cache the response (fire and forget)
