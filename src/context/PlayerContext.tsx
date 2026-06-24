@@ -230,17 +230,18 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
         if (!audioRef.current) return;
 
         // MOBILE (iOS + Android): routing the <audio> through createMediaElementSource
-        // makes the OS suspend the AudioContext when the app is backgrounded/minimized,
-        // which STOPS playback (the reported bug). So on mobile we DON'T wire up Web
-        // Audio unless the user explicitly turns on 3D audio (accepting that trade-off).
-        // Playback + lock-screen/notification controls then work natively in the
-        // background. Visualizer/scene FX are off by default on mobile; desktop is
-        // unchanged (it has the full Web Audio chain and no background-suspend issue).
+        // makes the OS SUSPEND the AudioContext the moment the app is backgrounded/locked,
+        // which STOPS playback instantly and kills the lock-screen/notification controls.
+        // This is unavoidable — so on mobile we NEVER wire up Web Audio, even if the user
+        // enabled 3D/8D audio (that feature simply can't run on mobile without breaking
+        // background play, which is the app's core feature). Playback then works natively
+        // in the background. 3D audio + the Web Audio FX chain are DESKTOP-ONLY. Desktop is
+        // unchanged (full Web Audio chain; it has no background-suspend issue).
         const isMobile = typeof navigator !== 'undefined' && (
             /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) ||
             (navigator.platform === 'MacIntel' && (navigator as any).maxTouchPoints > 1)
         );
-        if (isMobile && !is3DActive) return;
+        if (isMobile) return;
 
         // Initialize AudioContext only once
         if (!audioContextRef.current) {
