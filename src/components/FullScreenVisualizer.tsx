@@ -33,7 +33,7 @@ export default function FullScreenVisualizer({ isOpen, onClose }: FullScreenVisu
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const rafRef = useRef<number>(0);
     const { analyserNode } = useAudioFX();
-    const { currentSong, isPlaying, togglePlay, next, prev, progress, duration, seek, audioRef } = usePlayer();
+    const { currentSong, isPlaying, togglePlay, next, prev, progress, duration, seek } = usePlayer();
 
     const [style, setStyle] = useState<Style>('orb');
     const [showControls, setShowControls] = useState(true);
@@ -81,33 +81,13 @@ export default function FullScreenVisualizer({ isOpen, onClose }: FullScreenVisu
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
 
-        // Prefer the global Web Audio analyser (desktop). On MOBILE that's off so
-        // background playback keeps working — so we instead tap the <audio> via
-        // captureStream() into a SEPARATE analyser. The element keeps playing natively
-        // to the speakers (captureStream is a read-only tap, not a re-route), so this
-        // gives beat-sync on mobile WITHOUT breaking background audio. Falls back to the
-        // time-based animation if captureStream is unsupported (iOS Safari) or tainted.
-        let analyser: AnalyserNode | null = analyserNode;
-        let tapCtx: AudioContext | null = null;
-        if (!analyser) {
-            const el = audioRef?.current as (HTMLAudioElement & {
-                captureStream?: () => MediaStream; mozCaptureStream?: () => MediaStream;
-            }) | null;
-            const capture = el && (el.captureStream || el.mozCaptureStream);
-            if (el && capture) {
-                try {
-                    const AC = window.AudioContext || (window as any).webkitAudioContext;
-                    tapCtx = new AC();
-                    const src = tapCtx.createMediaStreamSource(capture.call(el));
-                    const a = tapCtx.createAnalyser();
-                    a.fftSize = 1024;
-                    a.smoothingTimeConstant = 0.8;
-                    src.connect(a); // analysis only — NOT connected to destination
-                    tapCtx.resume().catch(() => { /* resumed lazily in the draw loop */ });
-                    analyser = a;
-                } catch { tapCtx = null; analyser = null; }
-            }
-        }
+        // Beat-sync needs to READ the audio signal. On desktop we use the global Web
+        // Audio analyser. On MOBILE there is none, and the only ways to read the signal
+        // (captureStream / createMediaElementSource) make Android PAUSE the <audio> when
+        // the app is backgrounded — which kills background playback, the app's main
+        // feature. Background audio wins: on mobile we DON'T tap the element and simply
+        // fall back to the time-based animation below (it still moves with playback).
+        const analyser: AnalyserNode | null = analyserNode;
 
         // Frequency + time-domain buffers (only when a live analyser exists).
         const bins = analyser ? analyser.frequencyBinCount : 0;
@@ -150,7 +130,6 @@ export default function FullScreenVisualizer({ isOpen, onClose }: FullScreenVisu
             const W = cssW, H = cssH, cx = W / 2, cy = H / 2;
 
             const { isPlaying: playing, progress: prog, duration: dur } = playStateRef.current;
-            if (tapCtx && tapCtx.state === 'suspended') tapCtx.resume().catch(() => {});
             const live = !!(analyser && freq && wave && playing);
             if (live && analyser) {
                 analyser.getByteFrequencyData(freq!);
@@ -392,9 +371,8 @@ export default function FullScreenVisualizer({ isOpen, onClose }: FullScreenVisu
         draw();
         return () => {
             cancelAnimationFrame(rafRef.current);
-            if (tapCtx) tapCtx.close().catch(() => {});
         };
-    }, [isOpen, analyserNode, style, accent, audioRef]);
+    }, [isOpen, analyserNode, style, accent]);
 
     const toggleFullscreen = async () => {
         try {
