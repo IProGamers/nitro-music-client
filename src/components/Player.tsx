@@ -374,9 +374,12 @@ export default function Player() {
                                 text={decodeHtml(currentSong.name)}
                                 className="font-semibold text-[13px] text-[var(--foreground)] leading-tight"
                             />
-                            <ArtistLink song={currentSong} className="block text-[11px] text-[var(--foreground-secondary)] truncate leading-tight mt-0.5">
+                            {/* On the mini bar the artist name opens the now-playing
+                                view (same as tapping the song). The expanded view's
+                                artist name is what navigates to the artist page. */}
+                            <p className="block text-[11px] text-[var(--foreground-secondary)] truncate leading-tight mt-0.5">
                                 {getArtist(currentSong)}
-                            </ArtistLink>
+                            </p>
                         </div>
                     </div>
 

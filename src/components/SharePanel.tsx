@@ -12,6 +12,7 @@ interface SongLike {
     artist?: string;
     artists?: { primary?: { name: string }[] };
     image?: string | { url?: string; link?: string; quality?: string }[] | any;
+    source?: string;
 }
 
 interface SharePanelProps {
@@ -51,6 +52,7 @@ export default function SharePanel({ isOpen, onClose, song, onOpenCard }: ShareP
             n: song.name || song.title || 'Unknown',
             a: resolveArtist(song),
             img: resolveImg(song),
+            s: song.source,
         }, 3);
         return buildShareUrl(token);
     }, [isOpen, song]);

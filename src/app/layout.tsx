@@ -25,6 +25,7 @@ import ArihantGuard from "@/components/ArihantGuard";
 import MobileHeader from "@/components/MobileHeader";
 import PWAInstallPrompt from "@/components/PWAInstallPrompt";
 import PWAInitializer from "@/components/PWAInitializer";
+import VersionUpdatePrompt from "@/components/VersionUpdatePrompt";
 
 const font = Outfit({ subsets: ["latin"] });
 import ApprovalGuard from "@/components/ApprovalGuard";
@@ -88,6 +89,7 @@ export default function RootLayout({
                                   <AccountNotificationModal />
                                   <PWAInstallPrompt />
                                   <PWAInitializer />
+                                  <VersionUpdatePrompt />
                                 </RoomProvider>
                               </FriendsProvider>
                             </OfflineProvider>

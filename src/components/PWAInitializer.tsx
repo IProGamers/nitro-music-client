@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Download, CheckCircle, RefreshCw } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 
 export function PWAInitializer() {
     const [status, setStatus] = useState<'idle' | 'installing' | 'ready' | 'update'>('idle');
@@ -30,9 +30,7 @@ export function PWAInitializer() {
         if (data.type === 'SW_READY') {
             console.log('[PWA] Service Worker ready!', data.version);
             setStatus('ready');
-            // Show brief success notification
-            setShowNotification(true);
-            setTimeout(() => setShowNotification(false), 3000);
+            // Note: the "ready for offline" toast was intentionally removed.
         }
 
         if (data.type === 'CACHE_STATUS') {
@@ -67,11 +65,9 @@ export function PWAInitializer() {
                             setStatus('update');
                             setShowNotification(true);
                         } else {
-                            // First install
+                            // First install — no "ready for offline" toast (removed by design).
                             console.log('[PWA] App cached for offline use!');
                             setStatus('ready');
-                            setShowNotification(true);
-                            setTimeout(() => setShowNotification(false), 4000);
                         }
                     }
                 });
@@ -99,10 +95,6 @@ export function PWAInitializer() {
         window.location.reload();
     };
 
-    const handleDismiss = () => {
-        setShowNotification(false);
-    };
-
     // Show update notification
     if (status === 'update' && showNotification) {
         return (
@@ -121,32 +113,8 @@ export function PWAInitializer() {
         );
     }
 
-    // Show first-time cached notification
-    if (status === 'ready' && showNotification) {
-        return (
-            <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[9999] animate-fadeIn">
-                <div
-                    onClick={handleDismiss}
-                    className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-3 cursor-pointer hover:opacity-90 transition-opacity"
-                >
-                    <CheckCircle className="w-5 h-5" />
-                    <span className="text-sm font-medium">✨ App ready for offline use!</span>
-                </div>
-            </div>
-        );
-    }
-
-    // Show installing progress
-    if (status === 'installing') {
-        return (
-            <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[9999]">
-                <div className="bg-gray-800 text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-3">
-                    <Download className="w-5 h-5 animate-pulse" />
-                    <span className="text-sm font-medium">Caching app for offline...</span>
-                </div>
-            </div>
-        );
-    }
+    // First-install "ready for offline" toast and "caching..." progress toast
+    // were intentionally removed. Service-worker registration above is unaffected.
 
     return null;
 }

@@ -84,9 +84,13 @@ export default function ArtistPage() {
 
     return (
         <div className="min-h-screen pb-32">
-            {/* Header / Hero Section */}
-            <div className="relative h-64 md:h-80 overflow-hidden">
-                <div className="absolute inset-0">
+            {/* Header / Hero Section — min-height (not fixed height) so the photo,
+                name and back button are never clipped on mobile, where the
+                stacked column layout is taller than a fixed hero would allow. */}
+            <div className="relative min-h-[18rem] md:min-h-[20rem] flex flex-col">
+                {/* Blurred background layer sits behind the content (clipped here,
+                    not the content) */}
+                <div className="absolute inset-0 overflow-hidden">
                     <img src={getImg(artist.image)} className="w-full h-full object-cover blur-2xl opacity-30 scale-125" alt="" />
                     <div className="absolute inset-0 bg-gradient-to-t from-[var(--background)] via-[var(--background)]/60 to-transparent" />
                 </div>
@@ -100,7 +104,7 @@ export default function ArtistPage() {
                     <ArrowLeft size={20} />
                 </button>
 
-                <div className="absolute inset-0 flex items-end">
+                <div className="relative z-10 flex-1 flex items-end pt-16 md:pt-12">
                     <div className="max-w-5xl mx-auto w-full px-4 md:px-8 pb-6 md:pb-10 flex flex-col md:flex-row items-center md:items-end gap-4 md:gap-8">
                         {/* Artist Image */}
                         <div className="relative flex-shrink-0">

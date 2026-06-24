@@ -10,6 +10,7 @@ export interface SharePayload {
     n: string;    // song name
     a: string;    // artist
     img: string;  // cover image url
+    s?: string;   // music source ('youtube' | 'jiosaavn') — picks the right backend
     exp: number;  // expiry — epoch milliseconds
 }
 
@@ -32,7 +33,7 @@ const fromB64Url = (s: string): string => {
 
 /** Build an expiring token for a song. `hours` defaults to 3 (within the 2–4h window). */
 export function createShareToken(
-    song: { id: string; n: string; a: string; img: string },
+    song: { id: string; n: string; a: string; img: string; s?: string },
     hours = 3
 ): string {
     const payload: SharePayload = {
@@ -40,6 +41,9 @@ export function createShareToken(
         n: song.n,
         a: song.a,
         img: song.img,
+        // Normalize to one of the two known sources so the play page hits the
+        // correct backend (YouTube ids 500 on the JioSaavn /api/songs endpoint).
+        s: song.s === 'youtube' ? 'youtube' : 'jiosaavn',
         exp: Date.now() + hours * 60 * 60 * 1000,
     };
     return toB64Url(JSON.stringify(payload));
@@ -65,6 +69,45 @@ export function isShareExpired(payload: SharePayload): boolean {
 export function buildShareUrl(token: string): string {
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
     return `${origin}/play/${token}`;
+}
+
+/**
+ * Resolve a playable audio-stream URL for a shared payload.
+ *
+ * YouTube songs (the app's default source) stream from the YouTube proxy and
+ * resolve purely from the id — no fetch needed. JioSaavn songs are looked up
+ * via the public `/api/songs/:id` endpoint and the best-quality download URL
+ * is picked. Returns '' when nothing playable could be resolved.
+ */
+export async function resolveShareStream(payload: SharePayload): Promise<string> {
+    const id = String(payload.id || '');
+    if (!id) return '';
+
+    // YouTube: always stream from the YT proxy host (a YT id has no JioSaavn
+    // download url, and /api/songs/:id 500s for it).
+    if (payload.s === 'youtube') {
+        const ytBase = (process.env.NEXT_PUBLIC_YT_API_URL
+            || process.env.NEXT_PUBLIC_API_URL
+            || 'http://localhost:3000').replace(/\/$/, '');
+        return `${ytBase}/api/youtube/stream?id=${encodeURIComponent(id)}`;
+    }
+
+    // JioSaavn: fetch full song and pick the best-quality stream.
+    try {
+        const apiUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000').replace(/\/$/, '');
+        const res = await fetch(`${apiUrl}/api/songs/${encodeURIComponent(id)}`);
+        const data = await res.json();
+        const song = data?.data?.[0];
+        if (!song) return '';
+        const dl = song.downloadUrl;
+        if (Array.isArray(dl) && dl.length) {
+            const best = dl[dl.length - 1];
+            return best?.url || best?.link || '';
+        }
+        return song.audioUrl || '';
+    } catch {
+        return '';
+    }
 }
 
 /** Friendly "expires in …" label for a payload. */

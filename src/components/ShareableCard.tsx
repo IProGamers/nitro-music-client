@@ -19,13 +19,40 @@ interface ShareableCardProps {
     } | null;
 }
 
+type ThemeId = 'modern' | 'glass' | 'cyber' | 'sunset' | 'minimal';
+
+// Accent color per theme — used both on the canvas and the theme-picker swatches.
+const THEME_ACCENT: Record<ThemeId, string> = {
+    modern: '#22d3ee',
+    glass: '#f0abfc',
+    cyber: '#22d3ee',
+    sunset: '#fb923c',
+    minimal: '#111111',
+};
+
+const THEMES: { id: ThemeId; label: string; swatch: string }[] = [
+    { id: 'modern', label: 'Modern', swatch: 'bg-zinc-900' },
+    { id: 'glass', label: 'Holo', swatch: 'bg-gradient-to-r from-indigo-500 to-pink-500' },
+    { id: 'cyber', label: 'Cyber', swatch: 'bg-black border border-cyan-500/50' },
+    { id: 'sunset', label: 'Sunset', swatch: 'bg-gradient-to-r from-orange-500 to-rose-500' },
+    { id: 'minimal', label: 'Clean', swatch: 'bg-zinc-100 border border-zinc-300' },
+];
+
 export default function ShareableCard({ isOpen, onClose, song }: ShareableCardProps) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [isGenerating, setIsGenerating] = useState(false);
     const [copied, setCopied] = useState(false);
-    const [cardTheme, setCardTheme] = useState<'modern' | 'glass' | 'cyber'>('modern');
-    const { user } = useAuth();
+    const [cardTheme, setCardTheme] = useState<ThemeId>('modern');
+    const { user, userProfile } = useAuth();
     const { checkAccess, setShowLimitModal, setLimitFeature } = useUsage();
+
+    // Handle of whoever is sharing — shown as a credit on the card.
+    const sharedByHandle = (): string => {
+        const uname = userProfile?.username;
+        if (uname) return `@${uname}`;
+        const name = userProfile?.displayName || user?.displayName;
+        return name ? name : '@nitro';
+    };
 
     // Get image URL helper - handles different formats
     const getImageUrl = (): string | null => {
@@ -131,7 +158,40 @@ export default function ShareableCard({ isOpen, onClose, song }: ShareableCardPr
             ctx.strokeStyle = '#22d3ee';
             ctx.lineWidth = 4;
             ctx.strokeRect(50, 50, 980, 1820);
+
+        } else if (cardTheme === 'sunset') {
+            // Warm dusk gradient
+            const bgGradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            bgGradient.addColorStop(0, '#1a0b2e');   // deep plum
+            bgGradient.addColorStop(0.55, '#7c2d12'); // burnt orange
+            bgGradient.addColorStop(1, '#fb923c');    // amber glow
+            ctx.fillStyle = bgGradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Sun orb low on the card
+            const sun = ctx.createRadialGradient(540, 1500, 0, 540, 1500, 700);
+            sun.addColorStop(0, 'rgba(253, 224, 71, 0.35)');
+            sun.addColorStop(1, 'transparent');
+            ctx.fillStyle = sun;
+            ctx.beginPath();
+            ctx.arc(540, 1500, 700, 0, Math.PI * 2);
+            ctx.fill();
+
+        } else if (cardTheme === 'minimal') {
+            // Clean light card
+            ctx.fillStyle = '#fafafa';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            // Soft tinted panel behind the artwork zone
+            ctx.fillStyle = '#f1f1f1';
+            ctx.fillRect(0, 360, canvas.width, 900);
         }
+
+        // --- THEME-AWARE PALETTE ---
+        const isLight = cardTheme === 'minimal';
+        const accent = THEME_ACCENT[cardTheme];
+        const textPrimary = isLight ? '#111111' : '#ffffff';
+        const textMuted = isLight ? 'rgba(0,0,0,0.55)' : 'rgba(255,255,255,0.7)';
+        const brandColor = isLight ? '#0e7490' : accent; // cyan-700 for contrast on light
 
         // --- LOGO & BRANDING (Horizontal Layout) ---
         const startY = 120;
@@ -192,7 +252,7 @@ export default function ShareableCard({ isOpen, onClose, song }: ShareableCardPr
 
             // 2. Draw "Nitro"
             ctx.font = nitroFont;
-            ctx.fillStyle = '#22d3ee'; // Cyan-400
+            ctx.fillStyle = brandColor;
             ctx.textAlign = 'left';
             ctx.fillText('Nitro', currentX, startY);
 
@@ -200,7 +260,7 @@ export default function ShareableCard({ isOpen, onClose, song }: ShareableCardPr
 
             // 3. Draw "by ipro"
             ctx.font = byIproFont;
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.6)'; // Muted
+            ctx.fillStyle = textMuted; // Muted
 
             // Manually draw with spacing (tracking-widest)
             let iproX = currentX;
@@ -214,10 +274,10 @@ export default function ShareableCard({ isOpen, onClose, song }: ShareableCardPr
         } catch (e) {
             // Fallback
             ctx.textAlign = 'center';
-            ctx.fillStyle = '#22d3ee';
+            ctx.fillStyle = brandColor;
             ctx.font = 'bold 60px sans-serif';
             ctx.fillText('Nitro', 1080 / 2 - 40, startY);
-            ctx.fillStyle = 'rgba(255,255,255,0.6)';
+            ctx.fillStyle = textMuted;
             ctx.font = '24px sans-serif';
             ctx.fillText('by ipro', 1080 / 2 + 60, startY);
         }
@@ -299,7 +359,7 @@ export default function ShareableCard({ isOpen, onClose, song }: ShareableCardPr
         const textCenter = 1080 / 2;
 
         // Title
-        ctx.fillStyle = '#ffffff';
+        ctx.fillStyle = textPrimary;
         ctx.font = 'bold 80px "Inter", sans-serif';
         ctx.textAlign = 'center';
 
@@ -311,9 +371,15 @@ export default function ShareableCard({ isOpen, onClose, song }: ShareableCardPr
 
         // Artist
         textY += 90;
-        ctx.fillStyle = cardTheme === 'cyber' ? '#22d3ee' : 'rgba(255,255,255,0.7)';
+        ctx.fillStyle = cardTheme === 'cyber' ? accent : textMuted;
         ctx.font = '50px "Inter", sans-serif';
         ctx.fillText(getArtist(), textCenter, textY);
+
+        // "Shared by @username" credit — personalizes the card.
+        textY += 70;
+        ctx.font = 'bold 30px "Inter", sans-serif';
+        ctx.fillStyle = isLight ? brandColor : accent;
+        ctx.fillText(`shared by ${sharedByHandle()}`, textCenter, textY);
 
         // --- SECRET URL SECTION ---
         const bottomY = 1650;
@@ -327,10 +393,18 @@ export default function ShareableCard({ isOpen, onClose, song }: ShareableCardPr
         ctx.save();
         if (cardTheme === 'cyber') {
             ctx.fillStyle = '#000';
-            ctx.strokeStyle = '#22d3ee';
+            ctx.strokeStyle = accent;
             ctx.lineWidth = 3;
             ctx.fillRect(pillX, bottomY, pillW, pillH);
             ctx.strokeRect(pillX, bottomY, pillW, pillH);
+        } else if (isLight) {
+            // Solid dark pill on the light card
+            ctx.fillStyle = '#111111';
+            ctx.shadowColor = 'rgba(0,0,0,0.15)';
+            ctx.shadowBlur = 24;
+            ctx.beginPath();
+            ctx.roundRect(pillX, bottomY, pillW, pillH, 50);
+            ctx.fill();
         } else {
             // Glassmorphism Pill
             ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
@@ -348,21 +422,21 @@ export default function ShareableCard({ isOpen, onClose, song }: ShareableCardPr
 
         // URL Text
         ctx.font = cardTheme === 'cyber' ? '40px "Courier New"' : 'bold 36px monospace';
-        ctx.fillStyle = cardTheme === 'cyber' ? '#22d3ee' : '#fff';
+        ctx.fillStyle = cardTheme === 'cyber' ? accent : '#fff';
         ctx.textBaseline = 'middle';
         ctx.fillText(displayUrl, textCenter, bottomY + (pillH / 2));
 
         // Label above standard
         if (cardTheme !== 'cyber') {
             ctx.font = '24px sans-serif';
-            ctx.fillStyle = 'rgba(255,255,255,0.5)';
+            ctx.fillStyle = textMuted;
             ctx.fillText('Tap to listen', textCenter, bottomY - 30);
         }
         ctx.restore();
 
 
         setIsGenerating(false);
-    }, [song, cardTheme, user]);
+    }, [song, cardTheme, user, userProfile]);
 
     // Download card as image
     const downloadCard = () => {
@@ -405,6 +479,7 @@ export default function ShareableCard({ isOpen, onClose, song }: ShareableCardPr
                 n: song.name || 'Unknown',
                 a: getArtist(),
                 img: getImageUrl() || '',
+                s: (song as any).source,
             }, 3);
             const url = buildShareUrl(token);
 
@@ -465,38 +540,47 @@ export default function ShareableCard({ isOpen, onClose, song }: ShareableCardPr
                         )}
                     </div>
 
-                    {/* Theme Selector - Compact */}
-                    <div className="flex gap-2">
-                        {[
-                            { id: 'modern', label: 'Modern', color: 'bg-zinc-900' },
-                            { id: 'glass', label: 'Holo', color: 'bg-gradient-to-r from-indigo-500 to-purple-500' },
-                            { id: 'cyber', label: 'Cyber', color: 'bg-black border border-cyan-500/50 text-cyan-400' }
-                        ].map((theme, index) => {
-                            const { limit } = checkAccess('share_card_themes');
-                            const isLocked = limit !== undefined && limit !== -1 && index >= limit;
+                    {/* Theme Selector - swatch grid */}
+                    <div>
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--foreground-muted)] mb-2">Style</p>
+                        <div className="grid grid-cols-5 gap-2">
+                            {THEMES.map((theme, index) => {
+                                const { limit } = checkAccess('share_card_themes');
+                                const isLocked = limit !== undefined && limit !== -1 && index >= limit;
+                                const isActive = cardTheme === theme.id;
 
-                            return (
-                                <button
-                                    key={theme.id}
-                                    onClick={() => {
-                                        if (isLocked) {
-                                            setLimitFeature('share_card_themes');
-                                            setShowLimitModal(true);
-                                            return;
-                                        }
-                                        setCardTheme(theme.id as any);
-                                        setTimeout(generateCard, 50);
-                                    }}
-                                    className={`flex-1 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all border flex items-center justify-center gap-1 ${cardTheme === theme.id
-                                        ? 'ring-2 ring-cyan-400 ring-offset-1 ring-offset-[var(--card)] border-transparent'
-                                        : 'border-transparent opacity-70 hover:opacity-100'
-                                        } ${theme.color} ${isLocked ? 'opacity-50 grayscale' : ''}`}
-                                >
-                                    <span className={theme.id === 'cyber' ? 'text-cyan-400' : 'text-white'}>{theme.label}</span>
-                                    {isLocked && <Lock size={10} className="text-white/70" />}
-                                </button>
-                            );
-                        })}
+                                return (
+                                    <button
+                                        key={theme.id}
+                                        onClick={() => {
+                                            if (isLocked) {
+                                                setLimitFeature('share_card_themes');
+                                                setShowLimitModal(true);
+                                                return;
+                                            }
+                                            setCardTheme(theme.id);
+                                            setTimeout(generateCard, 50);
+                                        }}
+                                        title={theme.label}
+                                        className="flex flex-col items-center gap-1 group"
+                                    >
+                                        <span
+                                            className={`relative w-full aspect-square rounded-xl ${theme.swatch} transition-all ${isActive
+                                                ? 'ring-2 ring-cyan-400 ring-offset-2 ring-offset-[var(--card)]'
+                                                : 'opacity-70 group-hover:opacity-100'
+                                                } ${isLocked ? 'opacity-40 grayscale' : ''}`}
+                                        >
+                                            {isLocked && (
+                                                <Lock size={12} className="text-white/80 absolute inset-0 m-auto" />
+                                            )}
+                                        </span>
+                                        <span className={`text-[9px] font-bold uppercase tracking-wide ${isActive ? 'text-cyan-400' : 'text-[var(--foreground-muted)]'}`}>
+                                            {theme.label}
+                                        </span>
+                                    </button>
+                                );
+                            })}
+                        </div>
                     </div>
 
                     {/* Action Buttons - Compact Grid */}

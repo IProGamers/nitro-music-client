@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { Play, Pause, Loader2, Clock, LinkIcon, Music2 } from 'lucide-react';
-import { decodeShareToken, isShareExpired, expiresInLabel, type SharePayload } from '@/lib/shareLink';
+import { decodeShareToken, isShareExpired, expiresInLabel, resolveShareStream, type SharePayload } from '@/lib/shareLink';
 
 type State = 'loading' | 'invalid' | 'expired' | 'ready' | 'error';
 
@@ -12,15 +12,6 @@ const fmt = (s: number) => {
     const m = Math.floor(s / 60);
     const sec = Math.floor(s % 60);
     return `${m}:${sec.toString().padStart(2, '0')}`;
-};
-
-const pickStream = (song: any): string => {
-    const dl = song?.downloadUrl;
-    if (Array.isArray(dl) && dl.length) {
-        const best = dl[dl.length - 1];
-        return best?.url || best?.link || '';
-    }
-    return song?.audioUrl || '';
 };
 
 export default function PlayTokenPage() {
@@ -45,11 +36,9 @@ export default function PlayTokenPage() {
 
         (async () => {
             try {
-                const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
-                const res = await fetch(`${apiUrl}/api/songs/${p.id}`);
-                const data = await res.json();
-                const song = data?.data?.[0];
-                const url = song ? pickStream(song) : '';
+                // Resolve from the correct backend based on the song's source
+                // (YouTube proxy vs. JioSaavn). YouTube ids 500 on /api/songs.
+                const url = await resolveShareStream(p);
                 if (cancelled) return;
                 if (!url) { setState('error'); return; }
                 setStreamUrl(url);
