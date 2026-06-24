@@ -433,31 +433,36 @@ export default function FullScreenVisualizer({ isOpen, onClose }: FullScreenVisu
 
             <canvas ref={canvasRef} className="absolute inset-0" />
 
-            {/* Top bar */}
-            <div className={`absolute top-0 inset-x-0 p-5 flex items-center justify-between transition-opacity duration-500 ${showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+            {/* Top bar: close + fullscreen (respect the phone notch / status bar) */}
+            <div className={`absolute top-0 inset-x-0 px-4 pb-3 flex items-center justify-between transition-opacity duration-500 ${showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} style={{ paddingTop: 'max(1rem, env(safe-area-inset-top))' }}>
                 <button onClick={(e) => { e.stopPropagation(); onClose(); }} className="w-10 h-10 rounded-full bg-black/40 hover:bg-black/60 backdrop-blur-md flex items-center justify-center text-white">
                     <X size={20} />
                 </button>
-                <div className="flex items-center gap-1 bg-black/40 backdrop-blur-md rounded-full p-1">
+                <button onClick={(e) => { e.stopPropagation(); toggleFullscreen(); }} className="w-10 h-10 rounded-full bg-black/40 hover:bg-black/60 backdrop-blur-md flex items-center justify-center text-white">
+                    {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
+                </button>
+            </div>
+
+            {/* Style picker — its own centered row so the pills never collide with the
+                top buttons on narrow phones; scrolls horizontally if it ever overflows */}
+            <div className={`absolute inset-x-0 flex justify-center px-4 transition-opacity duration-500 ${showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} style={{ top: 'calc(max(1rem, env(safe-area-inset-top)) + 3.25rem)' }}>
+                <div className="flex items-center gap-1 bg-black/40 backdrop-blur-md rounded-full p-1 max-w-full overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
                     {STYLES.map(s => (
                         <button
                             key={s.id}
                             onClick={(e) => { e.stopPropagation(); setStyle(s.id); }}
-                            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-colors ${style === s.id ? 'text-[#04161a]' : 'text-white/70 hover:text-white'}`}
+                            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors ${style === s.id ? 'text-[#04161a]' : 'text-white/70 hover:text-white'}`}
                             style={style === s.id ? { background: rgbString(accent, 1) } : undefined}
                         >
                             {s.label}
                         </button>
                     ))}
                 </div>
-                <button onClick={(e) => { e.stopPropagation(); toggleFullscreen(); }} className="w-10 h-10 rounded-full bg-black/40 hover:bg-black/60 backdrop-blur-md flex items-center justify-center text-white">
-                    {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
-                </button>
             </div>
 
             {/* Bottom: now-playing + controls */}
             {currentSong && (
-                <div className={`absolute bottom-0 inset-x-0 p-6 md:p-10 transition-all duration-500 ${showControls ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'}`}>
+                <div className={`absolute bottom-0 inset-x-0 px-6 pt-6 md:px-10 md:pt-10 transition-all duration-500 ${showControls ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'}`} style={{ paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))' }}>
                     <div className="max-w-xl mx-auto">
                         <div className="flex items-center gap-4 mb-5">
                             {cover ? (
