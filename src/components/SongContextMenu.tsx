@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useOffline } from '@/context/OfflineContext';
+import { createShareToken, buildShareUrl } from '@/lib/shareLink';
 
 interface SongContextMenuProps {
     song: any;
@@ -124,11 +125,21 @@ export default function SongContextMenu({ song, queue, children, className = '',
         const songName = song.name || song.title || 'song';
         const artistName = song.artists?.primary?.[0]?.name || song.artist || 'Unknown';
         const shareText = `🎵 Listening to "${songName}" by ${artistName} on Nitro Music!`;
+        // Build a REAL playable link for THIS song (was sharing window.location.href —
+        // i.e. the current page, which is identical every time and not playable).
+        const token = createShareToken({
+            id: String(song.id || song.songId || ''),
+            n: songName,
+            a: artistName,
+            img: getImage(),
+            s: song.source,
+        });
+        const url = buildShareUrl(token);
         try {
             if (navigator.share) {
-                await navigator.share({ title: songName, text: shareText, url: window.location.href });
+                await navigator.share({ title: songName, text: shareText, url });
             } else {
-                await navigator.clipboard.writeText(shareText);
+                await navigator.clipboard.writeText(url);
                 setCopied(true);
                 setTimeout(() => setCopied(false), 2000);
             }
