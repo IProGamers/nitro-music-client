@@ -225,6 +225,39 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
         playRetriedRef.current = false;
     };
 
+    // ---- Stall watchdog -----------------------------------------------------
+    // The YouTube backend (a home phone) can be slow, and a stream request
+    // sometimes just HANGS with no `error` event — so a tapped song gets stuck
+    // "loading" forever ("sometimes plays, sometimes stuck"). This detects when
+    // we want to play but playback hasn't actually started/progressed, and
+    // auto-recovers: re-buffer the same stream once, then skip to the next track
+    // so a tap NEVER dead-ends.
+    const stallTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const stallStageRef = useRef<0 | 1>(0); // 0 = fresh, 1 = already retried this song
+    const clearStall = () => {
+        if (stallTimerRef.current) { clearTimeout(stallTimerRef.current); stallTimerRef.current = null; }
+    };
+    const armStall = () => {
+        clearStall();
+        stallTimerRef.current = setTimeout(() => {
+            stallTimerRef.current = null;
+            const el = audioRef.current;
+            if (!el || !wantPlayingRef.current) return;        // not trying to play → ignore
+            if (!el.paused && el.currentTime > 0.3) return;    // actually playing → fine
+            if (!el.getAttribute('src')) return;               // nothing loaded
+            if (stallStageRef.current === 0) {
+                // Stuck once — re-buffer the same (slow/hung) stream and retry.
+                stallStageRef.current = 1;
+                try { el.load(); const p = el.play(); if (p !== undefined) p.catch(() => {}); } catch { /* noop */ }
+                armStall();                                    // watch the retry too
+            } else {
+                // Still stuck after a retry — don't dead-end; move to the next track.
+                stallStageRef.current = 0;
+                try { mediaHandlersRef.current.next(); } catch { /* noop */ }
+            }
+        }, 11000);
+    };
+
     // Initialize Audio Context and Nodes
     useEffect(() => {
         if (!audioRef.current) return;
@@ -677,6 +710,8 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
 
         // Show loading indicator immediately
         setIsLoadingSong(true);
+        // New song → reset the stall-recovery budget (one re-buffer, then skip).
+        stallStageRef.current = 0;
 
         // Build a diversified, taste-based "radio" around the seed (more from this
         // artist, your favourite artists, same mood/language, a little discovery —
@@ -1509,9 +1544,14 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
                 crossOrigin="anonymous"
                 playsInline
                 {...{ 'webkit-playsinline': 'true', 'x-webkit-airplay': 'allow' }}
+                onLoadStart={() => { if (wantPlayingRef.current) armStall(); }}
+                onPlaying={() => { clearStall(); }}
+                onWaiting={() => { if (wantPlayingRef.current) armStall(); }}
                 onTimeUpdate={(e) => {
                     const currentTime = e.currentTarget.currentTime;
                     const dur = e.currentTarget.duration;
+                    // Real playback progress → we're not stuck; cancel the watchdog.
+                    if (currentTime > 0.3) clearStall();
                     setProgress(currentTime);
                     setDuration(dur);
                     // A-B Loop: if we've passed point B, jump back to A
