@@ -57,7 +57,7 @@ const MusicDataContext = createContext<MusicDataContextType | undefined>(undefin
 const PROFILE_CACHE_KEY = 'nitro_profile_cache';
 // Bump the suffix whenever the home page's section queries/shape change so stale
 // cached homeData is discarded automatically (old key is simply never read again).
-const HOME_CACHE_KEY = 'nitro_home_cache_v3';
+const HOME_CACHE_KEY = 'nitro_home_cache_v7';
 
 export function MusicDataProvider({ children }: { children: ReactNode }) {
     const [homeData, setHomeData] = useState<MusicDataContextType['homeData']>(null);
@@ -93,7 +93,7 @@ export function MusicDataProvider({ children }: { children: ReactNode }) {
             if (cachedHome) {
                 const data = JSON.parse(cachedHome);
                 const oneDayMs = 24 * 60 * 60 * 1000;
-                if (data.lastFetchedAt && (Date.now() - data.lastFetchedAt < oneDayMs)) {
+                if (data.lastFetchedAt && (Date.now() - data.lastFetchedAt < oneDayMs) && Array.isArray(data.trending) && data.trending.length > 0) {
                     setHomeData(data);
                     setHasLoadedHome(true);
                 }

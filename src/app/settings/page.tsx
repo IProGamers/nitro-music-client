@@ -90,28 +90,20 @@ export default function SettingsPage() {
                 </div>
             </section>
 
-            {/* Music source */}
+            {/* Audio Engine */}
             <section className="mb-8">
-                <h2 className="text-xs font-semibold uppercase tracking-wider text-[var(--foreground-muted)] mb-2">Music source</h2>
+                <h2 className="text-xs font-semibold uppercase tracking-wider text-[var(--foreground-muted)] mb-2">Streaming Provider</h2>
                 <div className="rounded-2xl bg-[var(--surface)] border border-[var(--border)] p-4">
-                    <p className="text-xs text-[var(--foreground-muted)] mb-3">Where Home, Search and browsing pull music from. Songs already in your playlists keep playing from the source they were added with.</p>
-                    <div className="grid grid-cols-2 gap-2">
-                        {([
-                            { id: 'jiosaavn', label: 'JioSaavn', desc: 'Indian-tuned, fast' },
-                            { id: 'youtube', label: 'YouTube Music', desc: 'Widest catalog' },
-                        ] as const).map(opt => (
-                            <button
-                                key={opt.id}
-                                onClick={() => setMusicSource(opt.id)}
-                                className={`text-left p-3 rounded-xl border transition-colors ${musicSource === opt.id ? 'border-[var(--accent)] bg-[var(--accent)]/10' : 'border-[var(--border)] bg-[var(--background)] hover:bg-[var(--surface-hover)]'}`}
-                            >
-                                <div className="flex items-center justify-between">
-                                    <span className={`text-sm font-semibold ${musicSource === opt.id ? 'text-[var(--accent)]' : 'text-[var(--foreground)]'}`}>{opt.label}</span>
-                                    {musicSource === opt.id && <span className="w-2 h-2 rounded-full bg-[var(--accent)]" />}
-                                </div>
-                                <p className="text-[11px] text-[var(--foreground-muted)] mt-0.5">{opt.desc}</p>
-                            </button>
-                        ))}
+                    <p className="text-xs text-[var(--foreground-muted)] mb-3">Ultra-low latency lossless streaming directly served via high-speed global CDN.</p>
+                    <div className="flex items-center justify-between p-3.5 rounded-xl border border-[var(--border)] bg-[var(--background)]">
+                        <div>
+                            <span className="text-sm font-semibold text-white">JioSaavn CDN</span>
+                            <p className="text-[11px] text-[var(--foreground-muted)] mt-0.5">320kbps High Quality AAC/MP3 • Active</p>
+                        </div>
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                            Connected
+                        </span>
                     </div>
                 </div>
             </section>

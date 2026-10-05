@@ -20,14 +20,11 @@ export default function ArtistPage() {
         // from one source (e.g. a JioSaavn artist opened while on YouTube) still
         // resolves instead of failing. No long backoff, so a miss fails fast.
         const fetchArtist = async (): Promise<void> => {
-            const primary = getMusicSource();
-            const order: Array<'jiosaavn' | 'youtube'> = primary === 'youtube' ? ['youtube', 'jiosaavn'] : ['jiosaavn', 'youtube'];
-            for (const src of order) {
-                try {
-                    const res = await fetch(`${sourceUrl(`/artists/${id}`, src)}?songCount=50&albumCount=50`, {
-                        headers: { 'Accept': 'application/json' }
-                    });
-                    if (!res.ok) continue;
+            try {
+                const res = await fetch(`${sourceUrl(`/artists/${id}`)}?songCount=50&albumCount=50`, {
+                    headers: { 'Accept': 'application/json' }
+                });
+                if (res.ok) {
                     const data = await res.json();
                     if (data.success && data.data && (data.data.name || (data.data.topSongs?.length))) {
                         setArtist(data.data);
@@ -35,8 +32,8 @@ export default function ArtistPage() {
                         setLoading(false);
                         return;
                     }
-                } catch { /* try next source */ }
-            }
+                }
+            } catch { /* ignore */ }
             setErrorMsg("Couldn't load this artist.");
             setLoading(false);
         };

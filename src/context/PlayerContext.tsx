@@ -6,7 +6,7 @@ import { useAudioFX } from './AudioFXContext';
 import { useRouter } from 'next/navigation';
 import { decodeHtml, normalizeTrack } from '@/lib/utils';
 import { getSong as getOfflineSong } from '@/lib/offlineDb';
-import { dedupeSongs, createSongKey, normalizeSongTitle } from '@/lib/searchUtils';
+import { dedupeSongs, createSongKey, normalizeSongTitle, isSameOrDerivativeSong } from '@/lib/searchUtils';
 import { recordListen, recordSkip, buildAutoplayQueries, buildQueuePools, rankByTaste, fetchLastfmSimilarSongs, fetchJioSaavnSuggestions } from '@/lib/recommendations';
 import { ytStreamUrl, sourceUrl, prefetchYtStream } from '@/lib/source';
 
@@ -259,49 +259,42 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
     };
 
     // Initialize Audio Context and Nodes
+    // Initialize Audio Context and Nodes (enabled across all devices)
     useEffect(() => {
         if (!audioRef.current) return;
 
-        // MOBILE (iOS + Android): routing the <audio> through createMediaElementSource
-        // makes the OS SUSPEND the AudioContext the moment the app is backgrounded/locked,
-        // which STOPS playback instantly and kills the lock-screen/notification controls.
-        // This is unavoidable — so on mobile we NEVER wire up Web Audio, even if the user
-        // enabled 3D/8D audio (that feature simply can't run on mobile without breaking
-        // background play, which is the app's core feature). Playback then works natively
-        // in the background. 3D audio + the Web Audio FX chain are DESKTOP-ONLY. Desktop is
-        // unchanged (full Web Audio chain; it has no background-suspend issue).
-        const isMobile = typeof navigator !== 'undefined' && (
-            /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) ||
-            (navigator.platform === 'MacIntel' && (navigator as any).maxTouchPoints > 1)
-        );
-        if (isMobile) return;
-
         // Initialize AudioContext only once
-        if (!audioContextRef.current) {
-            const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-            audioContextRef.current = new AudioContextClass();
+        if (!audioContextRef.current && typeof window !== 'undefined') {
+            try {
+                const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+                if (!AudioContextClass) return;
+                const ctx = new AudioContextClass();
+                audioContextRef.current = ctx;
 
-            // Create media source
-            sourceRef.current = audioContextRef.current.createMediaElementSource(audioRef.current);
+                // Create media source from primary audio element
+                sourceRef.current = ctx.createMediaElementSource(audioRef.current);
 
-            // Create 3D panner
-            pannerRef.current = audioContextRef.current.createPanner();
+                // Create 3D panner
+                pannerRef.current = ctx.createPanner();
 
-            // Connect to AudioFX effects chain
-            // source -> AudioFX chain -> fxGain
-            fxGainRef.current = connectAudioSource(sourceRef.current, audioContextRef.current);
+                // Connect to AudioFX effects chain
+                // source -> AudioFX chain -> fxGain
+                fxGainRef.current = connectAudioSource(sourceRef.current, ctx);
 
-            // Configure Panner for 3D effect (HRTF)
-            if (pannerRef.current) {
-                pannerRef.current.panningModel = 'HRTF';
-                pannerRef.current.distanceModel = 'linear';
-                pannerRef.current.refDistance = 1;
-                pannerRef.current.maxDistance = 10000;
-                pannerRef.current.rolloffFactor = 1;
-                pannerRef.current.coneInnerAngle = 360;
-                pannerRef.current.coneOuterAngle = 0;
-                pannerRef.current.coneOuterGain = 0;
-                pannerRef.current.setPosition(0, 0, 1);
+                // Configure Panner for 3D effect (HRTF)
+                if (pannerRef.current) {
+                    pannerRef.current.panningModel = 'HRTF';
+                    pannerRef.current.distanceModel = 'linear';
+                    pannerRef.current.refDistance = 1;
+                    pannerRef.current.maxDistance = 10000;
+                    pannerRef.current.rolloffFactor = 1;
+                    pannerRef.current.coneInnerAngle = 360;
+                    pannerRef.current.coneOuterAngle = 0;
+                    pannerRef.current.coneOuterGain = 0;
+                    pannerRef.current.setPosition(0, 0, 1);
+                }
+            } catch (err) {
+                console.warn('Web Audio initialization error:', err);
             }
         }
     }, [connectAudioSource, is3DActive]);
@@ -774,8 +767,8 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
 
             // Immediately set audio source and play (don't wait for useEffect)
             if (audioRef.current) {
-                audioRef.current.src = existingAudioUrl;
                 audioRef.current.crossOrigin = "anonymous";
+                audioRef.current.src = existingAudioUrl;
                 markIntendedPlay();
                 const playPromise = audioRef.current.play();
                 if (playPromise !== undefined) {
@@ -823,8 +816,8 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
                     // ("The element has no supported sources").
                     if (audioRef.current && fullAudioUrl) {
                         setIsPlaying(true);
-                        audioRef.current.src = fullAudioUrl;
                         audioRef.current.crossOrigin = "anonymous";
+                        audioRef.current.src = fullAudioUrl;
                         markIntendedPlay();
                         const playPromise = audioRef.current.play();
                         if (playPromise !== undefined) {
@@ -986,96 +979,109 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
         return scoredIndices[0].idx;
     };
 
-    // Fetch more related songs for autoplay — PERSONALIZED.
-    // Blends the seed song with the user's learned taste profile (favourite
-    // artists + language), gathers candidates from a few queries, de-dupes by
-    // title+artist, and ranks the pool by taste affinity so the next track
-    // reflects what the user actually likes — not just a same-name remix.
+    // Fetch more related songs for autoplay — PERSONALIZED & VIBE-ALIGNED.
+    // Prioritizes JioSaavn's official radio/station algorithm for matching vibe,
+    // and strictly filters out same-name covers, remixes, and duplicate tracks.
     const fetchMoreSongsForAutoplay = async (seedSong: any): Promise<any[]> => {
         try {
             const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 
             // Centralized filter: skip the seed, queued songs, recently-played, dupes,
-            // and name-twins (other songs sharing the seed's title — a dozen "Perfect"s).
-            const seedId = String(seedSong.id || seedSong.songId);
-            const seedTitleNorm = normalizeSongTitle(seedSong.name || seedSong.title || '');
-            const queueIds = new Set(queue.map(s => String(s.id || s.songId)));
+            // and ANY same-name or derivative title (no remixes, covers, or lofi versions of the seed).
+            const seedId = String(seedSong.id || seedSong.songId || '');
+            const queueIds = new Set(queue.map(s => String(s.id || s.songId || '')));
             const seenKeys = new Set<string>([
                 createSongKey(seedSong),
                 ...queue.map(s => createSongKey(s)),
                 ...playedSongKeysRef.current,
             ]);
+
             const out: any[] = [];
             const accept = (s: any): boolean => {
                 if (!s) return false;
-                const id = String(s.id || s.songId);
+                const id = String(s.id || s.songId || '');
                 const key = createSongKey(s);
-                if (id === seedId || queueIds.has(id) || seenKeys.has(key)) return false;
-                if (seedTitleNorm && normalizeSongTitle(s.name || s.title || '') === seedTitleNorm) return false;
+                if ((id && (id === seedId || queueIds.has(id))) || seenKeys.has(key)) return false;
+
+                // STRICT: Reject if title is same or derivative (e.g. remix, lofi, acoustic, same name)
+                if (isSameOrDerivativeSong(seedSong, s)) return false;
+
+                // Also reject if it matches any recently played song title
+                for (const playedKey of playedSongKeysRef.current) {
+                    const playedTitle = playedKey.split('__')[0];
+                    if (playedTitle && isSameOrDerivativeSong({ name: playedTitle }, s)) return false;
+                }
+
                 seenKeys.add(key);
                 return true;
             };
 
-            // The radio stays on the SEED song's source so the queue doesn't mix
-            // YouTube and JioSaavn tracks.
-            const seedSource = seedSong?.source === 'youtube' ? 'youtube' : 'jiosaavn';
+            // Ensure we have a valid JioSaavn seed object (with ID)
+            let resolvedSeed = seedSong;
+            if (!seedId || seedId.length > 20) {
+                try {
+                    const name = seedSong.name || seedSong.title || '';
+                    const artist = getArtist(seedSong);
+                    const qRes = await fetch(`${apiUrl}/api/search/songs?query=${encodeURIComponent(`${name} ${artist}`)}&limit=1`);
+                    const qData = await qRes.json();
+                    if (qData?.success && qData.data?.results?.[0]?.id) {
+                        resolvedSeed = qData.data.results[0];
+                    }
+                } catch { /* proceed with original */ }
+            }
 
-            // 1) PRIMARY: the source's own song-station suggestions (routes by the
-            //    seed's source — YouTube radio for YT songs, JioSaavn for JioSaavn).
+            // 1) PRIMARY & STRONGEST: JioSaavn song-station suggestions (authentic same vibe & genre)
             try {
-                const jio = await fetchJioSaavnSuggestions(seedSong);
-                for (const s of jio) if (accept(s)) out.push(s);
+                const jio = await fetchJioSaavnSuggestions(resolvedSeed);
+                for (const s of jio) {
+                    if (accept(s)) out.push(s);
+                }
             } catch { /* fall through */ }
 
-            if (seedSource === 'youtube') {
-                // YouTube fallback: more from the seed's artist (kept on YouTube).
-                if (out.length < 8) {
-                    try {
-                        const artistQ = getArtist(seedSong) || seedSong.name || seedSong.title || '';
-                        if (artistQ) {
-                            const r = await fetch(`${sourceUrl('/search/songs', 'youtube')}?query=${encodeURIComponent(artistQ)}&limit=20`);
-                            const d = r.ok ? await r.json() : null;
-                            for (const s of (d?.data?.results || [])) if (accept(s)) out.push(s);
-                        }
-                    } catch { /* ignore */ }
-                }
-            } else {
-                // 2) SUPPLEMENT: Last.fm collaborative-filtering similar songs (stronger
-                //    for Western/English). No-op if not configured. (JioSaavn only.)
-                if (out.length < 8) {
-                    try {
-                        const lf = await fetchLastfmSimilarSongs(seedSong);
-                        for (const s of lf) if (accept(s)) out.push(s);
-                    } catch { /* fall through to heuristic */ }
-                }
+            // 2) SUPPLEMENT: Last.fm collaborative-filtering similar songs
+            if (out.length < 8) {
+                try {
+                    const lf = await fetchLastfmSimilarSongs(resolvedSeed);
+                    for (const s of lf) {
+                        if (accept(s)) out.push(s);
+                    }
+                } catch { /* fall through to heuristic */ }
+            }
 
-                // 3) FALLBACK: heuristic intent pools (same artist, favourite artists,
-                //    mood/language, discovery) when the above are off or thin.
-                if (out.length < 8) {
-                    const pools = buildQueuePools(seedSong);
-                    const responses = await Promise.allSettled(
-                        pools.map(p =>
-                            fetch(`${apiUrl}/api/search/songs?query=${encodeURIComponent(p.query)}&limit=15`)
-                                .then(r => r.ok ? r.json() : null)
-                                .then(data => ({ data, pool: p }))
-                        )
-                    );
-                    for (const r of responses) {
-                        if (r.status !== 'fulfilled' || !r.value?.data?.success || !r.value.data.data?.results) continue;
-                        const { data, pool } = r.value;
-                        let added = 0;
-                        for (const s of data.data.results) {
-                            if (added >= pool.max) break;
-                            if (!accept(s)) continue;
-                            out.push(s);
-                            added++;
+            // 3) FALLBACK: Same artist top tracks (excluding same title)
+            if (out.length < 8) {
+                try {
+                    const artistQ = getArtist(resolvedSeed);
+                    if (artistQ && artistQ !== 'Various Artists' && artistQ !== 'Unknown') {
+                        const r = await fetch(`${apiUrl}/api/search/songs?query=${encodeURIComponent(`${artistQ} top hits`)}&limit=15`);
+                        const d = r.ok ? await r.json() : null;
+                        for (const s of (d?.data?.results || [])) {
+                            if (accept(s)) out.push(s);
                         }
                     }
+                } catch { /* fall through */ }
+            }
+
+            // 4) FALLBACK: Personalized Vibe & Mood queries
+            if (out.length < 8) {
+                const queries = buildAutoplayQueries(resolvedSeed);
+                const responses = await Promise.allSettled(
+                    queries.map(q =>
+                        fetch(`${apiUrl}/api/search/songs?query=${encodeURIComponent(q)}&limit=10`)
+                            .then(r => r.ok ? r.json() : null)
+                    )
+                );
+                for (const r of responses) {
+                    if (r.status !== 'fulfilled' || !r.value?.success || !r.value.data?.results) continue;
+                    for (const s of r.value.data.results) {
+                        if (accept(s)) out.push(s);
+                        if (out.length >= 20) break;
+                    }
+                    if (out.length >= 20) break;
                 }
             }
 
             if (out.length === 0) return [];
-            // Rank the blend by taste affinity (favourite artists/mood) for ordering.
             return rankByTaste(out);
         } catch (e) {
             console.log('Could not fetch more songs for autoplay:', e);
@@ -1389,8 +1395,8 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
             if (url) {
                 // If this is the initial mount (restoring from localStorage), don't autoplay
                 if (isInitialMount.current) {
-                    audioRef.current.src = url;
                     audioRef.current.crossOrigin = "anonymous";
+                    audioRef.current.src = url;
                     isInitialMount.current = false;
                     return;
                 }
@@ -1399,8 +1405,8 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
                 const isSourceChanged = audioRef.current.src !== url;
 
                 if (isSourceChanged) {
-                    audioRef.current.src = url;
                     audioRef.current.crossOrigin = "anonymous";
+                    audioRef.current.src = url;
                 }
 
                 if (isPlaying) {
@@ -1458,31 +1464,14 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
     const startRadio = async (seedSong: any) => {
         try {
             setIsRadioMode(true);
-            const songName = seedSong.name || seedSong.title || '';
-            const artistName = seedSong.artists?.primary?.[0]?.name || seedSong.artist || '';
-
-            // Search for similar songs
-            const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
-            const query = encodeURIComponent(`${artistName} ${songName}`.trim());
-            const res = await fetch(`${apiUrl}/api/search/songs?query=${query}&limit=30`);
-            if (!res.ok) { setIsRadioMode(false); return; }
-            const data = await res.json();
-
-            if (data.success && data.data?.results) {
-                // Filter out the seed song and create new queue
-                const seedId = String(seedSong.id || seedSong.songId);
-                const byId = data.data.results.filter((s: any) =>
-                    String(s.id) !== seedId
-                );
-                // Dedupe by normalized title+artist (exclude the seed) so radio
-                // doesn't replay the same track in different versions.
-                const radioSongs = dedupeSongs(byId, new Set<string>([createSongKey(seedSong)]));
-
-                // Start with seed song, add similar songs
-                const newQueue = [seedSong, ...radioSongs];
+            const moreSongs = await fetchMoreSongsForAutoplay(seedSong);
+            if (moreSongs.length > 0) {
+                const newQueue = [seedSong, ...moreSongs];
                 setQueue(newQueue);
                 setCurrentIndex(0);
                 playTrack(seedSong, newQueue);
+            } else {
+                setIsRadioMode(false);
             }
         } catch (err) {
             console.error('Failed to start radio:', err);

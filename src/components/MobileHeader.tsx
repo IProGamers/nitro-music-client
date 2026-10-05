@@ -25,12 +25,12 @@ export default function MobileHeader() {
 
     return (
         <>
-            <div className="md:hidden sticky top-0 w-full h-16 bg-[var(--background)]/90 backdrop-blur-xl border-b border-[var(--border)] flex items-center justify-between px-4 shrink-0 z-40 transition-all duration-300">
-                <Link href="/" className="flex items-center gap-3">
-                    <img src="/logo.png" className="w-8 h-8 rounded-lg shadow-lg" alt="Logo" />
-                    <div className="flex items-baseline gap-1.5">
-                        <div className="text-xl font-bold text-cyan-400 tracking-tighter">Nitro</div>
-                        <div className="text-[8px] font-bold text-[var(--foreground-muted)] tracking-widest lowercase opacity-60">by ipro</div>
+            <div className="md:hidden sticky top-0 w-full h-14 bg-[#030303]/90 backdrop-blur-xl border-b border-white/[0.06] flex items-center justify-between px-4 shrink-0 z-40 transition-all duration-300">
+                <Link href="/" className="flex items-center gap-2.5">
+                    <img src="/logo.png" className="w-7 h-7 rounded-md shadow-md" alt="Logo" />
+                    <div className="flex items-center gap-1.5">
+                        <span className="text-lg font-bold text-white tracking-tight">Nitro</span>
+                        <span className="text-xs font-semibold text-neutral-400">Music</span>
                     </div>
                 </Link>
                 <div className="flex items-center gap-2">

@@ -161,9 +161,11 @@ export const buildAutoplayQueries = (seedSong: any): string[] => {
     });
     // 3) Favourite-language hits seeded by a top artist
     if (lang) queries.push(`${lang} ${topArtists[0] || ''} hits`.trim());
-    // 4) Fallback to the seed track name
-    const seedName = seedSong?.name || seedSong?.title || '';
-    if (seedName) queries.push(seedName);
+    // 4) Same mood + language vibe (never seed song name, which produces remix/dupe spam)
+    const mood = detectMood(seedSong);
+    const songLang = detectLanguage(seedSong) || lang || 'hindi';
+    if (mood) queries.push(`${songLang} ${mood} hits`.trim());
+    else queries.push(`${songLang} top songs`.trim());
 
     // De-dupe while preserving order
     return Array.from(new Set(queries.filter(Boolean)));

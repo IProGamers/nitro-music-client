@@ -202,8 +202,8 @@ export default function Sidebar() {
 
             {/* Mobile Bottom Nav — personalised Nitro tab bar */}
             {pathname !== '/auth' && !userProfile?.arihantMode && (
-                <nav className="md:hidden fixed bottom-0 left-0 w-full bg-[var(--background)]/90 backdrop-blur-2xl border-t border-[var(--border)] z-40 pb-safe">
-                    <div className="flex justify-around items-stretch h-[58px]">
+                <nav className="md:hidden fixed bottom-0 left-0 w-full bg-[#030303]/95 backdrop-blur-2xl border-t border-white/[0.08] z-40 pb-safe">
+                    <div className="flex justify-around items-stretch h-[56px]">
                         {[
                             { name: 'Home', href: '/', icon: Home },
                             { name: 'Search', href: '/search', icon: Search },
@@ -215,37 +215,35 @@ export default function Sidebar() {
                                 <Link
                                     key={l.name}
                                     href={l.href}
-                                    className="relative flex flex-col items-center justify-center gap-1 flex-1 group"
+                                    className="relative flex flex-col items-center justify-center gap-1 flex-1 group active:scale-95 transition-transform"
                                 >
-                                    {active && <span className="absolute top-0 w-8 h-[3px] rounded-full bg-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.6)]" />}
                                     <Icon
-                                        size={23}
-                                        strokeWidth={active ? 2.6 : 2}
-                                        className={`transition-colors ${active ? 'text-cyan-400' : 'text-[var(--foreground-muted)] group-active:text-[var(--foreground)]'}`}
+                                        size={22}
+                                        strokeWidth={active ? 2.5 : 1.8}
+                                        className={`transition-colors ${active ? 'text-white' : 'text-[#909090] group-hover:text-white'}`}
                                     />
-                                    <span className={`text-[10px] tracking-tight transition-colors ${active ? 'text-cyan-400 font-semibold' : 'text-[var(--foreground-muted)] font-medium'}`}>{l.name}</span>
+                                    <span className={`text-[10px] tracking-tight transition-colors ${active ? 'text-white font-semibold' : 'text-[#909090] font-normal'}`}>{l.name}</span>
                                 </Link>
                             );
                         })}
 
-                        {/* Profile tab — uses the user's own avatar (personalised) */}
+                        {/* Profile tab */}
                         {(() => {
                             const profileHref = mounted && user ? '/profile' : '/auth';
                             const active = pathname === profileHref || pathname === '/profile';
                             const initial = userProfile?.displayName?.[0]?.toUpperCase() || 'U';
                             return (
-                                <Link href={profileHref} className="relative flex flex-col items-center justify-center gap-1 flex-1 group">
-                                    {active && <span className="absolute top-0 w-8 h-[3px] rounded-full bg-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.6)]" />}
-                                    <div className={`w-[26px] h-[26px] rounded-full overflow-hidden flex items-center justify-center transition-all ${active ? 'ring-2 ring-cyan-400' : 'ring-1 ring-[var(--border)]'}`}>
+                                <Link href={profileHref} className="relative flex flex-col items-center justify-center gap-1 flex-1 group active:scale-95 transition-transform">
+                                    <div className={`w-[24px] h-[24px] rounded-full overflow-hidden flex items-center justify-center transition-all ${active ? 'ring-2 ring-white' : 'ring-1 ring-white/20'}`}>
                                         {mounted && user && userProfile?.photoURL ? (
                                             <img src={userProfile.photoURL} className="w-full h-full object-cover" alt="" />
                                         ) : mounted && user ? (
-                                            <div className="w-full h-full bg-gradient-to-br from-cyan-500 to-purple-600 flex items-center justify-center text-white text-[11px] font-bold">{initial}</div>
+                                            <div className="w-full h-full bg-neutral-800 flex items-center justify-center text-white text-[11px] font-bold">{initial}</div>
                                         ) : (
-                                            <User size={16} className={active ? 'text-cyan-400' : 'text-[var(--foreground-muted)]'} />
+                                            <User size={14} className={active ? 'text-white' : 'text-[#909090]'} />
                                         )}
                                     </div>
-                                    <span className={`text-[10px] tracking-tight transition-colors ${active ? 'text-cyan-400 font-semibold' : 'text-[var(--foreground-muted)] font-medium'}`}>{mounted && user ? 'You' : 'Sign in'}</span>
+                                    <span className={`text-[10px] tracking-tight transition-colors ${active ? 'text-white font-semibold' : 'text-[#909090] font-normal'}`}>{mounted && user ? 'You' : 'Sign in'}</span>
                                 </Link>
                             );
                         })()}

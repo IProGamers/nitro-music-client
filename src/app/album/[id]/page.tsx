@@ -18,22 +18,19 @@ export default function AlbumPage() {
         // Try current source first, then fall back to the other (handles an id
         // from the non-active source). Fails fast — no slow retry loop.
         const fetchAlbum = async () => {
-            const primary = getMusicSource();
-            const order: Array<'jiosaavn' | 'youtube'> = primary === 'youtube' ? ['youtube', 'jiosaavn'] : ['jiosaavn', 'youtube'];
-            for (const src of order) {
-                try {
-                    const res = await fetch(`${sourceUrl('/albums', src)}?id=${id}`, {
-                        headers: { 'Accept': 'application/json' }
-                    });
-                    if (!res.ok) continue;
+            try {
+                const res = await fetch(`${sourceUrl('/albums')}?id=${id}`, {
+                    headers: { 'Accept': 'application/json' }
+                });
+                if (res.ok) {
                     const data = await res.json();
                     if (data.success && data.data && (data.data.name || data.data.songs?.length)) {
                         setAlbum(data.data);
                         setLoading(false);
                         return;
                     }
-                } catch { /* try next source */ }
-            }
+                }
+            } catch { /* ignore */ }
             setLoading(false);
         };
 

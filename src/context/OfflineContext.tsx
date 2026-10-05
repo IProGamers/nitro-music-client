@@ -108,26 +108,34 @@ export function OfflineProvider({ children }: { children: ReactNode }) {
             // Resolve the audio URL. YouTube songs stream through our YouTube proxy
             // (absolute URL on the YT host) — never the relative /api/youtube/stream
             // path, which would resolve against the client origin and 404.
-            let fetchUrl: string;
-            if (song.source === 'youtube') {
-                fetchUrl = ytStreamUrl(String(song.id || song.songId || ''));
-            } else {
-                let audioUrl = song.audioUrl;
-                if (!audioUrl && song.downloadUrl?.length) {
-                    // Use highest quality available
-                    audioUrl = song.downloadUrl[song.downloadUrl.length - 1]?.url ||
-                        song.downloadUrl[song.downloadUrl.length - 1]?.link;
-                }
-                if (!audioUrl) {
-                    throw new Error('No audio URL available for this song');
-                }
-                // In production, use our audio proxy to bypass CORS for JioSaavn CDN.
-                const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
-                const isProduction = typeof window !== 'undefined' && !window.location.hostname.includes('localhost');
-                fetchUrl = audioUrl;
-                if (isProduction || apiUrl.includes('vercel') || apiUrl.includes('netlify')) {
-                    fetchUrl = `${apiUrl}/api/audio/proxy?url=${encodeURIComponent(audioUrl)}`;
-                }
+            let audioUrl = song.audioUrl;
+            if (!audioUrl && song.downloadUrl?.length) {
+                audioUrl = song.downloadUrl[song.downloadUrl.length - 1]?.url ||
+                    song.downloadUrl[song.downloadUrl.length - 1]?.link;
+            }
+            if (!audioUrl) {
+                // If song object has no direct download URL, query song detail by ID
+                const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+                try {
+                    const detailRes = await fetch(`${apiUrl}/api/songs/${songId}`);
+                    const detailData = await detailRes.json();
+                    if (detailData?.success && detailData.data?.length) {
+                        const dSong = detailData.data[0];
+                        audioUrl = dSong.downloadUrl?.[dSong.downloadUrl.length - 1]?.url ||
+                            dSong.downloadUrl?.[dSong.downloadUrl.length - 1]?.link;
+                    }
+                } catch { /* ignore fallback error */ }
+            }
+
+            if (!audioUrl) {
+                throw new Error('No audio URL available for this song');
+            }
+
+            const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+            const isProduction = typeof window !== 'undefined' && !window.location.hostname.includes('localhost');
+            let fetchUrl = audioUrl;
+            if (isProduction || apiUrl.includes('vercel') || apiUrl.includes('netlify')) {
+                fetchUrl = `${apiUrl}/api/audio/proxy?url=${encodeURIComponent(audioUrl)}`;
             }
 
             // Fetch audio with progress tracking
@@ -176,7 +184,7 @@ export function OfflineProvider({ children }: { children: ReactNode }) {
                 artist = song.primaryArtists;
             }
 
-            // Save to IndexedDB
+            // 1. Save to IndexedDB for in-app offline listening
             await saveSong({
                 id: songId,
                 name: song.name || song.title || 'Unknown',
@@ -185,6 +193,22 @@ export function OfflineProvider({ children }: { children: ReactNode }) {
                 image,
                 audioBlob
             }, audioBlob);
+
+            // 2. Trigger browser download to device storage (.mp3)
+            try {
+                const blobUrl = URL.createObjectURL(audioBlob);
+                const a = document.createElement('a');
+                a.href = blobUrl;
+                const safeName = (song.name || song.title || 'song').replace(/[\\/:*?"<>|]/g, '');
+                const safeArtist = artist.replace(/[\\/:*?"<>|]/g, '');
+                a.download = `${safeArtist} - ${safeName}.mp3`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+            } catch (dlErr) {
+                console.warn('Browser file download trigger error:', dlErr);
+            }
 
             // Refresh downloads list
             await refreshDownloads();

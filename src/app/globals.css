@@ -1,66 +1,79 @@
 @import "tailwindcss";
 
-/* Dark Theme (Default) - Premium layered surfaces */
+/* YouTube Music Matte Dark Theme (Default) */
 :root,
 .dark-theme {
-  /* Layered near-black surfaces (depth without pure #000 flatness) */
-  --background: #0a0a0b;
-  --background-secondary: #111113;
-  --background-tertiary: #1a1a1d;
-  --foreground: #f4f4f5;
-  --foreground-secondary: #b4b4bb;
-  --foreground-muted: #80808a;
+  /* Matte dark surfaces (clean YouTube Music aesthetic) */
+  --background: #030303;
+  --background-secondary: #0f0f0f;
+  --background-tertiary: #181818;
+  --foreground: #ffffff;
+  --foreground-secondary: #aaaaaa;
+  --foreground-muted: #717171;
 
-  /* Solid elevated card surfaces (premium, not washed glassmorphism) */
-  --border: rgba(255, 255, 255, 0.07);
-  --border-hover: rgba(255, 255, 255, 0.14);
-  --card: rgba(255, 255, 255, 0.035);
-  --card-hover: rgba(255, 255, 255, 0.07);
-  --surface: #161618;
-  --surface-hover: #1f1f23;
-  --overlay: rgba(0, 0, 0, 0.88);
-  --shadow: rgba(0, 0, 0, 0.45);
+  /* YouTube Music Cards & Surfaces */
+  --border: rgba(255, 255, 255, 0.08);
+  --border-hover: rgba(255, 255, 255, 0.16);
+  --card: #121212;
+  --card-hover: #1e1e1e;
+  --surface: #181818;
+  --surface-hover: #242424;
+  --overlay: rgba(0, 0, 0, 0.92);
+  --shadow: rgba(0, 0, 0, 0.6);
 
-  /* Accent Colors */
-  --accent-cyan: #22d3ee;
+  /* Accents */
+  --accent: #ffffff;
+  --accent-red: #ff0033;
+  --accent-cyan: #3ea6ff;
   --accent-purple: #a855f7;
   --accent-amber: #f59e0b;
   --accent-pink: #ec4899;
   --accent-emerald: #10b981;
-  --accent: #22d3ee;
 
-  /* Gradient Definitions */
-  --gradient-primary: linear-gradient(135deg, rgba(34, 211, 238, 0.14), rgba(0, 0, 0, 0));
-  --gradient-glass: linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.02) 100%);
+  /* YouTube Music Chip Colors */
+  --chip-bg: rgba(255, 255, 255, 0.08);
+  --chip-hover: rgba(255, 255, 255, 0.15);
+  --chip-active-bg: #ffffff;
+  --chip-active-text: #030303;
+
+  /* Gradient Definitions - Subtle, not aggressive neon */
+  --gradient-primary: linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, rgba(0, 0, 0, 0) 100%);
+  --gradient-glass: linear-gradient(180deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.01) 100%);
 }
 
-/* Light Theme - Clean Modern */
+/* Light Theme - Clean Monochrome */
 .light-theme {
   --background: #ffffff;
-  --background-secondary: #fafafa;
-  --background-tertiary: #f4f4f5;
-  --foreground: #09090b;
-  --foreground-secondary: #52525b;
-  --foreground-muted: #a1a1aa;
+  --background-secondary: #f8f8f8;
+  --background-tertiary: #eeeeee;
+  --foreground: #030303;
+  --foreground-secondary: #606060;
+  --foreground-muted: #909090;
 
-  --border: rgba(0, 0, 0, 0.06);
-  --border-hover: rgba(0, 0, 0, 0.12);
-  --card: rgba(0, 0, 0, 0.02);
-  --card-hover: rgba(0, 0, 0, 0.05);
-  --surface: #ffffff;
-  --surface-hover: #f4f4f5;
-  --overlay: rgba(255, 255, 255, 0.9);
-  --shadow: rgba(0, 0, 0, 0.08);
+  --border: rgba(0, 0, 0, 0.08);
+  --border-hover: rgba(0, 0, 0, 0.16);
+  --card: #ffffff;
+  --card-hover: #f2f2f2;
+  --surface: #f9f9f9;
+  --surface-hover: #ebebeb;
+  --overlay: rgba(255, 255, 255, 0.92);
+  --shadow: rgba(0, 0, 0, 0.06);
 
-  --accent-cyan: #0891b2;
+  --accent: #030303;
+  --accent-red: #cc0000;
+  --accent-cyan: #065fd4;
   --accent-purple: #7e22ce;
   --accent-amber: #d97706;
   --accent-pink: #be185d;
   --accent-emerald: #059669;
-  --accent: #0891b2;
 
-  --gradient-primary: linear-gradient(135deg, rgba(8, 145, 178, 0.1), rgba(255, 255, 255, 0));
-  --gradient-glass: linear-gradient(180deg, rgba(0, 0, 0, 0.02) 0%, rgba(0, 0, 0, 0.05) 100%);
+  --chip-bg: rgba(0, 0, 0, 0.06);
+  --chip-hover: rgba(0, 0, 0, 0.1);
+  --chip-active-bg: #030303;
+  --chip-active-text: #ffffff;
+
+  --gradient-primary: linear-gradient(180deg, rgba(0, 0, 0, 0.03) 0%, rgba(255, 255, 255, 0) 100%);
+  --gradient-glass: linear-gradient(180deg, rgba(0, 0, 0, 0.02) 0%, rgba(0, 0, 0, 0.01) 100%);
 }
 
 @theme inline {
@@ -113,6 +126,49 @@ h1, h2, h3, h4 {
 *::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.22);
   background-clip: content-box;
+}
+
+/* ---- Apple Music Frosted Glassmorphism Primitives ---- */
+.apple-glass {
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.36);
+}
+
+.apple-glass:hover {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+.apple-glass-heavy {
+  background: rgba(10, 10, 10, 0.78);
+  backdrop-filter: blur(36px) saturate(190%);
+  -webkit-backdrop-filter: blur(36px) saturate(190%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.5);
+}
+
+.apple-glass-pill {
+  background: rgba(255, 255, 255, 0.07);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.apple-glass-pill:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.22);
+}
+
+.ambient-glow {
+  position: absolute;
+  filter: blur(80px);
+  opacity: 0.35;
+  pointer-events: none;
+  border-radius: 9999px;
+  will-change: transform;
 }
 
 /* ---- Reusable premium primitives ---- */

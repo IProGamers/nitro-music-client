@@ -124,8 +124,29 @@ export default function Home() {
 
   const userName = userProfile?.displayName?.split(' ')[0] || '';
 
+  // Sync homeData from context to local states whenever homeData is updated
+  useEffect(() => {
+    if (homeData && Array.isArray(homeData.trending) && homeData.trending.length > 0) {
+      setTrending(homeData.trending);
+      setNewReleases(homeData.newReleases || []);
+      setFeaturedArtists(homeData.featuredArtists || []);
+      setBollywoodHits(homeData.bollywoodHits || []);
+      setTopCharts(homeData.topCharts || []);
+      setPartyMix(homeData.partyMix || []);
+      setInternationalHits(homeData.internationalHits || []);
+      setGlobalPop(homeData.globalPop || []);
+      setLastPlayed(homeData.lastPlayed || []);
+      setIconicEnglish(homeData.iconicEnglish || []);
+      setIconicHindi(homeData.iconicHindi || []);
+      setPunjabiHits(homeData.punjabiHits || []);
+      setTopArtists(homeData.topArtists || []);
+      setLoading(false);
+    }
+  }, [homeData]);
+
   useEffect(() => {
     const fetchData = async () => {
+      if (trending.length === 0) setLoading(true);
       try {
         const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
         // Route the whole home feed to the selected source.
@@ -150,7 +171,7 @@ export default function Home() {
         const trendingKeywords = [
           'trending songs',
           'trending hindi songs',
-          'viral songs',
+          'superhit bollywood songs',
           'top hits hindi',
           'bollywood trending',
           'top bollywood songs',
@@ -399,14 +420,14 @@ export default function Home() {
     // Refetch when the user switches music source (feed was built from another source).
     const sourceChanged = homeData && (homeData as any).source && (homeData as any).source !== musicSource;
 
-    if (!hasLoadedHome || isStale || sourceChanged) {
+    if (!hasLoadedHome || isStale || sourceChanged || !homeData?.trending?.length || trending.length === 0) {
       fetchData();
     } else {
       setLoading(false);
     }
 
     if (user) fetchPlaylists();
-  }, [hasLoadedHome, homeData, setHomeData, setHasLoadedHome, user, getUserPlaylists, getRecentPlays, musicSource]);
+  }, [hasLoadedHome, homeData, setHomeData, setHasLoadedHome, user, getUserPlaylists, getRecentPlays, musicSource, trending.length]);
 
   // Hero slider auto-rotation for PC only
   useEffect(() => {

@@ -146,29 +146,6 @@ export default function SearchPage() {
             try {
                 const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 
-                // YouTube source: hit the YouTube module and shape it like the
-                // unified JioSaavn response. Albums/artists/playlists come later.
-                if (musicSource === 'youtube') {
-                    const ytRes = await fetch(`${sourceUrl('/search/songs')}?query=${encodeURIComponent(searchTerm)}&limit=30`, { signal: controller.signal });
-                    const ytData = await ytRes.json();
-                    const ytSongs = ytData?.success ? (ytData.data?.results || []) : [];
-                    const shaped: any = {
-                        songs: { results: ytSongs },
-                        albums: { results: [] },
-                        artists: { results: [] },
-                        playlists: { results: [] },
-                        topQuery: { results: ytSongs.slice(0, 1) }
-                    };
-                    setResults(shaped);
-                    searchCache.set(searchTerm, shaped);
-                    setActiveTab('all');
-                    setLoading(false);
-                    // Warm just the top couple of results (the most likely taps) so the
-                    // first play is fast WITHOUT flooding the resolver — hover + the
-                    // next-in-queue prefetch cover the rest on demand.
-                    ytSongs.slice(0, 2).forEach((s: any) => prefetchYtStream(s));
-                    return;
-                }
 
                 // Check if this is a trending song search
                 const trendingSong = getTrendingSongForQuery(searchTerm);
@@ -744,9 +721,7 @@ export default function SearchPage() {
                             // decorations ("(From …)", "(feat …)") that break the strict
                             // prefix check — so for YouTube we trust the first result as the
                             // Top Result (also accept a contains-match for either source).
-                            const strongMatch = musicSource === 'youtube'
-                                ? (!!_q && !!_t)
-                                : (!!_q && !!_t && (_t === _q || _t.startsWith(_q) || _q.startsWith(_t)));
+                            const strongMatch = !!_q && !!_t && (_t === _q || _t.startsWith(_q) || _q.startsWith(_t));
                             if (query.trim().length < 3 || !strongMatch) return null;
 
                             return (

@@ -63,6 +63,40 @@ export const createSongKey = (song: any): string => {
 };
 
 /**
+ * Check if candidate song is the same song, cover, remix, or derivative title of the seed song.
+ * Prevents autoplay from recommending multiple versions of the exact same song name.
+ */
+export const isSameOrDerivativeSong = (seedSong: any, candidateSong: any): boolean => {
+    if (!seedSong || !candidateSong) return false;
+    const idA = String(seedSong.id || seedSong.songId || '');
+    const idB = String(candidateSong.id || candidateSong.songId || '');
+    if (idA && idB && idA === idB) return true;
+
+    const titleA = normalizeSongTitle(seedSong.name || seedSong.title || '');
+    const titleB = normalizeSongTitle(candidateSong.name || candidateSong.title || '');
+    if (!titleA || !titleB) return false;
+
+    // Exact normalized title match
+    if (titleA === titleB) return true;
+
+    // One contains the other when title has significant length (>= 4 chars)
+    if (titleA.length >= 4 && titleB.length >= 4) {
+        if (titleA.includes(titleB) || titleB.includes(titleA)) return true;
+    }
+
+    // Word token overlap: if more than 50% of meaningful words (>2 chars) overlap
+    const wordsA = titleA.split(' ').filter(w => w.length > 2);
+    const wordsB = new Set(titleB.split(' ').filter(w => w.length > 2));
+    if (wordsA.length > 0 && wordsB.size > 0) {
+        const overlap = wordsA.filter(w => wordsB.has(w)).length;
+        const ratio = overlap / Math.min(wordsA.length, wordsB.size);
+        if (ratio >= 0.5) return true;
+    }
+
+    return false;
+};
+
+/**
  * Deduplicate a list of songs by normalized title+artist.
  * Optionally exclude a set of song keys (e.g. the seed song + already-queued songs)
  * so autoplay never queues the same song in a different version/remix.

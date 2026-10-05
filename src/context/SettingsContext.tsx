@@ -44,7 +44,7 @@ export const SettingsProvider = ({ children }: { children: React.ReactNode }) =>
     const [language, setLanguage] = useState('English');
     const [region, setRegion] = useState('Global');
     const [crossfadeDuration, setCrossfadeDuration] = useState(0); // 0 = off, 1-12 seconds
-    const [musicSource, setMusicSource] = useState<'jiosaavn' | 'youtube'>('youtube');
+    const [musicSource, setMusicSource] = useState<'jiosaavn' | 'youtube'>('jiosaavn');
 
     // Get tier and isAdmin from userProfile (Firebase)
     // Map legacy NITRO_ULTRA to NITRO_SUPREME for backward compatibility
@@ -77,7 +77,9 @@ export const SettingsProvider = ({ children }: { children: React.ReactNode }) =>
         if (saved.lang) setLanguage(saved.lang);
         if (saved.region) setRegion(saved.region);
         if (saved.crossfade) setCrossfadeDuration(parseInt(saved.crossfade, 10));
-        if (saved.source === 'youtube' || saved.source === 'jiosaavn') setMusicSource(saved.source);
+        // Always enforce JioSaavn as active source
+        setMusicSource('jiosaavn');
+        localStorage.setItem('nitro_setting_source', 'jiosaavn');
     }, []);
 
     useEffect(() => {
@@ -89,7 +91,7 @@ export const SettingsProvider = ({ children }: { children: React.ReactNode }) =>
         localStorage.setItem('nitro_setting_lang', language);
         localStorage.setItem('nitro_setting_region', region);
         localStorage.setItem('nitro_setting_crossfade', crossfadeDuration.toString());
-        localStorage.setItem('nitro_setting_source', musicSource);
+        localStorage.setItem('nitro_setting_source', 'jiosaavn');
     }, [enableDownload, enable3DAudio, audioQuality, autoPlay, visualizer, language, region, crossfadeDuration, musicSource]);
 
     return (
