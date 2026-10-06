@@ -258,10 +258,25 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
         }, 11000);
     };
 
-    // Initialize Audio Context and Nodes
-    // Initialize Audio Context and Nodes (enabled across all devices)
+// Helper to detect mobile/iOS devices where Web Audio must not hijack HTMLMediaElement
+const checkIsMobile = (): boolean => {
+    if (typeof navigator === 'undefined') return false;
+    return (
+        /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) ||
+        (navigator.platform === 'MacIntel' && (navigator as any).maxTouchPoints > 1)
+    );
+};
+
+    // Initialize Audio Context and Nodes (Desktop only)
     useEffect(() => {
         if (!audioRef.current) return;
+
+        // MOBILE (iOS + Android): routing the <audio> through createMediaElementSource
+        // makes iOS WebKit SUSPEND the AudioContext the moment the app is backgrounded/locked,
+        // which STOPS playback instantly and kills lock-screen/notification controls.
+        // Therefore, on mobile/iOS we NEVER wire up Web Audio to the primary audio element.
+        // The <audio> element plays natively via iOS AVPlayer, which natively runs in background.
+        if (checkIsMobile()) return;
 
         // Initialize AudioContext only once
         if (!audioContextRef.current && typeof window !== 'undefined') {
@@ -301,6 +316,7 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
 
     // Handle Routing with optional 3D Panner
     useEffect(() => {
+        if (checkIsMobile()) return;
         if (is3DActive && pannerRef.current && fxGainRef.current && audioContextRef.current) {
             // Path: AudioFX Chain -> Panner -> Destination
             fxGainRef.current.disconnect();
@@ -319,7 +335,7 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
     const angleRef = useRef<number>(0);
 
     useEffect(() => {
-        if (!is3DActive || !pannerRef.current || !isPlaying) {
+        if (checkIsMobile() || !is3DActive || !pannerRef.current || !isPlaying) {
             if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
             // Reset position to center if inactive
             if (pannerRef.current) pannerRef.current.setPosition(0, 0, 1);
@@ -355,7 +371,7 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
 
     // Resume context if suspended (browser policy)
     useEffect(() => {
-        if (audioContextRef.current?.state === 'suspended' && isPlaying) {
+        if (!checkIsMobile() && audioContextRef.current?.state === 'suspended' && isPlaying) {
             audioContextRef.current.resume();
         }
     }, [isPlaying]);
@@ -751,24 +767,23 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
         }
 
 
-        // Check if the song already has audio data OR is available offline
-        const offlineAudioUrl = await getAudioWithOffline(song);
-        const existingAudioUrl = offlineAudioUrl || getAudio(song);
+        // Check if the song already has streaming audio data
+        const directAudioUrl = getAudio(song);
 
-        if (existingAudioUrl) {
-            // Song has audio (either offline or streaming) - play directly
-            // If from offline, attach the blob URL to the song object for the player
-            const songToPlay = offlineAudioUrl
-                ? { ...song, audioUrl: existingAudioUrl, isOffline: true }
-                : song;
-            setCurrentSong(songToPlay);
+        if (directAudioUrl) {
+            // Song has audio - play directly and synchronously (crucial for continuous background play on iOS)
+            setCurrentSong(song);
             setIsPlaying(true);
             setIsLoadingSong(false);
 
-            // Immediately set audio source and play (don't wait for useEffect)
+            // Immediately set audio source and play (don't wait for async operations)
             if (audioRef.current) {
-                audioRef.current.crossOrigin = "anonymous";
-                audioRef.current.src = existingAudioUrl;
+                if (!checkIsMobile()) {
+                    audioRef.current.crossOrigin = "anonymous";
+                } else {
+                    audioRef.current.removeAttribute('crossorigin');
+                }
+                audioRef.current.src = directAudioUrl;
                 markIntendedPlay();
                 const playPromise = audioRef.current.play();
                 if (playPromise !== undefined) {
@@ -780,11 +795,22 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
                         }
                     });
                 }
-                // Resume audio context if needed
-                if (audioContextRef.current?.state === 'suspended') {
+                // Resume audio context if needed (desktop only)
+                if (!checkIsMobile() && audioContextRef.current?.state === 'suspended') {
                     audioContextRef.current.resume();
                 }
             }
+
+            // Check offline storage in background without blocking immediate playback
+            getOfflineSong(trackId).then(offlineSong => {
+                if (offlineSong?.audioBlob && audioRef.current) {
+                    const blobUrl = URL.createObjectURL(offlineSong.audioBlob);
+                    setCurrentSong((prev: any) => (prev && String(prev.songId || prev.id) === trackId)
+                        ? { ...prev, audioUrl: blobUrl, isOffline: true }
+                        : prev
+                    );
+                }
+            }).catch(() => {});
 
             // Play history is stored in Firebase only (no server database).
             // Save to Firebase for signed-in users
@@ -801,8 +827,7 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
             // Need to fetch full song data - keep loading indicator on
             setCurrentSong(song);
             try {
-                const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
-                const res = await fetch(`${apiUrl}/api/songs/${trackId}`);
+                const res = await fetch(sourceUrl(`/songs/${trackId}`));
                 const data = await res.json();
                 if (data.success && data.data && data.data[0]) {
                     const fullSong = data.data[0];
@@ -816,7 +841,11 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
                     // ("The element has no supported sources").
                     if (audioRef.current && fullAudioUrl) {
                         setIsPlaying(true);
-                        audioRef.current.crossOrigin = "anonymous";
+                        if (!checkIsMobile()) {
+                            audioRef.current.crossOrigin = "anonymous";
+                        } else {
+                            audioRef.current.removeAttribute('crossorigin');
+                        }
                         audioRef.current.src = fullAudioUrl;
                         markIntendedPlay();
                         const playPromise = audioRef.current.play();
@@ -827,7 +856,7 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
                                 }
                             });
                         }
-                        if (audioContextRef.current?.state === 'suspended') {
+                        if (!checkIsMobile() && audioContextRef.current?.state === 'suspended') {
                             audioContextRef.current.resume();
                         }
                     } else {
@@ -848,13 +877,13 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
                     }
                 } else {
                     console.log("Could not fetch song details — no audio source available");
-                    setIsPlaying(false);
                     setIsLoadingSong(false);
+                    setIsPlaying(false);
                 }
-            } catch (e) {
-                console.log("Failed to fetch song details — no audio source available", e);
-                setIsPlaying(false);
+            } catch (err) {
+                console.error("Failed to load song details", err);
                 setIsLoadingSong(false);
+                setIsPlaying(false);
             }
         }
     };
@@ -1395,7 +1424,11 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
             if (url) {
                 // If this is the initial mount (restoring from localStorage), don't autoplay
                 if (isInitialMount.current) {
-                    audioRef.current.crossOrigin = "anonymous";
+                    if (!checkIsMobile()) {
+                        audioRef.current.crossOrigin = "anonymous";
+                    } else {
+                        audioRef.current.removeAttribute('crossorigin');
+                    }
                     audioRef.current.src = url;
                     isInitialMount.current = false;
                     return;
@@ -1405,7 +1438,11 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
                 const isSourceChanged = audioRef.current.src !== url;
 
                 if (isSourceChanged) {
-                    audioRef.current.crossOrigin = "anonymous";
+                    if (!checkIsMobile()) {
+                        audioRef.current.crossOrigin = "anonymous";
+                    } else {
+                        audioRef.current.removeAttribute('crossorigin');
+                    }
                     audioRef.current.src = url;
                 }
 
@@ -1417,7 +1454,7 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
 
                         if (playPromise !== undefined) {
                             playPromise.then(() => {
-                                if (audioContextRef.current?.state === 'suspended') {
+                                if (!checkIsMobile() && audioContextRef.current?.state === 'suspended') {
                                     audioContextRef.current.resume();
                                 }
                             }).catch(e => {
@@ -1530,7 +1567,7 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
             {children}
             <audio
                 ref={audioRef}
-                crossOrigin="anonymous"
+                preload="auto"
                 playsInline
                 {...{ 'webkit-playsinline': 'true', 'x-webkit-airplay': 'allow' }}
                 onLoadStart={() => { if (wantPlayingRef.current) armStall(); }}
