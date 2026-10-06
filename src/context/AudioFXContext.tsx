@@ -62,7 +62,9 @@ interface AudioFXContextType {
     analyserNode: AnalyserNode | null;
 
     // Connect audio effects
-    connectAudioSource: (source: MediaElementAudioSourceNode, context: AudioContext) => GainNode;
+    connectAudioSource: (source: AudioNode, context: AudioContext) => GainNode;
+    connectSecondarySource: (source: AudioNode) => void;
+    applyCurrentEffects: () => void;
 }
 
 const AudioFXContext = createContext<AudioFXContextType | undefined>(undefined);
@@ -128,17 +130,13 @@ export const AudioFXProvider = ({ children }: { children: React.ReactNode }) => 
     const sleepIntervalRef = useRef<NodeJS.Timeout | null>(null);
     const hapticIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-    // Equalizer setter - applies to biquad filters in real-time
+    // Equalizer setter - applies to biquad filters in real-time and persists
     const setEqualizerSettings = useCallback((settings: { bass: number; mid: number; treble: number }) => {
         setEqualizerSettingsState(settings);
-        if (biquadFiltersRef.current.length >= 3) {
-            const [lowFilter, midFilter, highFilter] = biquadFiltersRef.current;
-            lowFilter.gain.value = settings.bass;
-            midFilter.gain.value = settings.mid;
-            highFilter.gain.value = settings.treble;
-        }
+        try {
+            localStorage.setItem('nitro_equalizer', JSON.stringify(settings));
+        } catch { }
     }, []);
-
 
     // Load settings from localStorage
     useEffect(() => {
@@ -153,6 +151,11 @@ export const AudioFXProvider = ({ children }: { children: React.ReactNode }) => 
         if (savedHaptic) setHapticEnabled(savedHaptic === 'true');
         if (savedCrossfade) setCrossfadeEnabled(savedCrossfade === 'true');
         if (savedVisualizer) setVisualizerStyle(savedVisualizer as any);
+
+        const savedEq = localStorage.getItem('nitro_equalizer');
+        if (savedEq) {
+            try { setEqualizerSettingsState(JSON.parse(savedEq)); } catch { }
+        }
 
         const savedVisualizerEnabled = localStorage.getItem('nitro_visualizer_enabled');
         if (savedVisualizerEnabled !== null) setVisualizerEnabled(savedVisualizerEnabled !== 'false');
@@ -283,19 +286,117 @@ export const AudioFXProvider = ({ children }: { children: React.ReactNode }) => 
         return () => cancelAnimationFrame(animationId);
     }, [analyserNode]);
 
+    // Input filter ref to allow secondary crossfade audio element to route through the same FX chain
+    const inputFilterRef = useRef<BiquadFilterNode | null>(null);
+
     // Refs for wet/dry gain control
     const dryGainRef = useRef<GainNode | null>(null);
     const wetGainRef = useRef<GainNode | null>(null);
 
-    // Connect audio source with effects chain
-    const connectAudioSource = useCallback((source: MediaElementAudioSourceNode, context: AudioContext) => {
+    // Keep refs in sync with state for instantaneous access across renders/callbacks
+    const sceneModeRef = useRef<SceneMode>(sceneMode);
+    const equalizerSettingsRef = useRef(equalizerSettings);
+    const vocalModeRef = useRef<VocalMode>(vocalMode);
+    const vocalSettingsRef = useRef(vocalSettings);
+    const normalizerEnabledRef = useRef<boolean>(normalizerEnabled);
+
+    useEffect(() => { sceneModeRef.current = sceneMode; }, [sceneMode]);
+    useEffect(() => { equalizerSettingsRef.current = equalizerSettings; }, [equalizerSettings]);
+    useEffect(() => { vocalModeRef.current = vocalMode; }, [vocalMode]);
+    useEffect(() => { vocalSettingsRef.current = vocalSettings; }, [vocalSettings]);
+    useEffect(() => { normalizerEnabledRef.current = normalizerEnabled; }, [normalizerEnabled]);
+
+    // Unified effects applicator: guarantees scene, EQ, vocal, and normalizer are active from the very first song and stay consistent across songs
+    const applyEffects = useCallback((
+        scene: SceneMode = sceneModeRef.current,
+        eq = equalizerSettingsRef.current,
+        vocal: VocalMode = vocalModeRef.current,
+        vSettings = vocalSettingsRef.current,
+        normalizer: boolean = normalizerEnabledRef.current
+    ) => {
+        if (!audioContextRef.current || biquadFiltersRef.current.length < 3) return;
+
+        const ctx = audioContextRef.current;
+        const [lowFilter, midFilter, highFilter] = biquadFiltersRef.current;
+        const convolver = convolverRef.current;
+        const dryGain = dryGainRef.current;
+        const wetGain = wetGainRef.current;
+        const compressor = compressorRef.current;
+
+        if (!convolver || !dryGain || !wetGain) return;
+
+        // 1. Calculate combined EQ (Scene EQ + Custom Equalizer + Vocal mode adjustments)
+        const scenePreset = scene === 'none' ? null : ALL_SCENES.find(s => s.id === scene);
+
+        let bassDb = (scenePreset?.eq.bass || 0) + (eq.bass || 0);
+        let midDb = (scenePreset?.eq.mid || 0) + (eq.mid || 0);
+        let trebleDb = (scenePreset?.eq.treble || 0) + (eq.treble || 0);
+
+        // Vocal mode adjustments
+        switch (vocal) {
+            case 'reduced':
+                midFilter.frequency.value = 1000;
+                midFilter.Q.value = 1.5;
+                midDb += -12 * (vSettings.isolation || 1);
+                break;
+            case 'karaoke':
+                midFilter.frequency.value = 1200;
+                midFilter.Q.value = 2.5;
+                midDb += -25;
+                trebleDb += -5;
+                break;
+            case 'bass_boost':
+                bassDb += 12;
+                midDb += 2;
+                break;
+            case 'normal':
+            default:
+                midFilter.frequency.value = 1500;
+                midFilter.Q.value = Math.max(0.5, vSettings.clarity * 0.8);
+                midDb += (vSettings.presence - 1) * 10;
+                trebleDb += (vSettings.clarity - 1) * 5;
+                break;
+        }
+
+        lowFilter.gain.value = bassDb;
+        midFilter.gain.value = midDb;
+        highFilter.gain.value = trebleDb;
+
+        // 2. Apply Reverb & Wet/Dry mix from Scene preset
+        if (!scenePreset) {
+            dryGain.gain.value = 1;
+            wetGain.gain.value = 0;
+            try { dryGain.gain.setTargetAtTime(1, ctx.currentTime, 0.05); } catch {}
+            try { wetGain.gain.setTargetAtTime(0, ctx.currentTime, 0.05); } catch {}
+        } else {
+            convolver.buffer = createImpulseResponse(ctx, scenePreset.reverb.duration, scenePreset.reverb.decay, scenePreset.reverb.reverse);
+            dryGain.gain.value = scenePreset.mix.dry;
+            wetGain.gain.value = scenePreset.mix.wet;
+            try { dryGain.gain.setTargetAtTime(scenePreset.mix.dry, ctx.currentTime, 0.05); } catch {}
+            try { wetGain.gain.setTargetAtTime(scenePreset.mix.wet, ctx.currentTime, 0.05); } catch {}
+        }
+
+        // 3. Audio Normalizer
+        if (compressor) {
+            compressor.ratio.value = normalizer ? 12 : 1;
+            compressor.threshold.value = normalizer ? -24 : 0;
+        }
+    }, []);
+
+    // Keep active effects applied whenever any setting changes
+    useEffect(() => {
+        applyEffects(sceneMode, equalizerSettings, vocalMode, vocalSettings, normalizerEnabled);
+    }, [sceneMode, equalizerSettings, vocalMode, vocalSettings, normalizerEnabled, applyEffects]);
+
+    // Connect primary audio source with effects chain
+    const connectAudioSource = useCallback((source: AudioNode, context: AudioContext) => {
         audioContextRef.current = context;
 
         // Create analyser
         const analyser = context.createAnalyser();
-        analyser.fftSize = 1024; // Increased from 256 for better resolution
+        analyser.fftSize = 1024;
         analyserRef.current = analyser;
-        setAnalyserNode(analyser); // Expose to state
+        setAnalyserNode(analyser);
 
         // Create convolver for reverb/scene effects
         const convolver = context.createConvolver();
@@ -316,6 +417,7 @@ export const AudioFXProvider = ({ children }: { children: React.ReactNode }) => 
         highFilter.frequency.value = 3000;
 
         biquadFiltersRef.current = [lowFilter, midFilter, highFilter];
+        inputFilterRef.current = lowFilter;
 
         // Create wet/dry gain nodes
         const dryGain = context.createGain();
@@ -329,11 +431,11 @@ export const AudioFXProvider = ({ children }: { children: React.ReactNode }) => 
 
         // Create dynamics compressor for normalizer
         const compressor = context.createDynamicsCompressor();
-        compressor.threshold.value = -24;  // Start compressing at -24dB
-        compressor.knee.value = 30;        // Soft knee for natural compression
-        compressor.ratio.value = 12;       // High ratio for limiting
-        compressor.attack.value = 0.003;   // Fast attack
-        compressor.release.value = 0.25;   // Moderate release
+        compressor.threshold.value = -24;
+        compressor.knee.value = 30;
+        compressor.ratio.value = 12;
+        compressor.attack.value = 0.003;
+        compressor.release.value = 0.25;
         compressorRef.current = compressor;
 
         // Connect chain: source -> filters
@@ -350,102 +452,36 @@ export const AudioFXProvider = ({ children }: { children: React.ReactNode }) => 
         convolver.connect(wetGain);
         wetGain.connect(analyser);
 
-        // Output: analyser -> compressor (if enabled) -> gainNode
+        // Output: analyser -> compressor -> gainNode
         analyser.connect(compressor);
         compressor.connect(gainNode);
 
-        // Initial Balance (Dry by default)
-        dryGain.gain.value = 1;
-        wetGain.gain.value = 0;
+        // Immediately apply all active user effects so the first song starts with chosen settings
+        applyEffects(sceneModeRef.current, equalizerSettingsRef.current, vocalModeRef.current, vocalSettingsRef.current, normalizerEnabledRef.current);
 
         return gainNode;
+    }, [applyEffects]);
+
+    // Connect secondary audio source (used during DJ crossfade so both tracks share the exact same FX)
+    const connectSecondarySource = useCallback((source: AudioNode) => {
+        if (inputFilterRef.current) {
+            try {
+                source.connect(inputFilterRef.current);
+            } catch (e) {
+                console.warn('Could not connect secondary audio source:', e);
+            }
+        }
     }, []);
 
     // Apply scene mode effects
     const setSceneMode = useCallback((mode: SceneMode) => {
         setSceneModeState(mode);
-
-        if (!audioContextRef.current || biquadFiltersRef.current.length < 3) return;
-
-        const ctx = audioContextRef.current;
-        const [lowFilter, midFilter, highFilter] = biquadFiltersRef.current;
-        const convolver = convolverRef.current;
-        const dryGain = dryGainRef.current;
-        const wetGain = wetGainRef.current;
-
-        if (!convolver || !dryGain || !wetGain) return;
-
-        // Reset EQ
-        lowFilter.gain.value = 0;
-        midFilter.gain.value = 0;
-        highFilter.gain.value = 0;
-
-        // 'none' (or an unknown id) = pure dry signal, no reverb.
-        const scene = mode === 'none' ? null : ALL_SCENES.find(s => s.id === mode);
-
-        if (!scene) {
-            dryGain.gain.setTargetAtTime(1, ctx.currentTime, 0.1);
-            wetGain.gain.setTargetAtTime(0, ctx.currentTime, 0.1);
-            return;
-        }
-
-        // Generic application: any library scene's tuned EQ + reverb + wet/dry mix.
-        lowFilter.gain.value = scene.eq.bass;
-        midFilter.gain.value = scene.eq.mid;
-        highFilter.gain.value = scene.eq.treble;
-        convolver.buffer = createImpulseResponse(ctx, scene.reverb.duration, scene.reverb.decay, scene.reverb.reverse);
-        dryGain.gain.setTargetAtTime(scene.mix.dry, ctx.currentTime, 0.1);
-        wetGain.gain.setTargetAtTime(scene.mix.wet, ctx.currentTime, 0.1);
     }, []);
 
     // Apply vocal mode
     const setVocalMode = useCallback((mode: VocalMode) => {
         setVocalModeState(mode);
-
-        if (!biquadFiltersRef.current.length) return;
-
-        const [lowFilter, midFilter, highFilter] = biquadFiltersRef.current;
-
-        switch (mode) {
-            case 'reduced':
-                midFilter.frequency.value = 1000;
-                midFilter.Q.value = 1.5;
-                midFilter.gain.value = -12 * (vocalSettings.isolation || 1);
-                break;
-            case 'karaoke':
-                midFilter.frequency.value = 1200;
-                midFilter.Q.value = 2.5;
-                midFilter.gain.value = -25;
-                highFilter.gain.value = -5;
-                break;
-            case 'bass_boost':
-                lowFilter.gain.value = 12;
-                midFilter.gain.value = 2;
-                break;
-            case 'normal':
-            default:
-                // Use custom settings if available, otherwise reset
-                if (mode === 'normal') {
-                    midFilter.gain.value = 0;
-                    midFilter.Q.value = 0.5;
-                }
-                break;
-        }
-    }, [vocalSettings]);
-
-    // Apply custom vocal settings in real-time
-    useEffect(() => {
-        if (!biquadFiltersRef.current.length || vocalMode !== 'normal') return;
-        const [lowFilter, midFilter, highFilter] = biquadFiltersRef.current;
-
-        // Mid range (vocals)
-        midFilter.frequency.value = 1500;
-        midFilter.gain.value = (vocalSettings.presence - 1) * 10;
-        midFilter.Q.value = vocalSettings.clarity * 0.8;
-
-        // Influence high/low for overall balance
-        highFilter.gain.value = (vocalSettings.clarity - 1) * 5;
-    }, [vocalSettings, vocalMode]);
+    }, []);
 
     // Audio Normalizer toggle
     const setNormalizerEnabled = useCallback((enabled: boolean) => {
@@ -486,6 +522,8 @@ export const AudioFXProvider = ({ children }: { children: React.ReactNode }) => 
             frequencyData,
             analyserNode,
             connectAudioSource,
+            connectSecondarySource,
+            applyCurrentEffects: () => applyEffects(),
             normalizerEnabled,
             setNormalizerEnabled,
             equalizerSettings,

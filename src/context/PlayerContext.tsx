@@ -86,7 +86,7 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
         setIs3DActive(mode !== 'off');
     };
     const { user, saveToPlayHistory } = useAuth();
-    const { connectAudioSource } = useAudioFX();
+    const { connectAudioSource, connectSecondarySource, applyCurrentEffects } = useAudioFX();
     const router = useRouter();
 
     // Free user play limit tracking
@@ -139,11 +139,34 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
         localStorage.setItem(INDEX_KEY, currentIndex.toString());
     }, [currentSong, queue, currentIndex]);
 
-    // Prefetch upcoming YouTube songs' stream URLs so the next track plays
-    // instantly (yt-dlp resolution is ~2s cold; this warms the server cache).
+    // Prefetch upcoming tracks' stream URLs so the next track plays
+    // instantly and DJ mode crossfade has ready audio streams.
     useEffect(() => {
         if (!queue.length) return;
-        prefetchYtStream(queue[currentIndex + 1]);
+        const nextTrack = queue[currentIndex + 1];
+        if (nextTrack) {
+            prefetchYtStream(nextTrack);
+            // If upcoming track doesn't have an audio URL yet, fetch its details so crossfade and transitions have ready audio
+            const trackId = String(nextTrack.songId || nextTrack.id || '');
+            if (trackId && !getAudio(nextTrack)) {
+                fetch(sourceUrl(`/songs/${trackId}`))
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data?.success && data?.data?.[0]) {
+                            const full = data.data[0];
+                            setQueue(prevQueue => {
+                                if (prevQueue[currentIndex + 1] && String(prevQueue[currentIndex + 1].songId || prevQueue[currentIndex + 1].id) === trackId) {
+                                    const nextQ = [...prevQueue];
+                                    nextQ[currentIndex + 1] = { ...prevQueue[currentIndex + 1], ...full };
+                                    return nextQ;
+                                }
+                                return prevQueue;
+                            });
+                        }
+                    })
+                    .catch(() => {});
+            }
+        }
         prefetchYtStream(queue[currentIndex + 2]);
     }, [currentSong, currentIndex, queue]);
 
@@ -196,6 +219,9 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
     // Web Audio API Refs
     const audioContextRef = useRef<AudioContext | null>(null);
     const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
+    const primaryGainRef = useRef<GainNode | null>(null);
+    const secSourceRef = useRef<MediaElementAudioSourceNode | null>(null);
+    const secGainRef = useRef<GainNode | null>(null);
     const pannerRef = useRef<PannerNode | null>(null);
     const fxGainRef = useRef<GainNode | null>(null);
 
@@ -286,15 +312,32 @@ const checkIsMobile = (): boolean => {
                 const ctx = new AudioContextClass();
                 audioContextRef.current = ctx;
 
-                // Create media source from primary audio element
+                // Create media source and fade gain for primary audio element
                 sourceRef.current = ctx.createMediaElementSource(audioRef.current);
+                const primGain = ctx.createGain();
+                primGain.gain.value = 1;
+                primaryGainRef.current = primGain;
+                sourceRef.current.connect(primGain);
 
                 // Create 3D panner
                 pannerRef.current = ctx.createPanner();
 
-                // Connect to AudioFX effects chain
-                // source -> AudioFX chain -> fxGain
-                fxGainRef.current = connectAudioSource(sourceRef.current, ctx);
+                // Connect to AudioFX effects chain: primGain -> AudioFX chain -> fxGain
+                fxGainRef.current = connectAudioSource(primGain, ctx);
+
+                // Wire up secondary element if present for DJ crossfade
+                if (crossfadeAudioRef.current && !secSourceRef.current) {
+                    try {
+                        secSourceRef.current = ctx.createMediaElementSource(crossfadeAudioRef.current);
+                        const sGain = ctx.createGain();
+                        sGain.gain.value = 0;
+                        secGainRef.current = sGain;
+                        secSourceRef.current.connect(sGain);
+                        connectSecondarySource(sGain);
+                    } catch (e) {
+                        console.warn('Could not wire secondary audio element to Web Audio:', e);
+                    }
+                }
 
                 // Configure Panner for 3D effect (HRTF)
                 if (pannerRef.current) {
@@ -312,7 +355,7 @@ const checkIsMobile = (): boolean => {
                 console.warn('Web Audio initialization error:', err);
             }
         }
-    }, [connectAudioSource, is3DActive]);
+    }, [connectAudioSource, connectSecondarySource, is3DActive]);
 
     // Handle Routing with optional 3D Panner
     useEffect(() => {
@@ -795,9 +838,17 @@ const checkIsMobile = (): boolean => {
                         }
                     });
                 }
-                // Resume audio context if needed (desktop only)
-                if (!checkIsMobile() && audioContextRef.current?.state === 'suspended') {
-                    audioContextRef.current.resume();
+                // Resume audio context if needed (desktop only) and guarantee AudioFX applies
+                if (!checkIsMobile() && audioContextRef.current) {
+                    if (primaryGainRef.current) primaryGainRef.current.gain.value = 1;
+                    if (secGainRef.current) secGainRef.current.gain.value = 0;
+                    if (audioContextRef.current.state === 'suspended') {
+                        audioContextRef.current.resume().then(() => {
+                            applyCurrentEffects?.();
+                        }).catch(() => {});
+                    } else {
+                        applyCurrentEffects?.();
+                    }
                 }
             }
 
@@ -856,8 +907,16 @@ const checkIsMobile = (): boolean => {
                                 }
                             });
                         }
-                        if (!checkIsMobile() && audioContextRef.current?.state === 'suspended') {
-                            audioContextRef.current.resume();
+                        if (!checkIsMobile() && audioContextRef.current) {
+                            if (primaryGainRef.current) primaryGainRef.current.gain.value = 1;
+                            if (secGainRef.current) secGainRef.current.gain.value = 0;
+                            if (audioContextRef.current.state === 'suspended') {
+                                audioContextRef.current.resume().then(() => {
+                                    applyCurrentEffects?.();
+                                }).catch(() => {});
+                            } else {
+                                applyCurrentEffects?.();
+                            }
                         }
                     } else {
                         console.log('No playable audio source for track', trackId);
@@ -1145,10 +1204,15 @@ const checkIsMobile = (): boolean => {
             crossfadeRafRef.current = null;
         }
         if (!isCrossfadingRef.current) return;
+
         // Restore primary gain / volume
-        if (fxGainRef.current) {
-            try { fxGainRef.current.gain.value = crossfadePrevGainRef.current; } catch { /* noop */ }
-        } else if (audioRef.current) {
+        if (primaryGainRef.current) {
+            try { primaryGainRef.current.gain.value = 1; } catch { /* noop */ }
+        }
+        if (secGainRef.current) {
+            try { secGainRef.current.gain.value = 0; } catch { /* noop */ }
+        }
+        if (audioRef.current) {
             audioRef.current.volume = volume;
         }
         const sec = crossfadeAudioRef.current;
@@ -1156,6 +1220,7 @@ const checkIsMobile = (): boolean => {
             try { sec.pause(); sec.removeAttribute('src'); sec.volume = 0; } catch { /* noop */ }
         }
         isCrossfadingRef.current = false;
+        applyCurrentEffects?.();
     };
 
     const finishCrossfade = (nextSong: any, nextIdx: number, nextUrl: string, origGain: number) => {
@@ -1166,22 +1231,29 @@ const checkIsMobile = (): boolean => {
 
         const pos = sec.currentTime;
         // Hand the new track back to the PRIMARY element so the Web Audio graph
-        // (FX, 3D panner, visualizer analyser) keeps working on the new song.
+        // (FX, 3D panner, visualizer analyser) keeps working on the new song without interruption.
         try {
-            primary.src = nextUrl;
-            primary.crossOrigin = 'anonymous';
-            if (fxGainRef.current) {
-                try { fxGainRef.current.gain.value = origGain; } catch { /* noop */ }
+            if (!checkIsMobile()) {
+                primary.crossOrigin = 'anonymous';
             } else {
-                primary.volume = volume;
+                primary.removeAttribute('crossorigin');
             }
+            primary.src = nextUrl;
+            if (primaryGainRef.current) {
+                try { primaryGainRef.current.gain.value = 1; } catch { /* noop */ }
+            }
+            if (secGainRef.current) {
+                try { secGainRef.current.gain.value = 0; } catch { /* noop */ }
+            }
+            primary.volume = volume;
+
             // Continue the new track from where the crossfade element had it (≈pos),
-            // not 0 — but the seek must wait until the fresh src has metadata, else the
-            // browser resets currentTime to 0 and the song replays its intro.
+            // not 0 — but the seek must wait until the fresh src has metadata.
             const start = () => {
                 try { if (pos > 0 && isFinite(pos)) primary.currentTime = pos; } catch { /* noop */ }
                 const p = primary.play();
                 if (p !== undefined) p.catch(() => { /* autoplay policy */ });
+                applyCurrentEffects?.();
             };
             if (primary.readyState >= 1) start();
             else { primary.addEventListener('loadedmetadata', start, { once: true }); primary.load(); }
@@ -1195,6 +1267,7 @@ const checkIsMobile = (): boolean => {
         setCurrentSong(nextSong);
         setIsPlaying(true);
         isCrossfadingRef.current = false;
+        applyCurrentEffects?.();
 
         // Persist history for signed-in users
         if (user) {
@@ -1220,20 +1293,39 @@ const checkIsMobile = (): boolean => {
         const nextUrl = getAudio(nextSong);
         if (!nextUrl) return false; // next track has no ready stream — let onEnded handle it
 
+        // Wire secondary element to Web Audio on desktop if not yet wired
+        if (!checkIsMobile() && audioContextRef.current && !secSourceRef.current) {
+            try {
+                secSourceRef.current = audioContextRef.current.createMediaElementSource(sec);
+                const sGain = audioContextRef.current.createGain();
+                sGain.gain.value = 0;
+                secGainRef.current = sGain;
+                secSourceRef.current.connect(sGain);
+                connectSecondarySource(sGain);
+            } catch (e) {
+                console.warn('Could not wire secondary audio element to Web Audio:', e);
+            }
+        }
+
         isCrossfadingRef.current = true;
 
-        // Primary fades out via the FX gain node (reliable inside the Web Audio graph);
-        // fall back to element.volume if the graph isn't ready.
-        const useGain = !!fxGainRef.current;
-        const origGain = useGain ? fxGainRef.current!.gain.value : primary.volume;
-        crossfadePrevGainRef.current = origGain;
+        const isDesktopWebAudio = !checkIsMobile() && !!audioContextRef.current && !!primaryGainRef.current && !!secGainRef.current;
 
-        // Secondary plays the next track from 0, faded in via element.volume.
+        // Prepare secondary element
         try {
+            if (!checkIsMobile()) {
+                sec.crossOrigin = 'anonymous';
+            } else {
+                sec.removeAttribute('crossorigin');
+            }
             sec.src = nextUrl;
-            sec.crossOrigin = 'anonymous';
             sec.currentTime = 0;
-            sec.volume = 0;
+            if (isDesktopWebAudio && secGainRef.current) {
+                sec.volume = volume;
+                secGainRef.current.gain.value = 0;
+            } else {
+                sec.volume = 0;
+            }
             const sp = sec.play();
             if (sp !== undefined) sp.catch(() => { /* noop */ });
         } catch {
@@ -1247,19 +1339,23 @@ const checkIsMobile = (): boolean => {
 
         const step = (nowTs: number) => {
             const t = Math.min(1, (nowTs - startTs) / totalMs);
-            // Fade out primary
-            if (useGain && fxGainRef.current) {
-                try { fxGainRef.current.gain.value = origGain * (1 - t); } catch { /* noop */ }
+
+            if (isDesktopWebAudio && primaryGainRef.current && secGainRef.current) {
+                // Both primary and secondary tracks blend within the exact same AudioFX chain
+                try {
+                    primaryGainRef.current.gain.value = 1 - t;
+                    secGainRef.current.gain.value = t;
+                } catch { /* noop */ }
             } else {
+                // Fallback / Mobile native element volume fade
                 try { primary.volume = targetVol * (1 - t); } catch { /* noop */ }
+                try { sec.volume = targetVol * t; } catch { /* noop */ }
             }
-            // Fade in secondary
-            try { sec.volume = targetVol * t; } catch { /* noop */ }
 
             if (t < 1) {
                 crossfadeRafRef.current = requestAnimationFrame(step);
             } else {
-                finishCrossfade(nextSong, nextIdx, nextUrl, origGain);
+                finishCrossfade(nextSong, nextIdx, nextUrl, 1);
             }
         };
         crossfadeRafRef.current = requestAnimationFrame(step);
@@ -1287,6 +1383,28 @@ const checkIsMobile = (): boolean => {
         const nextSong = queue[nextIdx];
         if (!nextSong) return;
 
+        // If nextSong audioUrl isn't loaded yet, try fetching it before song ends
+        if (!getAudio(nextSong)) {
+            const trackId = String(nextSong.songId || nextSong.id || '');
+            if (trackId) {
+                fetch(sourceUrl(`/songs/${trackId}`))
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data?.success && data?.data?.[0]) {
+                            const fullSong = data.data[0];
+                            setQueue(prevQ => {
+                                const updated = [...prevQ];
+                                updated[nextIdx] = fullSong;
+                                return updated;
+                            });
+                            startCrossfade(fullSong, nextIdx, dj.duration);
+                        }
+                    })
+                    .catch(() => {});
+            }
+            return;
+        }
+
         startCrossfade(nextSong, nextIdx, dj.duration);
     };
 
@@ -1299,7 +1417,7 @@ const checkIsMobile = (): boolean => {
                 recordSkip(currentSong);
             }
         } catch { /* non-critical */ }
-        cancelCrossfade();
+
         if (queue.length === 0) return;
 
         // Track current song artist for smart shuffle
@@ -1339,6 +1457,7 @@ const checkIsMobile = (): boolean => {
                 if (repeatMode === 'all') {
                     nextIdx = 0;
                 } else if (autoPlay && currentSong) {
+                    cancelCrossfade();
                     // Autoplay is ON - fetch more related songs and continue playing
                     fetchMoreSongsForAutoplay(currentSong).then(moreSongs => {
                         if (moreSongs.length > 0) {
@@ -1356,12 +1475,61 @@ const checkIsMobile = (): boolean => {
                     return; // Exit early, playTrack will be called in the Promise
                 } else {
                     // Stop at end
+                    cancelCrossfade();
                     setIsPlaying(false);
                     return;
                 }
             }
         }
 
+        // Check if DJ Mode is active and we can do a smooth crossfade blend into the next song
+        const dj = getDJConfig();
+        const nextSong = queue[nextIdx];
+        if (dj.enabled && isPlaying && audioRef.current && !audioRef.current.paused && nextSong) {
+            const hasAudio = getAudio(nextSong);
+            if (hasAudio) {
+                // Smooth DJ blend over ~3 seconds on manual track skip!
+                const crossfadeDuration = Math.min(3, dj.duration);
+                cancelCrossfade();
+                const blended = startCrossfade(nextSong, nextIdx, crossfadeDuration);
+                if (blended) return;
+            } else {
+                // If nextSong audioUrl isn't loaded yet, try fetching it fast
+                const trackId = String(nextSong.songId || nextSong.id || '');
+                if (trackId) {
+                    fetch(sourceUrl(`/songs/${trackId}`))
+                        .then(r => r.json())
+                        .then(data => {
+                            if (data?.success && data?.data?.[0]) {
+                                const fullSong = data.data[0];
+                                setQueue(prevQ => {
+                                    const updated = [...prevQ];
+                                    updated[nextIdx] = fullSong;
+                                    return updated;
+                                });
+                                cancelCrossfade();
+                                const blended = startCrossfade(fullSong, nextIdx, Math.min(3, dj.duration));
+                                if (!blended) {
+                                    setCurrentIndex(nextIdx);
+                                    playTrack(fullSong, queue);
+                                }
+                            } else {
+                                cancelCrossfade();
+                                setCurrentIndex(nextIdx);
+                                playTrack(nextSong, queue);
+                            }
+                        })
+                        .catch(() => {
+                            cancelCrossfade();
+                            setCurrentIndex(nextIdx);
+                            playTrack(nextSong, queue);
+                        });
+                    return;
+                }
+            }
+        }
+
+        cancelCrossfade();
         setCurrentIndex(nextIdx);
         // Pass the existing queue to prevent fetchSimilarSongs from modifying the queue
         playTrack(queue[nextIdx], queue);
@@ -1625,8 +1793,8 @@ const checkIsMobile = (): boolean => {
                     setIsPlaying(false);
                 }}
             />
-            {/* Secondary element used only for DJ-mode crossfade (not wired to Web Audio) */}
-            <audio ref={crossfadeAudioRef} crossOrigin="anonymous" preload="auto" playsInline {...{ 'webkit-playsinline': 'true' }} />
+            {/* Secondary element used only for DJ-mode crossfade (wired to Web Audio on desktop, native on mobile) */}
+            <audio ref={crossfadeAudioRef} preload="auto" playsInline {...{ 'webkit-playsinline': 'true' }} />
         </PlayerContext.Provider>
     );
 }
